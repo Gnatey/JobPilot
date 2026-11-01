@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 /** Page affichée tant que l'app n'a pas ses variables. N'affiche jamais les valeurs, seulement leur présence. */
 export default function Configuration() {
-  const rows = ENV_VARS.map((v) => ({ ...v, ok: Boolean(process.env[v.name]) || Boolean(v.alt && process.env[v.alt]) }));
+  const rows = ENV_VARS.map((v) => ({ ...v, ok: Boolean(process.env[v.name]) || [v.alt ?? []].flat().some((k) => Boolean(process.env[k])) }));
   const missingRequired = rows.filter((r) => r.required && !r.ok);
   const urlProblem = SUPABASE_URL && !supabaseConfigured()
     ? SUPABASE_ANON_KEY !== SUPABASE_ANON_KEY.trim() ? "La clé Supabase contient un espace ou un retour à la ligne au début ou à la fin." : "NEXT_PUBLIC_SUPABASE_URL n'est pas une adresse valide : elle doit ressembler à https://abcd1234.supabase.co, sans guillemets ni espace."

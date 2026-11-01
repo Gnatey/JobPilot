@@ -3,15 +3,39 @@ import { HttpError } from "./supabase/server";
 import { timeLeft } from "./budget";
 
 /**
- * Couche IA : Gemini (gratuit via Google AI Studio) ou Claude, au choix.
- * Choix automatique : Gemini si GEMINI_API_KEY est présente, sinon Claude.
- * Forcer avec AI_PROVIDER=gemini ou AI_PROVIDER=anthropic.
+ * Couche IA : plusieurs fournisseurs, avec répartition des tâches et bascule automatique.
+ *  - Gemini (Google AI Studio), Groq et Mistral : gratuits. Claude : payant.
+ *  - Deux familles de tâches : « fast » (tri d'emails, extraction : beaucoup de volume) et « main » (analyse, rédaction de CV).
+ *    Chaque famille a sa chaîne de fournisseurs : le premier qui répond gagne ; s'il est saturé, a atteint sa limite ou échoue, on passe au suivant.
+ *  - Seuls les fournisseurs dont la clé est présente comptent : avec la seule clé Gemini, rien ne change.
+ *  - AI_PROVIDER=gemini|groq|mistral|anthropic impose un fournisseur unique ; AI_FAST_CHAIN / AI_MAIN_CHAIN (ex. « groq,mistral,gemini ») fixent l'ordre.
  */
-export function provider(): "gemini" | "anthropic" {
-  const p = process.env.AI_PROVIDER?.toLowerCase();
-  if (p === "gemini" || p === "anthropic") return p;
-  return process.env.GEMINI_API_KEY ? "gemini" : "anthropic";
+export type ProviderId = "gemini" | "groq" | "mistral" | "anthropic";
+
+const KEYS: Record<ProviderId, string> = { gemini: "GEMINI_API_KEY", groq: "GROQ_API_KEY", mistral: "MISTRAL_API_KEY", anthropic: "ANTHROPIC_API_KEY" };
+export const PROVIDER_NAMES: Record<ProviderId, string> = { gemini: "Google (Gemini)", groq: "Groq", mistral: "Mistral AI", anthropic: "Anthropic (Claude)" };
+
+/** Tri d'emails et extraction d'abord sur Groq (rapide, gros volume) ; analyse et rédaction d'abord sur Gemini. Chacun est le secours de l'autre. */
+const DEFAULT_CHAIN: Record<"fast" | "main", ProviderId[]> = {
+  fast: ["groq", "mistral", "gemini", "anthropic"],
+  main: ["gemini", "mistral", "groq", "anthropic"],
+};
+
+const isProvider = (s: string): s is ProviderId => s in KEYS;
+const configured = (id: ProviderId) => Boolean(process.env[KEYS[id]]);
+
+/** Fournisseurs à essayer, dans l'ordre, pour cette famille de tâches (seuls ceux dont la clé est présente). */
+export function chainFor(fast: boolean): ProviderId[] {
+  const forced = process.env.AI_PROVIDER?.toLowerCase().trim();
+  if (forced && isProvider(forced)) return configured(forced) ? [forced] : [];
+  const custom = (process.env[fast ? "AI_FAST_CHAIN" : "AI_MAIN_CHAIN"] ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(isProvider);
+  return [...new Set(custom.length ? custom : DEFAULT_CHAIN[fast ? "fast" : "main"])].filter(configured);
 }
+
+/** Tous les fournisseurs réellement utilisés (pour Réglages, la page confidentialité et le test). */
+export const activeProviders = (): ProviderId[] => [...new Set([...chainFor(false), ...chainFor(true)])];
+
+export const provider = (): ProviderId => chainFor(false)[0] ?? chainFor(true)[0] ?? "gemini";
 
 const MODELS = {
   gemini: {
@@ -22,12 +46,23 @@ const MODELS = {
     main: () => process.env.CLAUDE_MODEL || "claude-sonnet-5-5",
     fast: () => process.env.CLAUDE_FAST_MODEL || "claude-haiku-5-5",
   },
+  groq: {
+    main: () => process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+    fast: () => process.env.GROQ_FAST_MODEL || "openai/gpt-oss-20b",
+  },
+  mistral: {
+    main: () => process.env.MISTRAL_MODEL || "mistral-large-latest",
+    fast: () => process.env.MISTRAL_FAST_MODEL || "mistral-small-latest",
+  },
 };
+const modelOf = (id: ProviderId, fast: boolean) => (fast ? MODELS[id].fast() : MODELS[id].main());
 
-/** Quel fournisseur et quels modèles sont utilisés (affiché dans Réglages). */
+/** Quels fournisseurs et quels modèles sont utilisés (affiché dans Réglages). */
 export function modelInfo() {
-  const p = provider();
-  return { provider: p, main: MODELS[p].main(), fast: MODELS[p].fast(), configured: p === "gemini" ? Boolean(process.env.GEMINI_API_KEY) : Boolean(process.env.ANTHROPIC_API_KEY) };
+  const fast = chainFor(true), main = chainFor(false);
+  const describe = (ids: ProviderId[], isFast: boolean) => ids.map((id) => ({ id, name: PROVIDER_NAMES[id], model: modelOf(id, isFast) }));
+  const first = provider();
+  return { provider: first, main: modelOf(first, false), fast: modelOf(first, true), configured: main.length > 0 || fast.length > 0, chains: { fast: describe(fast, true), main: describe(main, false) } };
 }
 
 type Opts = {
@@ -41,11 +76,65 @@ type Opts = {
   thinking?: number | null;
   /** Travail en arrière-plan (personne n'attend devant l'écran) : délais plus larges avant d'abandonner */
   patient?: boolean;
+  /** Interne : un autre fournisseur peut prendre le relais, donc inutile d'insister sur celui-ci quand il est saturé */
+  failover?: boolean;
 };
 
-/** Appelle le modèle et renvoie un objet JSON conforme au schéma. */
+/** Erreur « saturé / limite atteinte » d'un fournisseur, avec le délai d'attente qu'il indique (en secondes). */
+class Busy extends HttpError {
+  constructor(status: number, message: string, public retryAfter?: number) {
+    super(status, message);
+  }
+}
+
+const BUSY_ALL = "Toutes les IA configurées sont saturées ou ont atteint leur limite du jour. Réessaie dans quelques minutes : rien n'est perdu.";
+const call = <T>(id: ProviderId, o: Opts): Promise<T> => (id === "gemini" ? gemini<T>(o) : id === "anthropic" ? claude<T>(o) : compat<T>(id, o));
+
+/**
+ * Fournisseurs qui viennent de répondre « saturé » (429) : on les met en pause quelques minutes et on les essaie en dernier,
+ * pour ne pas perdre une demi-seconde à chaque appel sur un quota déjà épuisé. Mémoire de l'instance seulement : c'est une aide, pas une garantie.
+ */
+const cooldown = new Map<ProviderId, number>();
+const COOL_MAX_MS = 10 * 60_000;
+const coolDown = (id: ProviderId, ms: number) => cooldown.set(id, Date.now() + Math.min(Math.max(ms, 15_000), COOL_MAX_MS));
+const cooling = (id: ProviderId) => (cooldown.get(id) ?? 0) > Date.now();
+
+/** Appelle l'IA et renvoie un objet JSON conforme au schéma, en essayant les fournisseurs de la chaîne dans l'ordre. */
 export async function structured<T>(opts: Opts): Promise<T> {
-  return provider() === "gemini" ? gemini<T>(opts) : claude<T>(opts);
+  const all = chainFor(Boolean(opts.fast));
+  if (!all.length) throw new HttpError(500, "Aucune clé IA : ajoute GEMINI_API_KEY (gratuit) dans Vercel. GROQ_API_KEY et MISTRAL_API_KEY (gratuits aussi) répartissent la charge.");
+  const chain = [...all.filter((id) => !cooling(id)), ...all.filter(cooling)];
+  let busy = 0;
+  for (let i = 0; i < chain.length; i++) {
+    const rest = chain.length - i - 1;
+    try {
+      return await call<T>(chain[i], { ...opts, failover: rest > 0 });
+    } catch (e) {
+      const status = e instanceof HttpError ? e.status : (e as { status?: number })?.status;
+      if (status === 429) coolDown(chain[i], e instanceof Busy && e.retryAfter ? e.retryAfter * 1000 : 60_000);
+      if (status && [429, 503, 504].includes(status)) busy++;
+      // Dernier fournisseur, ou plus assez de temps pour en essayer un autre : l'erreur remonte
+      if (!rest || timeLeft() < 9_000) {
+        if (chain.length > 1 && busy === i + 1 && !(e instanceof HttpError && e.status === 504)) throw new HttpError(503, BUSY_ALL);
+        throw e;
+      }
+      console.warn(`[ia] ${chain[i]} n'a pas pu répondre (${e instanceof Error ? e.message : e}) : bascule sur ${chain[i + 1]}`);
+    }
+  }
+  throw new HttpError(503, BUSY_ALL);
+}
+
+/** Interroge chaque fournisseur configuré, un par un (bouton « Tester l'IA » de Réglages). */
+export async function pingProviders() {
+  return Promise.all(activeProviders().map(async (id) => {
+    const t0 = Date.now();
+    try {
+      await call<{ ok: boolean }>(id, { fast: true, maxTokens: 50, system: "Réponds ok=true.", prompt: "ping", schema: { properties: { ok: { type: "boolean" } }, required: ["ok"] } });
+      return { id, name: PROVIDER_NAMES[id], model: modelOf(id, true), ok: true as const, ms: Date.now() - t0 };
+    } catch (e) {
+      return { id, name: PROVIDER_NAMES[id], model: modelOf(id, true), ok: false as const, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) };
+    }
+  }));
 }
 
 /* ---------------- Gemini ---------------- */
@@ -87,6 +176,7 @@ async function gemini<T>(opts: Opts, st: GState = {}): Promise<T> {
 
   // Saturation (503, 500…) ou délai dépassé : on patiente un peu, puis on bascule sur le modèle léger, souvent moins chargé
   const overloaded = async (): Promise<T> => {
+    if (opts.failover) throw new Busy(503, BUSY_MSG); // un autre fournisseur prend le relais : inutile d'insister ici
     if (timeLeft() < 15_000) throw new HttpError(504, TIME_MSG);
     if (Date.now() - t0 > (opts.patient ? 130_000 : 50_000)) throw new HttpError(503, BUSY_MSG); // plus assez de temps devant nous
     if (busy < 2) {
@@ -131,7 +221,7 @@ async function gemini<T>(opts: Opts, st: GState = {}): Promise<T> {
     });
   } catch {
     // Délai dépassé avec un temps imparti serré : inutile de réessayer le même modèle, on passe au modèle léger
-    if (!useFast && Number.isFinite(left)) {
+    if (!useFast && Number.isFinite(left) && !opts.failover) {
       if (timeLeft() < 15_000) throw new HttpError(504, TIME_MSG);
       return again({ forceFast: true, busy: 0 });
     }
@@ -150,8 +240,8 @@ async function gemini<T>(opts: Opts, st: GState = {}): Promise<T> {
       return again({ relax: Math.min(next, MAX_RELAX) });
     }
     // Quota du modèle principal épuisé : on bascule sur le modèle léger
-    if (res.status === 429 && !useFast) return again({ forceFast: true, busy: 0 });
-    if (res.status === 429) throw new HttpError(429, "Quota gratuit Gemini atteint pour aujourd'hui. Il se remet à zéro vers 9 h (heure de Paris).");
+    if (res.status === 429 && !useFast && !opts.failover) return again({ forceFast: true, busy: 0 });
+    if (res.status === 429) throw new Busy(429, "Quota gratuit Gemini atteint pour aujourd'hui. Il se remet à zéro vers 9 h (heure de Paris).", Number(res.headers?.get?.("retry-after")) || undefined);
     if (res.status === 400 && /API key/i.test(msg)) throw new HttpError(500, "Clé Gemini invalide : vérifie GEMINI_API_KEY dans Vercel.");
     if (res.status >= 500 || json.error?.status === "UNAVAILABLE" || /high demand|overloaded/i.test(msg)) return overloaded();
     throw new Error(`Gemini (${model}, niveau ${relax}) : ${msg}`);
@@ -167,6 +257,105 @@ async function gemini<T>(opts: Opts, st: GState = {}): Promise<T> {
     const time = Date.now() - t0 < (opts.patient ? 200_000 : 90_000) && timeLeft() > 25_000;
     if (time && (attempt < 1 || (cut && attempt < 2))) return again({ attempt: attempt + 1, ...(cut ? { grow: (st.grow ?? 1) * 1.8, lowThink: true } : {}) });
     throw new Error(`Réponse illisible de Gemini${reason ? ` (${reason})` : ""}`);
+  }
+}
+
+/* ---------------- Groq et Mistral (API « chat completions » compatible OpenAI) ---------------- */
+
+const COMPAT = {
+  groq: { url: () => `${process.env.GROQ_API_BASE || "https://api.groq.com/openai/v1"}/chat/completions`, env: "GROQ_API_KEY", label: "Groq" },
+  mistral: { url: () => `${process.env.MISTRAL_API_BASE || "https://api.mistral.ai/v1"}/chat/completions`, env: "MISTRAL_API_KEY", label: "Mistral" },
+} as const;
+
+type CompatResponse = {
+  choices?: { message?: { content?: string | { type?: string; text?: string }[] | null }; finish_reason?: string }[];
+  error?: { message?: string; type?: string; code?: string | number } | string;
+};
+
+type CState = {
+  relax?: number; // 0 = schéma JSON demandé au fournisseur · 1 = « objet JSON » + schéma dans la consigne · 2 = en plus sans réglage de réflexion
+  grow?: number;  // place supplémentaire après une réponse coupée
+  attempt?: number;
+};
+
+/** Les clés « required » du schéma doivent toutes être présentes : sinon la réponse est écartée et le fournisseur suivant prend le relais. */
+function checkShape(value: unknown, schema: Record<string, unknown>) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Réponse inattendue (pas un objet JSON)");
+  const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
+  const missing = required.filter((k) => !(k in (value as Record<string, unknown>)));
+  if (missing.length) throw new Error(`Réponse incomplète (manque : ${missing.join(", ")})`);
+}
+
+async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): Promise<T> {
+  const cfg = COMPAT[id];
+  const key = process.env[cfg.env];
+  if (!key) throw new HttpError(500, `${cfg.env} manquante dans les variables d'environnement`);
+  const relax = st.relax ?? 0;
+  const model = modelOf(id, Boolean(opts.fast));
+  const schema = { type: "object", ...opts.schema };
+  const again = (patch: CState) => compat<T>(id, opts, { ...st, ...patch });
+  const left = timeLeft();
+  if (left < 7_000) throw new HttpError(504, TIME_MSG);
+  // Pas de réflexion interne « maximale » sur ces modèles : plus rapide, et la place de réponse reste raisonnable pour les plafonds de débit du palier gratuit
+  const maxTokens = Math.min(16_000, Math.round(((opts.maxTokens ?? 4000) + 1500) * (st.grow ?? 1)));
+  const reasoning = id === "groq" && model.startsWith("openai/gpt-oss") && relax < 2 ? { reasoning_effort: (opts.thinking ?? 1024) <= 512 || opts.fast ? "low" : "medium" } : {};
+  const base = opts.patient ? 70_000 : opts.fast ? 25_000 : 40_000;
+  const timeout = Math.max(5_000, Math.min(base, left - 2_000));
+
+  let res: Response;
+  try {
+    res = await fetch(cfg.url(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: `${opts.system}\n\nRéponds UNIQUEMENT par un objet JSON valide, conforme à ce schéma JSON :\n${JSON.stringify(schema)}` },
+          { role: "user", content: opts.prompt },
+        ],
+        response_format: relax === 0 ? { type: "json_schema", json_schema: { name: (opts.name ?? "respond").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60), schema, strict: false } } : { type: "json_object" },
+        [id === "groq" ? "max_completion_tokens" : "max_tokens"]: maxTokens,
+        temperature: 0.4,
+        ...reasoning,
+      }),
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch {
+    throw new Busy(503, `${cfg.label} n'a pas répondu à temps.`); // délai dépassé ou coupure réseau
+  }
+  const json = (await res.json().catch(() => ({}))) as CompatResponse;
+
+  if (!res.ok) {
+    const msg = typeof json.error === "string" ? json.error : (json.error?.message ?? `HTTP ${res.status}`);
+    // Demande refusée (400/422) : on la simplifie (schéma JSON → « objet JSON » → sans réglage de réflexion)
+    if ((res.status === 400 || res.status === 422) && relax < 2) return again({ relax: relax + 1 });
+    if (res.status === 401 || res.status === 403) throw new HttpError(500, `Clé ${cfg.label} invalide : vérifie ${cfg.env} dans Vercel.`);
+    if (res.status === 429) {
+      const wait = Number(res.headers?.get?.("retry-after")) || undefined;
+      // Dernier recours (aucun autre fournisseur) et attente courte : on patiente une fois
+      if (!opts.failover && wait && wait <= 6 && timeLeft() > wait * 1000 + 15_000 && !st.attempt) {
+        await sleep(wait * 1000);
+        return again({ attempt: 1 });
+      }
+      throw new Busy(429, `${cfg.label} : limite gratuite atteinte pour le moment.`, wait);
+    }
+    if (res.status >= 500) throw new Busy(503, `${cfg.label} est saturé en ce moment.`);
+    // 413 (demande trop grosse pour le palier gratuit) et le reste : on passe au fournisseur suivant
+    throw new Error(`${cfg.label} (${model}) : ${msg}`);
+  }
+
+  const choice = json.choices?.[0];
+  const content = choice?.message?.content;
+  const text = (Array.isArray(content) ? content.map((p) => p.text ?? "").join("") : (content ?? "")).trim();
+  // Réponse coupée : on redemande une fois avec plus de place
+  if (choice?.finish_reason === "length" && !st.grow && timeLeft() > 20_000) return again({ grow: 1.7 });
+  try {
+    const parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim());
+    checkShape(parsed, schema);
+    return parsed as T;
+  } catch (e) {
+    if (!st.attempt && timeLeft() > 20_000) return again({ attempt: 1 });
+    throw new Error(`Réponse inutilisable de ${cfg.label}${choice?.finish_reason ? ` (${choice.finish_reason})` : ""} : ${e instanceof Error ? e.message : e}`);
   }
 }
 

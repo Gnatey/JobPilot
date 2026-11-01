@@ -43,7 +43,7 @@ export default async function Parametres({ searchParams }: { searchParams: Promi
   const dbOk = !interviewCol.error && !diagTable.error && !usageTable.error && !cronCol.error;
   const sources = activeSources();
   const checks: Check[] = [
-    { id: "ai", label: `IA (${ai.provider === "gemini" ? "Gemini" : "Claude"})`, state: ai.configured ? "ok" : "todo", hint: "Ajoute GEMINI_API_KEY dans Vercel (clé gratuite sur aistudio.google.com), puis redéploie." },
+    { id: "ai", label: `IA (${[...new Set([...ai.chains.main, ...ai.chains.fast].map((p) => p.name))].join(", ") || "aucune clé"})`, state: ai.configured ? "ok" : "todo", hint: "Ajoute GEMINI_API_KEY dans Vercel (clé gratuite sur aistudio.google.com), puis redéploie. GROQ_API_KEY et MISTRAL_API_KEY (gratuites aussi) répartissent la charge." },
     { id: "db", label: "Base de données à jour", state: dbOk ? "ok" : "todo", hint: "Une mise à jour de la base est disponible (agenda, pages plus rapides, quota IA par personne). Détails juste en dessous." },
     { id: "cron", label: "Tâche automatique du matin", state: has("SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET") ? "ok" : "todo", hint: "Ajoute SUPABASE_SERVICE_ROLE_KEY et CRON_SECRET dans Vercel, puis redéploie." },
     { id: "gmail", label: "Connexion Gmail", state: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") ? "ok" : "todo", hint: "Ajoute GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans Vercel, puis redéploie." },

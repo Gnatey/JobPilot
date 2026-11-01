@@ -139,18 +139,28 @@ export function Prefs({ maxYears, weeklyGoal }: { maxYears: number | null; weekl
 /** Test réel de la clé IA : un tout petit appel, avec le modèle et le temps de réponse. */
 export function AiTest() {
   const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
+  type Line = { id: string; name: string; model: string; ok: boolean; ms: number; error?: string };
+  const [res, setRes] = useState<{ error?: string; lines?: Line[] } | null>(null);
   async function run() {
     setBusy(true);
     setRes(null);
     const r = await fetch("/api/health/ai", { method: "POST" }).then((r) => r.json()).catch(() => ({ error: "Connexion interrompue." }));
     setBusy(false);
-    setRes(r.error ? { ok: false, text: r.error } : { ok: true, text: `L'IA répond en ${(r.ms / 1000).toFixed(1)} s (${r.main}).` });
+    setRes(r.error ? { error: r.error } : { lines: r.providers as Line[] });
   }
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div>
       <button className="btn btn-sm" onClick={run} disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} Tester l'IA</button>
-      {res && <p className={`text-sm ${res.ok ? "text-good" : "text-bad"}`} role="status">{res.text}</p>}
+      {res?.error && <p className="mt-2 text-sm text-bad" role="status">{res.error}</p>}
+      {res?.lines && (
+        <ul className="mt-2 space-y-1 text-sm" role="status">
+          {res.lines.map((l) => (
+            <li key={l.id} className={l.ok ? "text-good" : "text-bad"}>
+              {l.name} ({l.model}) : {l.ok ? `répond en ${(l.ms / 1000).toFixed(1)} s` : l.error}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

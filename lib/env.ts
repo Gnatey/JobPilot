@@ -1,8 +1,10 @@
 /** Variables d'environnement : lesquelles sont indispensables, lesquelles activent une fonction. */
-export const ENV_VARS: { name: string; required: boolean; role: string; alt?: string }[] = [
+export const ENV_VARS: { name: string; required: boolean; role: string; alt?: string | string[] }[] = [
   { name: "NEXT_PUBLIC_SUPABASE_URL", required: true, role: "Base de données et connexion (Supabase > Project Settings > API > Project URL)" },
   { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", required: true, role: "Base de données et connexion (clé anon / publishable)" },
-  { name: "GEMINI_API_KEY", required: true, alt: "ANTHROPIC_API_KEY", role: "IA : analyse des offres, CV, lettres. Gratuit sur aistudio.google.com (ou ANTHROPIC_API_KEY pour Claude)" },
+  { name: "GEMINI_API_KEY", required: true, alt: ["GROQ_API_KEY", "MISTRAL_API_KEY", "ANTHROPIC_API_KEY"], role: "IA : analyse des offres, CV, lettres. Gratuit sur aistudio.google.com (ou une clé Groq, Mistral ou Claude)" },
+  { name: "GROQ_API_KEY", required: false, role: "IA de secours et tri des emails, gratuit sur console.groq.com : répartit la charge avec Gemini" },
+  { name: "MISTRAL_API_KEY", required: false, role: "IA de secours, gratuit sur console.mistral.ai (désactive l'entraînement dans Privacy) : répartit la charge avec Gemini" },
   { name: "NEXT_PUBLIC_APP_URL", required: true, role: "Ton adresse Vercel, pour les redirections Gmail" },
   { name: "OWNER_EMAILS", required: false, role: "Ton adresse (plusieurs possibles, séparées par des virgules) : seule à voir l'installation, sans plafond d'IA" },
   { name: "SUPABASE_SERVICE_ROLE_KEY", required: false, role: "Tâche automatique du matin" },

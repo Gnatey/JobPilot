@@ -91,9 +91,17 @@ Si un CV déjà généré couvre au moins 75 % des mots-clés d'une nouvelle off
 
 Bon à savoir :
 - **Quotas** : ils sont visibles dans AI Studio et se remettent à zéro vers 9 h (heure de Paris). Si le modèle principal est épuisé, l'app bascule seule sur le modèle léger.
-- **Données** : en France (UE), Google applique au quota gratuit les mêmes règles de données que pour la version payante. Tes CV et emails ne servent pas à entraîner ses modèles.
+- **Données** : en France (UE), Google applique au quota gratuit les mêmes règles de données que pour la version payante. Tes CV et emails ne servent pas à entraîner ses modèles. *(À revérifier dans les conditions de Google AI Studio : elles ont changé fin octobre 2026.)*
 - **Ouvrir l'app à d'autres** : en UE, les conditions de Google imposent alors la version payante.
 - **Pour Claude à la place** : mets `ANTHROPIC_API_KEY` au lieu de `GEMINI_API_KEY`.
+
+#### Facultatif : répartir la charge avec Groq et Mistral (gratuits)
+Quand plusieurs personnes utilisent l'app en même temps, une seule IA gratuite sature vite. Avec deux clés de plus, les tâches sont réparties et chaque fournisseur est le secours des autres.
+1. **Groq** : [console.groq.com](https://console.groq.com) → API Keys → Create. Variable : `GROQ_API_KEY`.
+2. **Mistral** : [console.mistral.ai](https://console.mistral.ai), plan **Experiment** (gratuit, vérification par téléphone) → API Keys. Variable : `MISTRAL_API_KEY`. Sur l'offre gratuite, Mistral peut entraîner ses modèles avec tes requêtes : dans **Admin Console → Privacy**, désactive **Anonymous improvement data**.
+3. Ajoute les clés dans Vercel (Settings → Environment Variables), redéploie, puis **Réglages → Tester l'IA** : chaque fournisseur s'affiche avec son temps de réponse.
+
+Répartition par défaut : tri des emails et extractions → Groq, puis Mistral, puis Gemini. Analyse et CV → Gemini, puis Mistral, puis Groq. Sans ces clés, rien ne change. Les limites gratuites restent des limites (Groq : de l'ordre de 200 000 tokens par jour) : ça absorbe plus de monde, pas une affluence illimitée.
 
 ### 3. Code sur GitHub
 Le code à mettre sur GitHub, c'est **tout le contenu du fichier `jobpilot.zip`**, pas seulement ce README.
@@ -115,6 +123,7 @@ Pour mettre à jour plus tard : modifie les fichiers directement sur GitHub (sur
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Étape 1 |
 | `SUPABASE_SERVICE_ROLE_KEY` | Étape 1 (secrète) |
 | `GEMINI_API_KEY` | Étape 2 |
+| `GROQ_API_KEY`, `MISTRAL_API_KEY` | Facultatif : répartition de la charge (étape 2) |
 | `NEXT_PUBLIC_APP_URL` | L'URL Vercel, ex. `https://ton-projet.vercel.app` |
 | `CRON_SECRET` | N'importe quelle longue chaîne aléatoire |
 | `OWNER_EMAILS` | Ton adresse (plusieurs possibles, séparées par des virgules) : seule à voir Réglages → Installation et Sources, sans plafond d'IA |

@@ -1,12 +1,23 @@
 import type { Metadata } from "next";
 import { LegalShell, H2, ContactLine } from "@/components/legal";
+import { activeProviders, PROVIDER_NAMES, type ProviderId } from "@/lib/llm";
 
 export const metadata: Metadata = { title: "Confidentialité" };
 export const dynamic = "force-dynamic";
 
+/** Ce que chaque fournisseur d'IA indique faire des contenus envoyés (offres gratuites). À relire si leurs conditions changent. */
+const RULES: Record<ProviderId, string> = {
+  gemini: "avec l'offre gratuite, Google indique pouvoir utiliser ces contenus pour améliorer ses produits, et des personnes peuvent les relire.",
+  groq: "ne conserve pas les contenus des requêtes par défaut ; des journaux temporaires (30 jours au plus) peuvent exister pour dépanner ou repérer des abus.",
+  mistral: "avec l'offre gratuite, Mistral indique que les requêtes peuvent servir à entraîner ses modèles, sauf si le titulaire du compte l'a refusé dans sa console.",
+  anthropic: "API payante, soumise aux conditions commerciales d'Anthropic.",
+};
+
 export default function Confidentialite() {
+  const active = activeProviders();
+  const providers: ProviderId[] = active.length ? active : ["gemini"];
   return (
-    <LegalShell title="Confidentialité et données personnelles" updated="octobre 2026">
+    <LegalShell title="Confidentialité et données personnelles" updated="novembre 2026">
       <section>
         <H2>En deux phrases</H2>
         <p>Tes données servent uniquement à faire marcher JobPilot pour toi. Elles ne sont ni vendues ni utilisées pour de la publicité. Un point demande ton attention : les textes envoyés à l'intelligence artificielle (voir plus bas).</p>
@@ -25,7 +36,11 @@ export default function Confidentialite() {
 
       <section>
         <H2>L'intelligence artificielle</H2>
-        <p>Pour analyser une offre, rédiger un CV ou lire un email d'alerte, JobPilot envoie le texte concerné (offre, extrait de ton profil, extrait d'email) à l'API Gemini de Google. Avec l'offre gratuite de Gemini, Google indique pouvoir utiliser ces contenus pour améliorer ses produits, et des personnes peuvent les relire. <strong>N'envoie donc rien que tu ne voudrais pas partager</strong> : évite les numéros d'identité, de sécurité sociale, les informations de santé ou celles d'autres personnes dans ton profil et les textes que tu colles.</p>
+        <p>Pour analyser une offre, rédiger un CV ou lire un email d'alerte, JobPilot envoie le texte concerné (offre, extrait de ton profil, extrait d'email) à l'API {providers.length > 1 ? "de l'un des fournisseurs d'IA suivants, selon la tâche et leur disponibilité" : `de ${PROVIDER_NAMES[providers[0]]}`}.</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          {providers.map((id) => <li key={id}><strong>{PROVIDER_NAMES[id]}</strong> : {RULES[id]}</li>)}
+        </ul>
+        <p className="mt-2"><strong>N'envoie donc rien que tu ne voudrais pas partager</strong> : évite les numéros d'identité, de sécurité sociale, les informations de santé ou celles d'autres personnes dans ton profil et les textes que tu colles.</p>
       </section>
 
       <section>
@@ -36,7 +51,7 @@ export default function Confidentialite() {
       <section>
         <H2>Qui peut voir tes données</H2>
         <p>Toi, dans ton compte. Chaque personne ne voit que ses propres lignes (règle appliquée par la base de données elle-même). L'éditeur administre l'installation et pourrait techniquement accéder à la base ; il s'engage à ne le faire que pour réparer un problème que tu lui signales.</p>
-        <p className="mt-2">Prestataires techniques : Vercel (hébergement de l'application), Supabase (base de données et comptes), Google (Gemini pour l'IA ; Gmail si tu le connectes). Certains sont situés hors de l'Union européenne, avec les garanties prévues par leurs conditions.</p>
+        <p className="mt-2">Prestataires techniques : Vercel (hébergement de l'application), Supabase (base de données et comptes), {providers.map((id) => PROVIDER_NAMES[id]).join(", ")} pour l'IA, et Google pour Gmail si tu le connectes. Certains sont situés hors de l'Union européenne, avec les garanties prévues par leurs conditions.</p>
       </section>
 
       <section>
