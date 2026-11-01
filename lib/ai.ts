@@ -485,17 +485,21 @@ Ne propose jamais de supprimer une vraie mission professionnelle. Si tout est pr
 
 /* ---------- 13. Réponse à une question « À compléter » ---------- */
 
-export async function answerQuestion(profile: Profile, question: string, answer: string): Promise<AnswerOp[]> {
+export async function answerQuestion(profile: Profile, question: string, answer: string, retry = false): Promise<AnswerOp[]> {
   const r = await structured<{ ops: AnswerOp[] & { op: string }[] }>({
     fast: true,
     maxTokens: 2500,
-    thinking: 0,
     system: `Une question a été posée à la personne à propos de son profil, et elle a répondu. Propose les modifications MINIMALES du profil qui intègrent sa réponse. Opérations possibles :
 - "replace" : réécrire UNE réalisation. exp_id de l'expérience, old_text = le texte EXACT de la réalisation actuelle, new_text = la nouvelle version.
 - "add" : ajouter une réalisation à une expérience (exp_id, text) quand la réponse apporte un fait nouveau.
 - "project" : réécrire la description d'un projet existant (name = nom exact, description).
-Règles absolues : tu t'appuies uniquement sur les faits de la réponse et du profil ; tout chiffre doit venir de la réponse ou du texte réécrit, jamais d'une estimation de ta part. Une réalisation tient en une phrase qui commence par un verbe d'action. Si la réponse n'apporte rien d'exploitable (« je ne sais pas »), renvoie une liste vide.`,
-    prompt: `PROFIL :\n${JSON.stringify(auditView(profile))}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}`,
+Règles absolues :
+- Tu t'appuies uniquement sur les faits de la réponse et du profil. Tout chiffre écrit doit figurer tel quel dans la réponse ou dans le texte réécrit : jamais d'estimation de ta part.
+- Les approximations et les exemples (« par exemple », « environ », « moins de », « plus de », « à peu près ») ne sont PAS des chiffres exacts : ne les recopie pas comme un résultat. Écris le contexte qu'ils décrivent (avec quelles équipes, pour qui, sur quel périmètre) sans chiffre.
+- « Je ne sais pas » suivi d'explications n'est pas une réponse vide : qui utilisait le travail, avec quelles équipes, quel périmètre, quels outils, tout cela est exploitable. Réécris la réalisation la plus concernée par la question avec ce contexte.
+- Une réalisation tient en une phrase qui commence par un verbe d'action.
+- Renvoie une liste vide seulement si la réponse n'apporte AUCUN fait (juste « je ne sais pas », « aucune idée »).`,
+    prompt: `PROFIL :\n${JSON.stringify(auditView(profile))}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}${retry ? "\n\nATTENTION : une première lecture n'a rien donné d'utilisable alors que la réponse contient du contexte. Propose au moins une modification sans chiffre inventé, sur la réalisation de l'expérience la plus concernée." : ""}`,
     schema: {
       properties: {
         ops: arr(obj({ op: { type: "string", enum: ["replace", "add", "project"] }, exp_id: S, old_text: S, new_text: S, text: S, name: S, description: S }, ["op"])),

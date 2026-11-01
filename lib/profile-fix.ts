@@ -279,6 +279,10 @@ export type AnswerOp =
   | { op: "add"; exp_id: string; text: string }
   | { op: "project"; name: string; description: string };
 
+/** La réponse dit-elle autre chose que « je ne sais pas » ? (assez de contenu pour mériter une seconde lecture) */
+export const hasContent = (answer: string) =>
+  answer.replace(/je ne sais pas|aucune id[ée]e|\bjsp\b/gi, "").replace(/[^a-zà-ÿ0-9]/gi, "").length >= 25;
+
 /** Garde les opérations qui se rattachent à quelque chose d'existant et dont les chiffres viennent du profil ou de la réponse. */
 export function vetOps(profile: Profile, ops: AnswerOp[], answer: string): AnswerOp[] {
   const known = (id: string) => profile.experiences.find((e) => e.id === id);

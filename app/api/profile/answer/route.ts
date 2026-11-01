@@ -2,8 +2,9 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { answerQuestion } from "@/lib/ai";
-import { vetOps } from "@/lib/profile-fix";
+import { hasContent, vetOps } from "@/lib/profile-fix";
 import { spendAi, AI_COST } from "@/lib/quota";
+import { timeLeft } from "@/lib/budget";
 
 export const maxDuration = 60;
 
@@ -18,7 +19,14 @@ export async function POST(req: Request) {
     if (answer.length < 2) throw new HttpError(400, "Écris ta réponse d'abord.");
     const profile = await getProfile(supabase, user);
     await spendAi(supabase, user, AI_COST.document);
-    const ops = vetOps(profile, await answerQuestion(profile, question, answer), answer);
-    return { ops };
+    let raw = await answerQuestion(profile, question, answer);
+    let ops = vetOps(profile, raw, answer);
+    // Réponse riche mais rien d'utilisable (le modèle s'arrête parfois à un « je ne sais pas » en début de phrase) : une seconde lecture, même quota
+    if (!ops.length && hasContent(answer) && timeLeft() > 20_000) {
+      raw = await answerQuestion(profile, question, answer, true);
+      ops = vetOps(profile, raw, answer);
+    }
+    // `proposed` : ce que l'IA a proposé avant vérification, pour dire à la personne pourquoi il n'y a rien à valider
+    return { ops, proposed: raw.length };
   });
 }

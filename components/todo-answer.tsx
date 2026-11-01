@@ -14,7 +14,8 @@ type Props = {
 const COUNT_Q = /combien|volume|nombre|taux|pourcentage|chiffre|%|fréquence|utilisateurs|dashboards?/i;
 const RANGES = ["moins de 100", "entre 100 et 1 000", "plus de 1 000"];
 
-type Draft = { answer: string; busy: boolean; ops: AnswerOp[] | null; empty: boolean };
+/** `empty` : pourquoi il n'y a rien à valider. none = l'IA n'a rien trouvé d'écrivable ; rejected = elle avait une phrase mais avec un chiffre absent de la réponse. */
+type Draft = { answer: string; busy: boolean; ops: AnswerOp[] | null; empty: null | "none" | "rejected" };
 
 /**
  * « À compléter pour des CV plus forts » : chaque ligne se traite en répondant (l'IA réécrit la réalisation concernée, tu vois
@@ -23,23 +24,23 @@ type Draft = { answer: string; busy: boolean; ops: AnswerOp[] | null; empty: boo
 export function TodoAnswer({ getProfile, onChange }: Props) {
   const { toast } = useFeedback();
   const [open, setOpen] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft>({ answer: "", busy: false, ops: null, empty: false });
+  const [draft, setDraft] = useState<Draft>({ answer: "", busy: false, ops: null, empty: null });
   const profile = getProfile();
 
   const removeTodo = (t: string, base: Profile = getProfile()) => ({ ...base, todo: base.todo.filter((x) => normText(x) !== normText(t)) });
-  const reset = () => { setOpen(null); setDraft({ answer: "", busy: false, ops: null, empty: false }); };
+  const reset = () => { setOpen(null); setDraft({ answer: "", busy: false, ops: null, empty: null }); };
 
   async function send(t: string) {
     const answer = draft.answer.trim();
     if (answer.length < 2) return;
-    setDraft((d) => ({ ...d, busy: true, ops: null, empty: false }));
+    setDraft((d) => ({ ...d, busy: true, ops: null, empty: null }));
     try {
       const res = await fetch("/api/profile/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: t, answer }) });
-      const j = (await res.json().catch(() => ({}))) as { ops?: AnswerOp[]; error?: string };
+      const j = (await res.json().catch(() => ({}))) as { ops?: AnswerOp[]; proposed?: number; error?: string };
       if (!res.ok || j.error) { setDraft((d) => ({ ...d, busy: false })); return toast(j.error ?? "L'IA n'a pas pu répondre, réessaie.", { tone: "err" }); }
       // On revérifie sur le profil affiché (il a pu bouger depuis l'envoi)
       const ops = vetOps(getProfile(), j.ops ?? [], answer);
-      setDraft((d) => ({ ...d, busy: false, ops, empty: ops.length === 0 }));
+      setDraft((d) => ({ ...d, busy: false, ops, empty: ops.length ? null : (j.proposed ?? 0) > 0 ? "rejected" : "none" }));
     } catch {
       setDraft((d) => ({ ...d, busy: false }));
       toast("Connexion interrompue, réessaie.", { tone: "err" });
@@ -70,7 +71,7 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
               <div className="flex items-start justify-between gap-3">
                 <span>{t}</span>
                 <span className="flex shrink-0 gap-3">
-                  <button className="text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft({ answer: "", busy: false, ops: null, empty: false })))}>{isOpen ? "Fermer" : "Répondre"}</button>
+                  <button className="text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft({ answer: "", busy: false, ops: null, empty: null })))}>{isOpen ? "Fermer" : "Répondre"}</button>
                   <button className="text-muted underline" onClick={() => { onChange(removeTodo(t)); if (isOpen) reset(); }}>Fait</button>
                 </span>
               </div>
@@ -78,10 +79,10 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
               {isOpen && (
                 <div className="mt-2 rounded-xl border border-line bg-white/60 p-3 dark:bg-black/10">
                   <label className="label" htmlFor="todo-answer">Ta réponse</label>
-                  <textarea id="todo-answer" rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, empty: false }))} />
+                  <textarea id="todo-answer" rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, empty: null }))} />
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {COUNT_Q.test(t) && RANGES.map((r) => (
-                      <button key={r} type="button" className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, answer: d.answer ? `${d.answer} ${r}` : r, ops: null, empty: false }))}>{r}</button>
+                      <button key={r} type="button" className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, answer: d.answer ? `${d.answer} ${r}` : r, ops: null, empty: null }))}>{r}</button>
                     ))}
                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => { onChange(removeTodo(t)); reset(); toast("Question retirée : tu pourras la reprendre en refaisant le point."); }}>Je ne sais pas</button>
                     <button className="btn btn-sm btn-primary ml-auto" disabled={draft.busy || draft.answer.trim().length < 2} onClick={() => send(t)}>
@@ -89,7 +90,8 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
                     </button>
                   </div>
 
-                  {draft.empty && <p className="mt-2 text-sm text-muted" role="status">Je n'ai rien à modifier avec cette réponse. Précise-la (le chiffre, le contexte) ou clique sur « Fait ».</p>}
+                  {draft.empty === "none" && <p className="mt-2 text-sm text-muted" role="status">Je n'ai pas trouvé de quoi écrire une ligne sans l'inventer. Dis ce que tu as livré et pour qui (équipes, périmètre, outils), ou clique sur « Fait ».</p>}
+                  {draft.empty === "rejected" && <p className="mt-2 text-sm text-muted" role="status">J'avais une phrase, mais elle contenait un chiffre que tu n'as pas donné : je l'ai écartée plutôt que de l'inventer. Reformule sans chiffre, ou donne le chiffre exact.</p>}
 
                   {preview.length > 0 && (
                     <div className="mt-3 space-y-3" role="status">
