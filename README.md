@@ -104,7 +104,7 @@ Le code à mettre sur GitHub, c'est **tout le contenu du fichier `jobpilot.zip`*
 4. Ouvre le dossier `jobpilot` et **glisse tout ce qu'il contient**, pas le dossier lui-même. `package.json` doit se retrouver à la racine du dépôt. Inclus bien les fichiers `.gitignore` et `.env.example`.
 5. Clique sur **Commit changes**.
 
-Pour mettre à jour plus tard : refais la même opération (**Add file → Upload files**) avec les fichiers modifiés. Vercel redéploie tout seul à chaque commit.
+Pour mettre à jour plus tard : modifie les fichiers directement sur GitHub (sur la page du dépôt, appuie sur la touche `.` pour ouvrir l'éditeur dans le navigateur) ou refais l'opération **Add file → Upload files**. Vercel redéploie tout seul à chaque commit sur `main`.
 
 ### 4. Vercel
 1. **Add New → Project**, puis importe le dépôt.
