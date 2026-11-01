@@ -82,10 +82,12 @@ type Opts = {
 
 /** Erreur « saturé / limite atteinte » d'un fournisseur, avec le délai d'attente qu'il indique (en secondes). */
 class Busy extends HttpError {
-  constructor(status: number, message: string, public retryAfter?: number) {
+  constructor(status: number, message: string, public retryAfter?: number, public detail?: string) {
     super(status, message);
   }
 }
+/** Message du fournisseur, raccourci et sans identifiant d'organisation : pour le test des clés et les journaux, jamais pour l'écran des utilisateurs. */
+const clean = (s: string) => s.replace(/org_\w+/g, "org_…").replace(/\s+/g, " ").slice(0, 220);
 
 const BUSY_ALL = "Toutes les IA configurées sont saturées ou ont atteint leur limite du jour. Réessaie dans quelques minutes : rien n'est perdu.";
 const call = <T>(id: ProviderId, o: Opts): Promise<T> => (id === "gemini" ? gemini<T>(o) : id === "anthropic" ? claude<T>(o) : compat<T>(id, o));
@@ -118,7 +120,7 @@ export async function structured<T>(opts: Opts): Promise<T> {
         if (chain.length > 1 && busy === i + 1 && !(e instanceof HttpError && e.status === 504)) throw new HttpError(503, BUSY_ALL);
         throw e;
       }
-      console.warn(`[ia] ${chain[i]} n'a pas pu répondre (${e instanceof Error ? e.message : e}) : bascule sur ${chain[i + 1]}`);
+      console.warn(`[ia] ${chain[i]} n'a pas pu répondre (${e instanceof Error ? e.message : e}${e instanceof Busy && e.detail ? ` | ${e.detail}` : ""}) : bascule sur ${chain[i + 1]}`);
     }
   }
   throw new HttpError(503, BUSY_ALL);
@@ -132,7 +134,8 @@ export async function pingProviders() {
       await call<{ ok: boolean }>(id, { fast: true, maxTokens: 50, system: "Réponds ok=true.", prompt: "ping", schema: { properties: { ok: { type: "boolean" } }, required: ["ok"] } });
       return { id, name: PROVIDER_NAMES[id], model: modelOf(id, true), ok: true as const, ms: Date.now() - t0 };
     } catch (e) {
-      return { id, name: PROVIDER_NAMES[id], model: modelOf(id, true), ok: false as const, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) };
+      const detail = e instanceof Busy && e.detail ? ` Réponse du fournisseur : « ${e.detail} »` : "";
+      return { id, name: PROVIDER_NAMES[id], model: modelOf(id, true), ok: false as const, ms: Date.now() - t0, error: (e instanceof Error ? e.message : String(e)) + detail };
     }
   }));
 }
@@ -337,9 +340,9 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
         await sleep(wait * 1000);
         return again({ attempt: 1 });
       }
-      throw new Busy(429, `${cfg.label} : limite gratuite atteinte pour le moment.`, wait);
+      throw new Busy(429, `${cfg.label} : limite gratuite atteinte pour le moment.`, wait, clean(msg));
     }
-    if (res.status >= 500) throw new Busy(503, `${cfg.label} est saturé en ce moment.`);
+    if (res.status >= 500) throw new Busy(503, `${cfg.label} est saturé en ce moment.`, undefined, clean(`HTTP ${res.status} ${msg}`));
     // 413 (demande trop grosse pour le palier gratuit) et le reste : on passe au fournisseur suivant
     throw new Error(`${cfg.label} (${model}) : ${msg}`);
   }
