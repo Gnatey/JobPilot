@@ -489,6 +489,7 @@ export async function answerQuestion(profile: Profile, question: string, answer:
   // Modèle principal (pas le léger) : c'est de la rédaction, et le résultat finit sur un CV
   const r = await structured<{ ops: AnswerOp[] & { op: string }[] }>({
     maxTokens: 2500,
+    thinking: 512, // une phrase à réécrire : inutile de laisser le modèle réfléchir longtemps (la personne attend devant l'écran)
     system: `Une question a été posée à la personne à propos de son profil, et elle a répondu. Propose les modifications du profil qui intègrent sa réponse, et seulement celles-là. Opérations possibles :
 - "replace" : réécrire UNE réalisation. exp_id de l'expérience, old_text = le texte EXACT de la réalisation actuelle, new_text = la nouvelle version.
 - "add" : ajouter une réalisation à une expérience (exp_id, text) quand la réponse apporte un fait nouveau.
@@ -499,6 +500,7 @@ Règles absolues :
 - « Je ne sais pas » suivi d'explications n'est pas une réponse vide : qui utilisait le travail, avec quelles équipes, quel périmètre, quels outils, tout cela est exploitable. Réécris la réalisation la plus concernée par la question avec ce contexte.
 - Écris une vraie ligne de CV : une phrase qui commence par un verbe d'action au participe passé (Conçu, Développé, Piloté, Automatisé…), sans « je », sans « en tant que », sans nom de poste. Réécris la phrase en entier : ne colle JAMAIS la réponse à la fin de l'ancienne phrase. Un rôle se dit par le verbe et un adverbe (« seule », « en autonomie », « avec 3 développeurs »), pas par une apposition.
   Mauvais : « Création d'un outil de reporting en tant que responsable seule ». Bon : « Conçu et développé seule un outil de reporting ». Le sens de la phrase d'origine reste, seul le rôle ou le contexte apporté par la réponse s'y ajoute.
+- Une ligne de CV fait 25 mots au plus. Si la réponse énumère plusieurs profils, outils ou équipes, résume-les (« en interface avec les équipes métier (médecins, infirmiers…), l'AMOA et les développeurs ») au lieu de tout recopier.
 - Renvoie une liste vide seulement si la réponse n'apporte AUCUN fait (juste « je ne sais pas », « aucune idée »).`,
     prompt: `PROFIL :\n${JSON.stringify(auditView(profile))}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}${retry ? "\n\nATTENTION : une première lecture n'a rien donné d'utilisable alors que la réponse contient du contexte. Propose au moins une modification sans chiffre inventé, sur la réalisation de l'expérience la plus concernée." : ""}`,
     schema: {
