@@ -92,26 +92,71 @@ export function contactItems(id: Id): Item[] {
   return out;
 }
 
-const linkRank = (l: { label: string; url: string }) => {
+type Link = { label: string; url: string };
+
+/** Les trois liens attendus sur tout CV passent toujours en premier : LinkedIn, puis le portfolio, puis GitHub. */
+const coreRank = (l: Link): number => {
   const s = `${l.label} ${l.url}`.toLowerCase();
-  if (/jobpilot/.test(s)) return 9; // l'outil lui-même n'a rien à faire sur un CV
   if (/linkedin/.test(s)) return 0;
-  if (/portfolio|portfolio|behance|dribbble|\bsite\b/.test(s)) return 1;
+  if (/portfolio|behance|dribbble|site\s*perso|mon\s*site/.test(s)) return 1;
   if (/github|gitlab/.test(s)) return 2;
   return 3;
 };
 
-/** 4 liens au plus, les plus utiles d'abord (LinkedIn, portfolio, GitHub, puis le reste dans l'ordre du profil), chacun cliquable. */
-export function linkItems(id: Id, max = 4): Item[] {
-  return (id.links ?? [])
-    .filter((l) => l.url && l.url.trim())
-    .map((l, i) => ({ l, i, r: linkRank(l) }))
-    .sort((a, b) => a.r - b.r || a.i - b.i)
-    .slice(0, max)
-    .map(({ l }) => {
-      const url = l.url.trim();
-      return { text: url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: /^https?:\/\//i.test(url) ? url : `https://${url}` };
-    });
+const urlKey = (u: string) => u.trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[/?#]+$/, "");
+const STOP = new Set(["avec", "pour", "dans", "chez", "votre", "vous", "nous", "les", "des", "une", "est", "sur", "par", "plus", "cette", "site", "https", "http", "www", "vercel", "netlify", "streamlit", "github", "itch", "app", "com", "fr", "io", "html"]);
+/** Radical court (4 lettres) : « recette », « recettes » et « recettage » se retrouvent. */
+const stems = (s: string) => new Set(fold(s).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !STOP.has(w)).map((w) => w.slice(0, 4)));
+
+/**
+ * Choisit les liens d'un CV : LinkedIn, portfolio et GitHub d'abord, puis ceux qui parlent de l'offre
+ * (un lien « Cahier de recettes » pour une offre de test, par exemple), puis le reste dans l'ordre du profil.
+ * Aucun lien n'est écarté pour son nom : seul le nombre d'emplacements limite.
+ */
+export function pickLinks(links: Link[], hint = "", max = 4): Link[] {
+  const want = stems(hint);
+  const seen = new Set<string>();
+  const clean = (links ?? []).filter((l) => l && l.url && l.url.trim()).filter((l) => {
+    const k = urlKey(l.url);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const score = (l: Link) => { let n = 0; for (const w of stems(`${l.label} ${l.url}`)) if (want.has(w)) n++; return n; };
+  return clean
+    .map((l, i) => ({ l, i, r: coreRank(l), sc: score(l) }))
+    .sort((a, b) => (a.r < 3 || b.r < 3 ? a.r - b.r : b.sc - a.sc) || a.i - b.i)
+    .slice(0, Math.max(0, max))
+    .map(({ l }) => l);
+}
+
+const nameKey = (s: string) => fold(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Ajoute au CV généré ce que l'IA n'a pas à inventer : le lien de chaque projet (repris du profil) et les liens de l'en-tête,
+ * choisis selon l'offre. Aucune URL n'est jamais écrite par l'IA.
+ */
+export function attachLinks(cv: CvDoc, profile: Profile, hint: string): CvDoc {
+  const known = profile.projects ?? [];
+  const find = (name: string) => {
+    const k = nameKey(name);
+    if (k.length < 3) return undefined;
+    return known.find((p) => nameKey(p.name) === k) ?? known.find((p) => { const q = nameKey(p.name); return q.length >= 3 && (q.includes(k) || k.includes(q)); });
+  };
+  return {
+    ...cv,
+    projects: (cv.projects ?? []).map((p) => { const link = find(p.name)?.link?.trim(); return link ? { ...p, link } : p; }),
+    links: pickLinks(profile.identity?.links ?? [], `${hint} ${cv.headline ?? ""} ${(cv.ats_keywords_used ?? []).join(" ")}`, 4),
+  };
+}
+
+/** Liens affichés en en-tête, chacun cliquable. `chosen` : ceux déjà choisis pour ce CV au moment de sa création. */
+export function linkItems(id: Id, max = 4, chosen?: Link[]): Item[] {
+  const src = chosen?.length ? pickLinks(chosen, "", max) : pickLinks(id.links ?? [], "", max);
+  return src.map((l) => {
+    const url = l.url.trim();
+    return { text: url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: /^https?:\/\//i.test(url) ? url : `https://${url}` };
+  });
 }
 
 /* ---------- Langues, certifications, centres d'intérêt : chacun sur sa ligne, avec son étiquette ---------- */

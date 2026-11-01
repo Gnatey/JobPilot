@@ -39,6 +39,8 @@ export const getUser = cache(async (): Promise<AuthUser | null> => {
     const { data } = await supabase.auth.getClaims();
     const c = data?.claims;
     if (!c?.sub) return null;
+    // Un compte anonyme (créé sans e-mail, par un appel direct à Supabase) n'est jamais un utilisateur de JobPilot
+    if ((c as { is_anonymous?: boolean }).is_anonymous === true) return null;
     return { id: c.sub, email: typeof c.email === "string" ? c.email : null };
   } catch {
     return null;

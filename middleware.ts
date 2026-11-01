@@ -32,7 +32,8 @@ export async function middleware(request: NextRequest) {
       },
     });
     const { data } = await supabase.auth.getClaims();
-    user = data?.claims?.sub ? data.claims : null;
+    // Un compte anonyme (sans e-mail) n'est pas un utilisateur de JobPilot : traité comme non connecté
+    user = data?.claims?.sub && (data.claims as { is_anonymous?: boolean }).is_anonymous !== true ? data.claims : null;
     if (user && user.aal !== "aal2") {
       // Lecture locale (aucun appel réseau) : y a-t-il un second facteur à demander ?
       const { data: level } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();

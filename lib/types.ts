@@ -1,4 +1,5 @@
-export type Achievement = { text: string; tags: string[] };
+/** `sources` : les CV d'où vient cette réalisation (« CV Data », « CV AMOA »…), pour retrouver l'origine d'une information. */
+export type Achievement = { text: string; tags: string[]; sources?: string[] };
 
 export type Experience = {
   id: string;
@@ -179,7 +180,9 @@ export type CvDoc = {
   experiences: { company: string; role: string; location?: string; dates: string; bullets: string[] }[];
   education: { degree: string; school: string; dates: string }[];
   skills: { label: string; items: string }[];
-  projects: { name: string; description: string }[];
+  projects: { name: string; description: string; link?: string }[];
+  /** Liens choisis pour CE CV (LinkedIn, portfolio, GitHub, puis ceux qui servent l'offre). Absent sur les anciens CV. */
+  links?: { label: string; url: string }[];
   certifications: string[];
   languages: string;
   extras?: string;

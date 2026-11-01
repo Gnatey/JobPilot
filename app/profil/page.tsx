@@ -7,6 +7,8 @@ import { PageTitle, Section, Skeleton } from "@/components/ui/page-title";
 import { useFeedback } from "@/components/ui/feedback";
 import { EMPTY_PROFILE } from "@/lib/empty-profile";
 import { SkillSuggestions } from "@/components/skill-suggestions";
+import { ProfileAudit } from "@/components/profile-audit";
+import { TodoAnswer } from "@/components/todo-answer";
 import { addSkills, dismissSkills } from "@/lib/skills";
 import type { Education, Experience, Profile, Project } from "@/lib/types";
 
@@ -93,24 +95,14 @@ export default function ProfilPage() {
         </p>
       </PageTitle>
 
+      <ProfileAudit getProfile={() => latest.current ?? p} onChange={(next) => { change(next); setRev((r) => r + 1); }} />
+
       <SkillSuggestions
         onAccept={(s) => { change(addSkills(latest.current ?? p, [{ category: s.category, skill: s.skill }])); setRev((r) => r + 1); }}
         onDismiss={(s) => change(dismissSkills(latest.current ?? p, [s.skill]))} />
 
       <div key={rev}>
-        {p.todo.length > 0 && (
-          <div className="mb-8 rounded-2xl border border-marigold/50 bg-marigold/10 p-4">
-            <p className="font-semibold">À compléter pour des CV plus forts</p>
-            <ul className="mt-2 space-y-2">
-              {p.todo.map((t, i) => (
-                <li key={i} className="flex items-start justify-between gap-3 text-sm">
-                  <span>{t}</span>
-                  <button className="shrink-0 text-muted underline" onClick={() => upd({ todo: p.todo.filter((_, j) => j !== i) })}>Fait</button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <TodoAnswer getProfile={() => latest.current ?? p} onChange={(next) => { change(next); setRev((r) => r + 1); }} />
 
         <Section title="Identité">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -156,7 +148,8 @@ export default function ProfilPage() {
                 <div className="mt-3">
                   <LinesField label="Réalisations, une par ligne. Ajoute des chiffres quand tu les as." rows={Math.max(3, e.achievements.length + 1)}
                     value={e.achievements.map((a) => a.text).join("\n")}
-                    onChange={(ls) => updExp(i, { achievements: ls.map((text) => ({ text, tags: e.achievements.find((a) => a.text === text)?.tags ?? [] })) })} />
+                    onChange={(ls) => updExp(i, { achievements: ls.map((text, k) => e.achievements.find((a) => a.text === text) ?? (ls.length === e.achievements.length && e.achievements[k] ? { ...e.achievements[k], text } : { text, tags: [] })) })} />
+                  {(() => { const from = [...new Set(e.achievements.flatMap((a) => a.sources ?? []))]; return from.length ? <p className="mt-1 text-xs text-muted">Réalisations tirées de : {from.join(", ")}</p> : null; })()}
                 </div>
                 <button className="btn btn-sm btn-ghost mt-2 text-bad" onClick={() => upd({ experiences: p.experiences.filter((_, j) => j !== i) })}><Trash2 size={14} /> Retirer cette expérience</button>
               </div>

@@ -23,6 +23,13 @@ export function A({ it, wrap }: { it: Item; wrap?: boolean }) {
     ? <a href={it.href} target="_blank" rel="noopener noreferrer" className={`${w} underline decoration-current/30 underline-offset-2`}>{it.text}</a>
     : <span className={w}>{it.text}</span>;
 }
+/** Lien d'un projet, cliquable, juste après sa description (absent : rien). */
+export function ProjLink({ link }: { link?: string }) {
+  const url = link?.trim();
+  if (!url) return null;
+  return <> <A it={{ text: url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: /^https?:\/\//i.test(url) ? url : `https://${url}` }} /></>;
+}
+
 /** Plusieurs éléments sur une ligne, séparés par de l'espace : à la ligne entre deux éléments, jamais à l'intérieur. */
 export function Items({ items, className }: { items: Item[]; className?: string }) {
   if (!items.length) return null;
@@ -62,7 +69,7 @@ export function Classique({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
         <h1 className="text-[20pt] font-bold tracking-wide">{id.name}</h1>
         <E as="p" v={cv.headline} on={(s) => upd((c) => { c.headline = s; })} className="mt-0.5 text-[12pt]" />
         <Items items={contactItems(id)} className="mt-1.5 justify-center text-[9pt]" />
-        <Items items={linkItems(id)} className="mt-0.5 justify-center text-[9pt]" />
+        <Items items={linkItems(id, 4, cv.links)} className="mt-0.5 justify-center text-[9pt]" />
       </div>
       <E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} className="mt-3.5" />
       <H>Expérience professionnelle</H>
@@ -80,7 +87,7 @@ export function Classique({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       {cv.skills.map((s, i) => (
         <p key={i} className="mt-0.5"><strong>{s.label} :</strong> <E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>
       ))}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong>{p.name} :</strong> {p.description}</p>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong>{p.name} :</strong> {p.description}<ProjLink link={p.link} /></p>)}</>}
       {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} /></>}
     </div>
   );
@@ -97,7 +104,7 @@ export function Moderne({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
         <h1 className="font-display text-[24pt] font-extrabold leading-none tracking-tight">{id.name}</h1>
         <E as="p" v={cv.headline} on={(s) => upd((c) => { c.headline = s; })} className="mt-1.5 text-[12.5pt] font-semibold text-[#3a4570]" />
         <Items items={contactItems(id)} className="mt-2 text-[8.8pt] text-[#4a5270]" />
-        <Items items={linkItems(id)} className="mt-0.5 text-[8.8pt] text-[#4a5270]" />
+        <Items items={linkItems(id, 4, cv.links)} className="mt-0.5 text-[8.8pt] text-[#4a5270]" />
       </div>
       <E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} className="mt-3.5" />
       <H>Compétences</H>
@@ -114,7 +121,7 @@ export function Moderne({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
         </div>
       ))}
       {cv.projects.length > 0 && (
-        <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-semibold">{p.name}</span> : {p.description}</p>)}</>
+        <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-semibold">{p.name}</span> : {p.description}<ProjLink link={p.link} /></p>)}</>
       )}
       <H>Formation</H>
       {educationRecentFirst(cv).map((e, i) => (
@@ -160,11 +167,11 @@ export function Esn({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
           <Bullets cv={cv} upd={upd} i={i} className="list-disc pl-5" />
         </div>
       ))}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong>{p.name} :</strong> {p.description}</p>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong>{p.name} :</strong> {p.description}<ProjLink link={p.link} /></p>)}</>}
       <H>Formation, langues, certifications</H>
       {educationRecentFirst(cv).map((e, i) => <p key={i} className="mt-0.5"><strong>{e.dates}</strong> : {e.degree}, {e.school}</p>)}
       <Tail cv={cv} className="mt-0.5" />
-      <Items items={linkItems(id)} className="mt-2 text-[8.6pt]" />
+      <Items items={linkItems(id, 4, cv.links)} className="mt-2 text-[8.6pt]" />
     </div>
   );
 }
@@ -176,7 +183,7 @@ export function Compact({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
     <div className="font-[Arial,Helvetica,sans-serif] text-[9.6pt] leading-[1.35] text-black">
       <h1 className="text-[16pt] font-bold">{id.name}</h1>
       <E as="p" v={cv.headline} on={(s) => upd((c) => { c.headline = s; })} className="text-[11pt] font-bold" />
-      <Inline items={[...contactItems(id), ...linkItems(id)]} sep=" | " />
+      <Inline items={[...contactItems(id), ...linkItems(id, 4, cv.links)]} sep=" | " />
       <H>Profil</H>
       <E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} />
       <H>Compétences</H>
@@ -190,7 +197,7 @@ export function Compact({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       ))}
       <H>Formation</H>
       {educationRecentFirst(cv).map((e, i) => <p key={i}><b>{e.degree}</b> | {e.school} | {e.dates}</p>)}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i}><b>{p.name} :</b> {p.description}</p>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i}><b>{p.name} :</b> {p.description}<ProjLink link={p.link} /></p>)}</>}
       {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} className="" /></>}
     </div>
   );
@@ -216,7 +223,7 @@ export function Colonnes({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <div className="grid grid-cols-[52mm_1fr] gap-x-5">
         <aside className="self-start rounded-md bg-[#eef2f8] p-3 text-[8.8pt]">
           <Side title="Contact">{contactItems(id).map((c, k) => <p key={k}><A it={c} wrap /></p>)}</Side>
-          {linkItems(id).length > 0 && <Side title="Liens">{linkItems(id).map((l, k) => <p key={k}><A it={l} wrap /></p>)}</Side>}
+          {linkItems(id, 4, cv.links).length > 0 && <Side title="Liens">{linkItems(id, 4, cv.links).map((l, k) => <p key={k}><A it={l} wrap /></p>)}</Side>}
           <Side title="Compétences">
             {cv.skills.map((s, i) => (
               <p key={i} className="mt-1 first:mt-0"><span className="font-semibold">{s.label}</span><br /><E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>
@@ -241,7 +248,7 @@ export function Colonnes({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
           {educationRecentFirst(cv).map((e, i) => (
             <div key={i} className="mt-1 flex items-baseline justify-between gap-3"><p><span className="font-semibold">{e.degree}</span>, {e.school}</p><p className="shrink-0 text-[8.6pt] text-[#5b6680]">{e.dates}</p></div>
           ))}
-          {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold">{p.name} :</span> {p.description}</p>)}</>}
+          {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold">{p.name} :</span> {p.description}<ProjLink link={p.link} /></p>)}</>}
         </div>
       </div>
     </div>
@@ -267,7 +274,7 @@ export function Timeline({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
           <h1 className="font-display text-[23pt] font-extrabold leading-none text-[#1f3a5f]">{id.name}</h1>
           <E as="p" v={cv.headline} on={(s) => upd((c) => { c.headline = s; })} className="mt-1 text-[12pt] font-semibold text-[#4a5a78]" />
           <Items items={contactItems(id)} className="mt-2 text-[8.8pt] text-[#4a5270]" />
-          <Items items={linkItems(id)} className="mt-0.5 text-[8.8pt] text-[#4a5270]" />
+          <Items items={linkItems(id, 4, cv.links)} className="mt-0.5 text-[8.8pt] text-[#4a5270]" />
         </div>
       </div>
       <Row left="Profil"><E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} /></Row>
@@ -282,7 +289,7 @@ export function Timeline({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       {educationRecentFirst(cv).map((e, i) => <Row key={i} left={splitDates(e.dates)}><p><span className="font-semibold">{e.degree}</span>, {e.school}</p></Row>)}
       <H>Compétences</H>
       {cv.skills.map((s, i) => <Row key={i} left={s.label}><E as="p" v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></Row>)}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <Row key={i} left={p.name}><p>{p.description}</p></Row>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <Row key={i} left={p.name}><p>{p.description}<ProjLink link={p.link} /></p></Row>)}</>}
       {tailLines(cv).map((l) => <Row key={l.label} left={l.label}><p>{l.text}</p></Row>)}
     </div>
   );
@@ -299,7 +306,7 @@ export function Elegant({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
         <h1 className="text-[24pt] font-normal tracking-[0.06em] [font-variant:small-caps]">{id.name}</h1>
         <E as="p" v={cv.headline} on={(s) => upd((c) => { c.headline = s; })} className="mt-0.5 text-[12pt] italic text-[#5d4a1c]" />
         <Items items={contactItems(id)} className="mt-2 justify-center text-[8.8pt] text-[#4b4638]" />
-        <Items items={linkItems(id)} className="mt-0.5 justify-center text-[8.8pt] text-[#4b4638]" />
+        <Items items={linkItems(id, 4, cv.links)} className="mt-0.5 justify-center text-[8.8pt] text-[#4b4638]" />
       </div>
       <E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} className="mt-3 text-center italic" />
       <H>Expérience</H>
@@ -315,7 +322,7 @@ export function Elegant({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       ))}
       <H>Compétences</H>
       {cv.skills.map((s, i) => <p key={i} className="mt-0.5"><span className="font-bold">{s.label} :</span> <E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>)}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-bold">{p.name} :</span> {p.description}</p>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-bold">{p.name} :</span> {p.description}<ProjLink link={p.link} /></p>)}</>}
       {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} center /></>}
     </div>
   );
@@ -335,7 +342,7 @@ export function Bandeau({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
         </div>
         <div className="text-right text-[8.6pt] leading-snug text-[#dbe6fb]">{contactItems(id).map((c, k) => <p key={k}><A it={c} /></p>)}</div>
       </div>
-      <Items items={linkItems(id)} className="mt-2 text-[8.6pt] text-[#4a5270]" />
+      <Items items={linkItems(id, 4, cv.links)} className="mt-2 text-[8.6pt] text-[#4a5270]" />
       <E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} className="mt-2.5" />
       <H>Compétences</H>
       <div className="mt-1.5 space-y-1">
@@ -357,7 +364,7 @@ export function Bandeau({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       {educationRecentFirst(cv).map((e, i) => (
         <div key={i} className="mt-1 flex items-baseline justify-between gap-4"><p><span className="font-semibold">{e.degree}</span>, {e.school}</p><p className="shrink-0 text-[8.8pt] text-[#4a5270]">{e.dates}</p></div>
       ))}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold">{p.name} :</span> {p.description}</p>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold">{p.name} :</span> {p.description}<ProjLink link={p.link} /></p>)}</>}
       {tailLines(cv).length > 0 && <div className="mt-4"><Tail cv={cv} labelClass="font-semibold" /></div>}
     </div>
   );

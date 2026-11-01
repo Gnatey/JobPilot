@@ -1,5 +1,7 @@
 import { structured, str, int, arr, obj } from "./llm";
 import { letterParts, letterDoc } from "./letter";
+import { attachLinks } from "./cv-format";
+import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerOp, type MatchGroup, type Proposal } from "./profile-fix";
 import { today } from "./format";
 import type { CvDoc, Diagnostic, LetterDoc, OfferAnalysis, OfferExtract, OnboardingAnswers, PrepDoc, Profile, SkillSuggestion } from "./types";
 
@@ -11,6 +13,9 @@ const HONESTY = `Règles absolues :
 - Tu restes réaliste sur le niveau d'expérience réel du profil (débutant, confirmé ou senior, selon ce qu'il montre). Pas de survente.
 - Le profil ne dit pas toujours le genre de la personne : sans indication claire, préfère des formulations neutres plutôt que des accords au féminin ou au masculin.
 - Tu écris en français, ton professionnel, sobre et concret.`;
+
+/** Le profil envoyé à l'IA : sans les étiquettes d'origine des CV (inutiles pour rédiger, et elles coûtent des jetons). */
+export const forAi = (p: Profile): Profile => ({ ...p, experiences: p.experiences.map((e) => ({ ...e, achievements: e.achievements.map(({ text, tags }) => ({ text, tags })) })) });
 
 /* ---------- 1. Extraction d'une offre ---------- */
 
@@ -64,7 +69,7 @@ skill_suggestions : parmi les mots-clés ABSENTS du profil, ne garde que ceux qu
 Exemples : Jira ou Planner utilisés → Trello plausible ; GitHub utilisé → Git ; Python pratiqué → VS Code ou Jupyter probables ; Power BI + SQL → modélisation de données. Contre-exemples : jamais un langage, un diplôme ou une certification sans lien réel avec le profil.
 "evidence" recopie l'élément précis du profil qui justifie (ex. « Jira cité dans l'alternance SNCF »). "category" réutilise une catégorie existante de "skills" du profil, sinon « Autres outils ». "confidence" : "forte" seulement si la compétence est quasi équivalente ou prérequise, sinon "moyenne". La personne confirmera : n'affirme rien, propose.
 ${HONESTY}`,
-    prompt: `PROFIL :\n${JSON.stringify(profile)}\n\nOFFRE :\n${JSON.stringify(offer)}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}`,
     schema: {
       properties: {
         verdict: str("2 phrases : est-ce une bonne cible et pourquoi"),
@@ -106,7 +111,7 @@ Règles absolues :
 - 4 à 8 suggestions au maximum, les plus utiles pour les métiers visés d'abord. "confidence" : "forte" si quasi équivalent ou prérequis, sinon "moyenne".
 - "category" réutilise une catégorie existante de "skills", sinon « Autres outils ».
 - La personne confirmera chaque suggestion : tu proposes, tu n'affirmes pas.`,
-    prompt: `PROFIL :\n${JSON.stringify(profile)}\n\nDÉJÀ REFUSÉ : ${JSON.stringify(dismissed)}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nDÉJÀ REFUSÉ : ${JSON.stringify(dismissed)}`,
     schema: {
       properties: { suggestions: arr(obj({ skill: S, category: S, evidence: S, confidence: { type: "string", enum: ["forte", "moyenne"] } })) },
       required: ["suggestions"],
@@ -119,7 +124,7 @@ Règles absolues :
 
 export async function generateCv(profile: Profile, offer: OfferExtract, analysis: OfferAnalysis | null, variant: string): Promise<CvDoc> {
   const target = profile.targets.find((t) => t.id === variant);
-  return structured<CvDoc>({
+  const cv = await structured<CvDoc>({
     maxTokens: 6000,
     system: `Tu rédiges un CV français d'UNE page, une colonne, optimisé ATS, ciblé sur une offre précise.
 Méthode :
@@ -133,7 +138,7 @@ Méthode :
 - notes_for_candidate : ce que la personne doit vérifier ou compléter avant d'envoyer (ex : un chiffre manquant qui renforcerait une puce).
 ${HONESTY}
 Règles propres au profil : ${profile.rules.join(" / ")}`,
-    prompt: `PROFIL MAÎTRE :\n${JSON.stringify(profile)}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}\n\nCible choisie : ${variant}`,
+    prompt: `PROFIL MAÎTRE :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}\n\nCible choisie : ${variant}`,
     schema: {
       properties: {
         headline: S, summary: S,
@@ -150,6 +155,8 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
       required: ["headline", "summary", "experiences", "education", "skills", "projects", "certifications", "languages", "ats_keywords_used", "notes_for_candidate"],
     },
   });
+  // Liens : repris du profil (jamais écrits par l'IA), choisis selon l'offre
+  return attachLinks(cv, profile, [offer.title, ...(offer.keywords ?? []), ...(analysis?.matched_keywords ?? []), ...(analysis?.missing_keywords ?? [])].join(" "));
 }
 
 /* ---------- 4. Lettre / message de motivation ---------- */
@@ -174,7 +181,7 @@ Style :
 - notes_for_candidate : ce qu'il faut vérifier ou compléter avant d'envoyer (un chiffre manquant, une exigence non couverte, un nom de contact à ajouter).
 ${HONESTY}
 Règles propres au profil : ${profile.rules.join(" / ")}`,
-    prompt: `PROFIL :\n${JSON.stringify(profile)}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
     schema: {
       properties: { subject: S, greeting: S, paragraphs: arr(S, "les 4 paragraphes, sans salutation ni formule finale"), signoff: S, notes_for_candidate: list },
       required: ["subject", "greeting", "paragraphs", "signoff", "notes_for_candidate"],
@@ -192,7 +199,7 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
 export async function generatePrep(profile: Profile, offer: OfferExtract, analysis: OfferAnalysis | null): Promise<PrepDoc> {
   return structured<PrepDoc>({
     system: `Tu prépares une personne à un entretien, avec un niveau d'exigence adapté à son expérience réelle. Les angles de réponse s'appuient sur des situations réelles du profil (méthode STAR). ${HONESTY}`,
-    prompt: `PROFIL :\n${JSON.stringify(profile)}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
     schema: {
       properties: {
         pitch_60s: str("présentation orale de 60 secondes, à la première personne"),
@@ -267,12 +274,16 @@ Tu t'appuies uniquement sur les chiffres fournis. Français, tutoiement.`,
 /* ---------- 8. Import d'un CV texte → profil (pour les autres utilisateurs) ---------- */
 
 export async function profileFromCvText(text: string): Promise<Profile> {
-  const ach = obj({ text: S, tags: list });
-  return structured<Profile>({
+  const ach = obj({ text: S, tags: list, sources: list }, ["text", "tags"]);
+  const profile = await structured<Profile>({
     maxTokens: 8000,
     thinking: 0, // simple recopie structurée : pas besoin de réfléchir longtemps
     patient: true,
-    system: `Tu convertis un ou plusieurs CV (texte brut) en profil structuré. Fusionne les doublons, garde toutes les réalisations, conserve les dates telles qu'écrites. Propose 1 à 3 "targets" (métiers visés) cohérents avec le parcours. Mets dans "todo" les incohérences repérées (dates, niveaux de langue) et les chiffres manquants. N'invente rien.`,
+    system: `Tu convertis un ou plusieurs CV (texte brut) en profil structuré. Fusionne les doublons, garde toutes les réalisations, conserve les dates telles qu'écrites. Propose 1 à 3 "targets" (métiers visés) cohérents avec le parcours. Mets dans "todo" les incohérences repérées (dates, niveaux de langue) et les chiffres manquants. N'invente rien.
+- Une même réalisation écrite avec d'autres mots dans deux CV compte pour UNE réalisation (garde la version la plus précise, celle qui a les chiffres).
+- Quand plusieurs CV sont fournis (en-têtes « === CV : nom === »), indique pour chaque réalisation, dans "sources", le nom du CV d'où elle vient (plusieurs noms si elle figure dans plusieurs CV).
+- Un projet personnel (jeu, site, application, outil construit pour soi) va dans "projects", avec son lien dans "link" : jamais comme réalisation d'une expérience professionnelle. Les missions faites pour un client ou un employeur restent dans l'expérience.
+- Les liens de la personne (LinkedIn, portfolio, GitHub, démonstrations) vont tous dans identity.links, chacun avec un libellé court.`,
     prompt: text.slice(0, 40000),
     schema: {
       properties: {
@@ -292,6 +303,8 @@ export async function profileFromCvText(text: string): Promise<Profile> {
       required: ["identity", "targets", "experiences", "education", "projects", "skills", "certifications", "languages", "interests", "preferences", "rules", "todo"],
     },
   });
+  // Chaque réalisation garde le nom du CV d'où elle vient
+  return labelSources(profile, cvLabels(text));
 }
 
 /* ---------- 9. Extraction des offres contenues dans une alerte emploi ---------- */
@@ -356,7 +369,7 @@ Tu juges le CV par rapport aux métiers visés et au marché français actuel :
 - search_strategy : à partir du questionnaire (durée de recherche, volume, réponses obtenues), dis où l'entonnoir bloque (pas de réponse = CV/ciblage ; entretiens sans offre = entretien) et ce qu'il faut changer.
 ${previous ? "- changes_since_last : compare avec le profil actuel fourni et liste ce qui a changé ou progressé." : ""}
 Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquement sur ce qui est écrit. overall_score : 85+ = prêt à envoyer, 60-84 = correct à retravailler, <60 = à refaire.`,
-    prompt: `QUESTIONNAIRE :\n${JSON.stringify(answers ?? {})}\n\n${previous ? `PROFIL ACTUEL :\n${JSON.stringify(previous)}\n\n` : ""}CV :\n"""\n${cvText.slice(0, 40000)}\n"""`,
+    prompt: `QUESTIONNAIRE :\n${JSON.stringify(answers ?? {})}\n\n${previous ? `PROFIL ACTUEL :\n${JSON.stringify(forAi(previous))}\n\n` : ""}CV :\n"""\n${cvText.slice(0, 40000)}\n"""`,
     schema: {
       properties: {
         overall_score: int("0-100"),
@@ -376,34 +389,116 @@ Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquem
   });
 }
 
-/** Fusionne un CV redéposé avec le profil actuel, sans rien perdre. */
+/**
+ * Fusionne un CV redéposé avec le profil actuel, sans rien perdre et sans doublon :
+ * le tri exact se fait en code, puis l'IA dit quelles nouvelles réalisations répètent une réalisation connue avec d'autres mots.
+ */
 export async function mergeProfileWithCv(current: Profile, cvText: string): Promise<Profile> {
   const extracted = await profileFromCvText(cvText);
-  // Fusion déterministe : on garde tout l'existant et on ajoute ce qui est nouveau
-  const key = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
-  const exps = [...current.experiences];
-  for (const e of extracted.experiences) {
-    const same = exps.find((x) => key(x.company) === key(e.company) && key(x.role).slice(0, 12) === key(e.role).slice(0, 12));
-    if (!same) exps.push(e);
-    else {
-      const known = new Set(same.achievements.map((a) => key(a.text)));
-      same.achievements.push(...e.achievements.filter((a) => !known.has(key(a.text))));
-    }
+  const { profile, groups } = mergeExtracted(current, extracted);
+  if (!groups.length) return profile;
+  let matches: { exp_id: string; j: number; same_as: number }[] = [];
+  try {
+    matches = await matchAchievements(groups);
+  } catch (e) {
+    // Si la comparaison échoue, on garde tout : un doublon se règle plus tard, une perte non.
+    console.error("Comparaison des réalisations échouée", e);
   }
-  const mergeList = (a: string[], b: string[]) => [...a, ...b.filter((x) => !a.some((y) => key(y) === key(x)))];
-  const skills = { ...current.skills };
-  for (const [cat, items] of Object.entries(extracted.skills ?? {})) skills[cat] = mergeList(skills[cat] ?? [], items);
-  return {
-    ...current,
-    identity: { ...extracted.identity, ...Object.fromEntries(Object.entries(current.identity).filter(([, v]) => (Array.isArray(v) ? v.length : v))) } as Profile["identity"],
-    targets: current.targets.length ? current.targets : extracted.targets,
-    experiences: exps,
-    education: [...current.education, ...extracted.education.filter((e) => !current.education.some((x) => key(x.degree) === key(e.degree)))],
-    projects: [...current.projects, ...extracted.projects.filter((p) => !current.projects.some((x) => key(x.name) === key(p.name)))],
-    skills,
-    certifications: mergeList(current.certifications, extracted.certifications),
-    languages: current.languages.length ? current.languages : extracted.languages,
-    interests: mergeList(current.interests, extracted.interests),
-    todo: mergeList(current.todo, extracted.todo),
-  };
+  const done = applyMatches(profile, groups, matches);
+  return done.todo.length ? { ...done.profile, todo: [...done.profile.todo, ...done.todo.filter((t) => !done.profile.todo.includes(t))] } : done.profile;
+}
+
+/** Quelles réalisations nouvelles disent la même chose qu'une réalisation déjà connue de la même expérience ? */
+export async function matchAchievements(groups: MatchGroup[]): Promise<{ exp_id: string; j: number; same_as: number }[]> {
+  const r = await structured<{ matches: { exp_id: string; j: number; same_as: number }[] }>({
+    fast: true,
+    maxTokens: 3000,
+    thinking: 0,
+    patient: true,
+    system: `Tu compares des réalisations d'un CV. Pour chaque expérience, tu reçois les réalisations "connues" et les "nouvelles" (issues d'un autre CV de la même personne).
+Pour chaque nouvelle réalisation qui décrit LE MÊME FAIT qu'une réalisation connue (même action, même livrable, même contexte, même si les mots, l'ordre ou le niveau de détail diffèrent), donne l'indice "i" de la connue dans "same_as". Si elle apporte un fait différent, "same_as" = -1.
+Deux réalisations proches mais distinctes (deux tableaux de bord différents, deux outils différents) ne sont PAS le même fait. En cas de doute, -1.
+Tu ne réécris rien et tu n'inventes rien : tu ne renvoies que des indices.`,
+    prompt: JSON.stringify(matchInput(groups)),
+    schema: {
+      properties: { matches: arr(obj({ exp_id: S, j: int("indice de la nouvelle réalisation"), same_as: int("indice de la réalisation connue, ou -1") })) },
+      required: ["matches"],
+    },
+  });
+  return Array.isArray(r.matches) ? r.matches : [];
+}
+
+/* ---------- 12. Audit du profil maître (« Faire le point ») ---------- */
+
+export type AuditResult = { proposals: Proposal[]; questions: string[]; notes: string[] };
+
+/** Le profil réduit à ce que l'audit doit voir : identifiants d'expérience et textes exacts des réalisations. */
+const auditView = (p: Profile) => ({
+  cibles: p.targets.map((t) => t.title),
+  experiences: p.experiences.map((e) => ({ exp_id: e.id, entreprise: e.company, poste: e.role, type: e.type ?? "", debut: e.start, fin: e.end, realisations: e.achievements.map((a) => a.text) })),
+  projets: p.projects.map((x) => ({ nom: x.name, description: x.description, lien: x.link ?? "" })),
+  liens: p.identity.links,
+});
+
+export async function auditProfile(profile: Profile): Promise<AuditResult> {
+  const r = await structured<{
+    proposals: { kind: string; exp_id: string; keep?: string; drop?: string[]; merged?: string; lossless?: boolean; text?: string; project?: { name: string; description: string; year?: string; tags?: string[] }; project_name?: string; why: string }[];
+    questions: string[];
+    notes: string[];
+  }>({
+    maxTokens: 6000,
+    thinking: 2048,
+    system: `Tu relis le profil maître d'une personne en recherche d'emploi pour le nettoyer, sans jamais rien inventer. Tu ne proposes QUE ces trois types de changements :
+1. "merge" : deux réalisations ou plus d'UNE MÊME expérience qui disent le même fait avec d'autres mots. "keep" = le texte EXACT (copié tel quel) de celle à garder, la plus complète ; "drop" = les textes exacts des autres. "lossless" = true seulement si la phrase gardée contient déjà tout ce que contiennent les autres (chiffres, outils, résultats). Sinon, renseigne "merged" : une seule phrase qui reprend tous les faits des textes, sans rien ajouter.
+2. "to_project" : une réalisation qui décrit un projet personnel (jeu, site, application, outil construit pour soi, démonstration) et non une mission pour un client ou un employeur. "text" = le texte exact de la réalisation ; project.name = le nom du projet ; project.description = 1 à 2 phrases qui reprennent uniquement ce que dit le texte, sans le lien.
+3. "duplicate" : une réalisation d'expérience qui répète un projet déjà présent dans "projets". "text" = le texte exact ; "project_name" = le nom exact du projet.
+Chaque proposition a un "exp_id" copié de l'expérience concernée, et "why" : une phrase simple pour la personne (« Ces deux lignes disent la même chose »).
+"questions" : 4 au plus, courtes, concrètes, chacune nommant l'expérience ou le projet (un chiffre manquant, une date qui ne colle pas, un rôle flou). Pas de question dont la réponse est déjà dans le profil.
+"notes" : 3 au plus, franches et courtes, sur la cohérence du positionnement (un profil qui mélange des métiers sans lien, une expérience qui ne soutient pas la cible).
+Ne propose jamais de supprimer une vraie mission professionnelle. Si tout est propre, renvoie des listes vides.`,
+    prompt: JSON.stringify(auditView(profile)),
+    schema: {
+      properties: {
+        proposals: arr(obj({
+          kind: { type: "string", enum: ["merge", "to_project", "duplicate"] },
+          exp_id: S, keep: S, drop: list, merged: S, lossless: { type: "boolean" }, text: S, project_name: S, why: S,
+          project: obj({ name: S, description: S, year: S, tags: list }, ["name", "description"]),
+        }, ["kind", "exp_id", "why"])),
+        questions: list,
+        notes: list,
+      },
+      required: ["proposals", "questions", "notes"],
+    },
+  });
+  const proposals: Proposal[] = [];
+  (r.proposals ?? []).forEach((x, i) => {
+    const id = `a${i + 1}`;
+    if (x.kind === "merge" && x.keep && x.drop?.length) proposals.push({ id, kind: "merge", exp_id: x.exp_id, keep: x.keep, drop: x.drop, merged: x.merged?.trim() || undefined, lossless: x.lossless === true, why: x.why });
+    else if (x.kind === "to_project" && x.text && x.project) proposals.push({ id, kind: "to_project", exp_id: x.exp_id, text: x.text, project: { name: x.project.name, description: x.project.description, year: x.project.year || undefined, tags: x.project.tags ?? [] }, why: x.why });
+    else if (x.kind === "duplicate" && x.text && x.project_name) proposals.push({ id, kind: "duplicate", exp_id: x.exp_id, text: x.text, project_name: x.project_name, why: x.why });
+  });
+  return { proposals, questions: (r.questions ?? []).filter((q) => q?.trim()).slice(0, 4), notes: (r.notes ?? []).filter((q) => q?.trim()).slice(0, 3) };
+}
+
+/* ---------- 13. Réponse à une question « À compléter » ---------- */
+
+export async function answerQuestion(profile: Profile, question: string, answer: string): Promise<AnswerOp[]> {
+  const r = await structured<{ ops: AnswerOp[] & { op: string }[] }>({
+    fast: true,
+    maxTokens: 2500,
+    thinking: 0,
+    system: `Une question a été posée à la personne à propos de son profil, et elle a répondu. Propose les modifications MINIMALES du profil qui intègrent sa réponse. Opérations possibles :
+- "replace" : réécrire UNE réalisation. exp_id de l'expérience, old_text = le texte EXACT de la réalisation actuelle, new_text = la nouvelle version.
+- "add" : ajouter une réalisation à une expérience (exp_id, text) quand la réponse apporte un fait nouveau.
+- "project" : réécrire la description d'un projet existant (name = nom exact, description).
+Règles absolues : tu t'appuies uniquement sur les faits de la réponse et du profil ; tout chiffre doit venir de la réponse ou du texte réécrit, jamais d'une estimation de ta part. Une réalisation tient en une phrase qui commence par un verbe d'action. Si la réponse n'apporte rien d'exploitable (« je ne sais pas »), renvoie une liste vide.`,
+    prompt: `PROFIL :\n${JSON.stringify(auditView(profile))}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}`,
+    schema: {
+      properties: {
+        ops: arr(obj({ op: { type: "string", enum: ["replace", "add", "project"] }, exp_id: S, old_text: S, new_text: S, text: S, name: S, description: S }, ["op"])),
+      },
+      required: ["ops"],
+    },
+  });
+  return (Array.isArray(r.ops) ? r.ops : []) as AnswerOp[];
 }
