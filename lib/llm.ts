@@ -273,6 +273,9 @@ const COMPAT = {
 type CompatResponse = {
   choices?: { message?: { content?: string | { type?: string; text?: string }[] | null }; finish_reason?: string }[];
   error?: { message?: string; type?: string; code?: string | number } | string;
+  /** Mistral met le message à la racine : { object: "error", message, type, code } */
+  message?: string;
+  type?: string;
 };
 
 type CState = {
@@ -326,10 +329,14 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
   } catch {
     throw new Busy(503, `${cfg.label} n'a pas répondu à temps.`); // délai dépassé ou coupure réseau
   }
-  const json = (await res.json().catch(() => ({}))) as CompatResponse;
+  // Corps lu en texte : si ce n'est pas du JSON (page d'erreur d'un proxy, par exemple), on garde le début pour comprendre
+  const raw = await res.text().catch(() => "");
+  let json: CompatResponse = {};
+  try { json = raw ? (JSON.parse(raw) as CompatResponse) : {}; } catch { /* corps non JSON */ }
 
   if (!res.ok) {
-    const msg = typeof json.error === "string" ? json.error : (json.error?.message ?? `HTTP ${res.status}`);
+    const fromBody = typeof json.error === "string" ? json.error : (json.error?.message ?? json.message ?? (json.type ? String(json.type) : ""));
+    const msg = fromBody || (raw && !raw.trim().startsWith("{") ? raw.trim() : "") || `HTTP ${res.status} (corps vide)`;
     // Demande refusée (400/422) : on la simplifie (schéma JSON → « objet JSON » → sans réglage de réflexion)
     if ((res.status === 400 || res.status === 422) && relax < 2) return again({ relax: relax + 1 });
     if (res.status === 401 || res.status === 403) throw new HttpError(500, `Clé ${cfg.label} invalide : vérifie ${cfg.env} dans Vercel.`);
@@ -340,7 +347,7 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
         await sleep(wait * 1000);
         return again({ attempt: 1 });
       }
-      throw new Busy(429, `${cfg.label} : limite gratuite atteinte pour le moment.`, wait, clean(msg));
+      throw new Busy(429, `${cfg.label} : limite gratuite atteinte pour le moment.`, wait, clean(`${msg}${wait ? ` (retry-after ${wait} s)` : ""}`));
     }
     if (res.status >= 500) throw new Busy(503, `${cfg.label} est saturé en ce moment.`, undefined, clean(`HTTP ${res.status} ${msg}`));
     // 413 (demande trop grosse pour le palier gratuit) et le reste : on passe au fournisseur suivant
