@@ -51,8 +51,9 @@ const MODELS = {
     fast: () => process.env.GROQ_FAST_MODEL || "openai/gpt-oss-20b",
   },
   mistral: {
-    main: () => process.env.MISTRAL_MODEL || "mistral-large-latest",
-    fast: () => process.env.MISTRAL_FAST_MODEL || "mistral-small-latest",
+    // Versions précises, relevées dans Admin Console > Limites : mistral-small, mistral-medium et mistral-large-4 y sont plafonnés à 20 000 tokens par minute (trop peu pour un CV)
+    main: () => process.env.MISTRAL_MODEL || "mistral-large-2512",
+    fast: () => process.env.MISTRAL_FAST_MODEL || "ministral-8b-2512",
   },
 };
 const modelOf = (id: ProviderId, fast: boolean) => (fast ? MODELS[id].fast() : MODELS[id].main());
