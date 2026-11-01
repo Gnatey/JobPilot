@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { today } from "./format";
 import * as cheerio from "cheerio";
-import { accessToken, fetchMeta, listJobEmails } from "./gmail";
+import { accessToken, fetchMeta, gmailEmail, listJobEmails } from "./gmail";
+import { isOwnMail, matchApplication, nextStatus } from "./email-match";
 import { analyzeOffer, classifyEmails, extractAlertOffers, extractOffer, generateCv } from "./ai";
 import { quickScore } from "./quick-score";
 import { computeLearning } from "./learning";
@@ -12,9 +13,6 @@ import { timeLeft } from "./budget";
 import { readOffer, detectSource, normalizeJobUrl, httpUrlOrNull } from "./fetch-offer";
 import { recoText } from "./reco-text";
 import { markRecoGone } from "./offer-ops";
-
-const RANK: Record<string, number> = { a_postuler: 0, postule: 1, relance: 2, entretien: 3, test: 4, offre: 5, refuse: 6, abandonne: 6, expiree: 6 };
-const TARGET: Record<string, string> = { accuse_reception: "postule", entretien: "entretien", test: "test", offre: "offre", refus: "refuse" };
 
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\b(sa|sas|group|groupe|france)\b/g, "").replace(/[^a-z0-9]/g, "");
@@ -63,9 +61,20 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
   const { data: known } = await supabase.from("emails").select("gmail_id").eq("user_id", userId).in("gmail_id", listed.map((m) => m.id).concat("_"));
   const knownSet = new Set((known ?? []).map((k) => k.gmail_id));
   const fresh = listed.filter((m) => !knownSet.has(m.id)).slice(0, 120);
-  const metas = (await Promise.all(fresh.map((m) => fetchMeta(token, m.id)))).filter((m) => m !== null);
+  const fetched = (await Promise.all(fresh.map((m) => fetchMeta(token, m.id)))).filter((m) => m !== null);
 
-  const { data: apps } = await supabase.from("applications").select("id, company, status, applied_at").eq("user_id", userId);
+  // Mes propres messages (envoyés, brouillons, écrits depuis mon adresse) ne sont jamais des réponses de recruteurs : rangés sans IA, sans toucher au suivi
+  const own = (acc.email || (await gmailEmail(token).catch(() => null)) || "").toLowerCase();
+  const metas = fetched.filter((m) => !isOwnMail(m, own));
+  const mine = fetched.filter((m) => isOwnMail(m, own));
+  if (mine.length) {
+    await supabase.from("emails").upsert(
+      mine.map((m) => ({ user_id: userId, gmail_id: m.id, thread_id: m.threadId, from_addr: m.from, subject: m.subject, snippet: m.snippet, received_at: m.date, category: "autre", application_id: null })),
+      { onConflict: "user_id,gmail_id" }
+    );
+  }
+
+  const { data: apps } = await supabase.from("applications").select("id, company, title, status, applied_at").eq("user_id", userId);
   const companies = (apps ?? []).map((a) => a.company);
 
   // Étapes courtes et reprenables : si le temps ou l'IA manque, on garde ce qui est lu, on le dit (`partial`) et la synchro suivante reprend là
@@ -97,9 +106,9 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
   for (const c of ordered) {
     const m = byId.get(c.id);
     if (!m) continue;
-    const key = norm(c.company || "");
-    const app = c.category !== "alerte_offres" && key.length > 2
-      ? (apps ?? []).find((a) => { const k = norm(a.company); return k && (k.includes(key) || key.includes(k)); })
+    // Candidature visée : même entreprise (mots entiers) ET, selon les cas, intitulé du poste reconnu. Au moindre doute : aucune.
+    const app = c.category !== "alerte_offres"
+      ? matchApplication(apps ?? [], { company: c.company || "", subject: m.subject, snippet: m.snippet, jobTitle: c.job_title, category: c.category })?.app
       : undefined;
     const store = async () => {
       await supabase.from("emails").upsert(
@@ -142,18 +151,14 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
     await store();
     if (!app) continue;
     const patch: Record<string, unknown> = { last_email_at: m.date };
-    const target = TARGET[c.category];
+    const target = nextStatus(app.status, c.category);
     if (target) {
-      const cur = app.status;
-      const allowed = target === "refuse" ? cur !== "offre" && cur !== "refuse" : RANK[target] > (RANK[cur] ?? 0) && cur !== "refuse";
-      if (allowed) {
-        patch.status = target;
-        app.status = target;
-        if (target === "postule" && !app.applied_at) patch.applied_at = m.date.slice(0, 10);
-        if (target === "refuse" || target === "offre") patch.next_action_at = null;
-        if (target === "entretien" || target === "test") patch.next_action_at = today();
-        updated++;
-      }
+      patch.status = target;
+      app.status = target;
+      if (target === "postule" && !app.applied_at) patch.applied_at = m.date.slice(0, 10);
+      if (target === "refuse" || target === "offre") patch.next_action_at = null;
+      if (target === "entretien" || target === "test") patch.next_action_at = today();
+      updated++;
     }
     await supabase.from("applications").update(patch).eq("id", app.id);
   }

@@ -55,7 +55,7 @@ export async function gmailEmail(token: string) {
   return r.ok ? ((await r.json()) as { emailAddress: string }).emailAddress : null;
 }
 
-export type GmailMeta = { id: string; threadId: string; from: string; subject: string; snippet: string; date: string };
+export type GmailMeta = { id: string; threadId: string; from: string; subject: string; snippet: string; date: string; labels: string[] };
 
 const JOB_QUERY =
   '(candidature OR postuler OR postulé OR entretien OR recrutement OR recruteur OR "votre profil" OR "votre candidature" OR application OR interview OR poste OR "offre d\'emploi" OR "job" OR "talent")';
@@ -73,7 +73,7 @@ export async function listJobEmails(token: string, sinceDays: number, max = 150)
     ids.push(...(j.messages ?? []));
     pageToken = j.nextPageToken;
   } while (pageToken && ids.length < max);
-  return ids.slice(0, max).map((m) => ({ id: m.id, threadId: m.threadId, from: "", subject: "", snippet: "", date: "" }));
+  return ids.slice(0, max).map((m) => ({ id: m.id, threadId: m.threadId, from: "", subject: "", snippet: "", date: "", labels: [] }));
 }
 
 export async function fetchMeta(token: string, id: string): Promise<GmailMeta | null> {
@@ -81,9 +81,9 @@ export async function fetchMeta(token: string, id: string): Promise<GmailMeta | 
   ["From", "Subject", "Date"].forEach((h) => p.append("metadataHeaders", h));
   const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?${p}`, { headers: { Authorization: `Bearer ${token}` } });
   if (!r.ok) return null;
-  const j = (await r.json()) as { id: string; threadId: string; snippet: string; internalDate: string; payload: { headers: { name: string; value: string }[] } };
+  const j = (await r.json()) as { id: string; threadId: string; snippet: string; internalDate: string; labelIds?: string[]; payload: { headers: { name: string; value: string }[] } };
   const h = (n: string) => j.payload.headers.find((x) => x.name.toLowerCase() === n.toLowerCase())?.value ?? "";
-  return { id: j.id, threadId: j.threadId, from: h("From"), subject: h("Subject"), snippet: j.snippet, date: new Date(Number(j.internalDate)).toISOString() };
+  return { id: j.id, threadId: j.threadId, from: h("From"), subject: h("Subject"), snippet: j.snippet, date: new Date(Number(j.internalDate)).toISOString(), labels: j.labelIds ?? [] };
 }
 
 const b64 = (t: string) => Buffer.from(t, "utf8").toString("base64");

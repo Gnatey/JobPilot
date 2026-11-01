@@ -215,7 +215,7 @@ export async function generatePrep(profile: Profile, offer: OfferExtract, analys
 /* ---------- 6. Classification des emails ---------- */
 
 export type EmailInput = { id: string; from: string; subject: string; snippet: string };
-export type EmailClass = { id: string; category: string; company: string; is_job_related: boolean };
+export type EmailClass = { id: string; category: string; company: string; job_title?: string; is_job_related: boolean };
 
 export async function classifyEmails(emails: EmailInput[], companies: string[]): Promise<EmailClass[]> {
   if (!emails.length) return [];
@@ -224,7 +224,9 @@ export async function classifyEmails(emails: EmailInput[], companies: string[]):
     maxTokens: 8000,
     system: `Tu tries des emails de recherche d'emploi.
 Catégories : accuse_reception, refus, entretien (invitation ou planification), test (cas pratique, test technique), offre (proposition d'embauche), relance_recruteur (un recruteur/cabinet qui la contacte), alerte_offres (newsletters, alertes d'offres), autre.
-company : nom de l'entreprise concernée ; si elle correspond à une entreprise de la liste fournie, utilise exactement ce nom.
+refus : uniquement un message d'une entreprise ou d'un recruteur qui écarte sa candidature. Un message écrit par la personne elle-même (même si elle décline une mission) n'est jamais un refus.
+company : l'entreprise qui recrute (jamais la plateforme d'envoi) ; si elle correspond à une entreprise de la liste fournie, utilise exactement ce nom. Si le mail ne la nomme pas, laisse vide : ne la devine pas.
+job_title : l'intitulé exact du poste si le mail le mentionne, sinon vide.
 is_job_related : false pour tout ce qui n'a rien à voir avec une candidature.`,
     prompt: `Entreprises suivies : ${JSON.stringify(companies)}\n\nEmails :\n${JSON.stringify(emails)}`,
     schema: {
@@ -233,6 +235,7 @@ is_job_related : false pour tout ce qui n'a rien à voir avec une candidature.`,
           id: S,
           category: { type: "string", enum: ["accuse_reception", "refus", "entretien", "test", "offre", "relance_recruteur", "alerte_offres", "autre"] },
           company: S,
+          job_title: S,
           is_job_related: { type: "boolean" },
         })),
       },
