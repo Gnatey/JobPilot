@@ -12,3 +12,11 @@ Rapport complet : `docs/ronde-nocturne-2026-11-02.md`. Cahier de recette créé 
 - **Laissé ouvert** : alertes `npm audit` (postcss dans Next, non exploitable ici, correctif = Next 16) ; jeton Gmail en clair en base et suppression de compte sans mot de passe (à durcir avant d'ouvrir aux amis) ; messages d'erreur techniques renvoyés tels quels.
 - **Non testé** : tout ce qui demande un vrai compte, de vraies IA, Gmail, le cron réel, et tout le visuel. Noms de modèles de repli Mistral non vérifiés.
 - **À refaire la prochaine fois** : relire les lignes « À toi » du cahier de recette que Juliana aura testées ; envisager un compte de test pour un contrôle visuel (Playwright).
+
+## Audit 2 : 2 novembre 2026, nuit (rendu, fluidité, simplicité)
+Rapport complet : `docs/audit-2026-11-02.md`. Lecture seule, rien de modifié dans le code ; tout est à mettre dans le prochain paquet.
+
+- **Méthode** : site construit contre un faux Supabase (données fictives), 16 pages rendues par Chromium en 1280 px et 390 px, avec mesures et interactions. Pas de vrai compte, pas de PDF, pas de mode sombre.
+- **Bon** : zéro débordement, zéro erreur console, zéro requête en échec ; « Autre » et « Tout analyser » se comportent comme prévu.
+- **À corriger** : stats et apprentissage sans pagination (coupés à 1 000 lignes) ; Suivi sur téléphone (200 cartes à plat) ; « Tout analyser (N) » qui ne dit pas combien sont analysables ; trois chiffres différents pour « à trier » ; Offres & CV en liste plate.
+- **À vérifier avec Juliana** : nombre de recommandations en base (> 1 000 ?), titre « En cours de développement » de Recherche, type de clés JWT de Supabase, réponse à « À décider ».
