@@ -32,7 +32,7 @@ type Getter = (url: string, opts: { headers: Record<string, string>; timeoutMs: 
 /**
  * Récupère le texte d'une offre depuis son URL, et repère les annonces retirées.
  * Marche bien sur les sites d'entreprise, Welcome to the Jungle, APEC, HelloWork.
- * LinkedIn, Indeed et France Travail bloquent souvent les robots (ou chargent la page par JavaScript) : dans ce cas
+ * LinkedIn, Indeed, Glassdoor et France Travail bloquent souvent les robots (ou chargent la page par JavaScript) : dans ce cas
  * `text` vaut null et `gone` reste faux (on ne devine pas) ; l'app demande alors de coller le texte de l'offre.
  * La lecture passe par safeGet : jamais d'adresse interne, redirections contrôlées, taille limitée.
  */
@@ -95,6 +95,16 @@ export async function fetchOfferText(url: string): Promise<string | null> {
 export const goneMessage = (classed: boolean) =>
   `Cette offre n'est plus disponible : l'annonce a été retirée ou a expiré.${classed ? " Je l'ai classée dans les Écartées (« Offre plus disponible »)." : ""} Si elle est en fait toujours en ligne, colle son texte et je l'analyse.`;
 
+/** Sites qui refusent la lecture automatique de leurs annonces : on le dit par leur nom plutôt que par un message générique. */
+export const BLOCKING_SITES = ["LinkedIn", "Indeed", "Glassdoor"];
+
+/** Message quand une page n'a pas pu être lue (le site est nommé s'il est connu pour bloquer les robots). */
+export function unreadableMessage(url?: string | null): string {
+  const site = detectSource(url);
+  const who = BLOCKING_SITES.includes(site) ? `${site} bloque la lecture automatique des annonces` : "Impossible de lire cette page (certains sites bloquent la lecture automatique)";
+  return `${who}. Colle le texte de l'offre, ou utilise le favori « Envoyer à JobPilot » depuis la page de l'annonce.`;
+}
+
 /** Adresse web http(s) valide, sinon null (refuse javascript:, data:, etc.). */
 export function httpUrlOrNull(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -111,6 +121,7 @@ export function detectSource(url?: string | null) {
   const u = url.toLowerCase();
   if (u.includes("linkedin")) return "LinkedIn";
   if (u.includes("indeed")) return "Indeed";
+  if (u.includes("glassdoor")) return "Glassdoor";
   if (u.includes("francetravail") || u.includes("pole-emploi")) return "France Travail";
   if (u.includes("welcometothejungle")) return "Welcome to the Jungle";
   if (u.includes("apec")) return "APEC";

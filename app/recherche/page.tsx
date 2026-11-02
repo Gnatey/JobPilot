@@ -6,7 +6,8 @@ import { Check, X, Bookmark, Trash2, ExternalLink, Search as SearchIcon, Loader2
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { PageTitle, Section, Empty } from "@/components/ui/page-title";
 import { ScorePill } from "@/components/ui/score";
-import { REJECT_REASONS, type Profile, type SavedCriteria, type SearchZone } from "@/lib/types";
+import { type Profile, type SavedCriteria, type SearchZone } from "@/lib/types";
+import { ReasonChips } from "@/components/reason-chips";
 import type { SearchCriteria } from "@/lib/sources/types";
 import { fmtDate, plural, today } from "@/lib/format";
 import { deptName } from "@/lib/departements";
@@ -396,9 +397,7 @@ export default function Recherche() {
                     <a href={o.url} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost"><ExternalLink size={15} /> Annonce</a>
                   </div>
                   {rejecting === o.key && (
-                    <div className="mt-2 flex flex-wrap gap-1.5 md:pl-[6.5rem]">
-                      {REJECT_REASONS.map((x) => <button key={x.id} className="chip" onClick={() => decide(o, "reject", x.id)}>{x.label}</button>)}
-                    </div>
+                    <ReasonChips className="mt-2 md:pl-[6.5rem]" disabled={rowBusy === o.key} onPick={(reason) => decide(o, "reject", reason)} />
                   )}
                 </li>
               ))}

@@ -9,7 +9,7 @@ import { ReasonChips } from "./reason-chips";
 import { bulkDecision, useRecoDecision } from "./reco-actions";
 import { useFeedback } from "./ui/feedback";
 import { refreshBadges } from "./nav";
-import { rejectLabel } from "@/lib/types";
+import { rejectLabel, rejectLabelInline } from "@/lib/types";
 import { PRE_FILTERS } from "@/lib/quick-score";
 import { fmtDate } from "@/lib/format";
 import { FIT_LABELS, isFitReason } from "@/lib/fit";
@@ -227,7 +227,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">{rules.map((r) => <li key={r}>{r}</li>)}</ul>
         {Object.keys(reasons).length > 0 && (
           <p className="mt-3 text-sm">
-            Raisons d'écart : {Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${rejectLabel(k).toLowerCase()} (${n})`).join(", ")}.
+            Raisons d'écart : {Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${rejectLabelInline(k)} (${n})`).join(", ")}.
           </p>
         )}
         {decided < 10 && <p className="mt-2 text-sm text-muted">Les règles se précisent à partir d'une dizaine d'offres triées.</p>}

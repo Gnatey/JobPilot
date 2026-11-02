@@ -109,7 +109,7 @@ function Form() {
       </button>
       {busy && <p className="text-sm text-muted">Environ 20 secondes. Tu peux rester sur la page.</p>}
       {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}
-      <p className="text-sm text-muted">LinkedIn et Indeed protègent souvent leurs pages. Dans ce cas, copie le texte de l'annonce : 5 secondes, ou utilise le favori ci-dessus qui le fait en un clic.</p>
+      <p className="text-sm text-muted">LinkedIn, Indeed et Glassdoor protègent souvent leurs pages. Dans ce cas, copie le texte de l'annonce : 5 secondes, ou utilise le favori ci-dessus qui le fait en un clic.</p>
     </form>
   );
 }

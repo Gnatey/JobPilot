@@ -7,6 +7,7 @@ import { fmtDate } from "@/lib/format";
 import { statusLabel } from "@/lib/types";
 import { OfferRowDelete } from "@/components/offer-row-delete";
 import { pickApplication } from "@/lib/app-pick";
+import { AnalyzeAll } from "@/components/analyze-all";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Offres & CV" };
@@ -14,7 +15,7 @@ export const metadata = { title: "Offres & CV" };
 export default async function Offres() {
   const { supabase } = await requireUser();
   const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }] = await Promise.all([
-    supabase.from("offers").select("id, title, company, location, score, decision, created_at, analysis->company_type").order("created_at", { ascending: false }).limit(300),
+    supabase.from("offers").select("id, title, company, location, score, decision, created_at, analysis->company_type, analysis->estimated").order("created_at", { ascending: false }).limit(300),
     supabase.from("applications").select("offer_id, status").not("offer_id", "is", null),
     supabase.from("documents").select("offer_id").eq("kind", "cv"),
     // « Je candidate » sans analyse : la candidature est déjà « À postuler », l'offre n'a simplement pas encore été analysée
@@ -30,10 +31,10 @@ export default async function Offres() {
   const cvCount = new Map<string, number>();
   for (const d of docs ?? []) cvCount.set(d.offer_id, (cvCount.get(d.offer_id) ?? 0) + 1);
   const hidden = (offers?.length ?? 0) - todo.length;
-  type Item = { key: string; kind: "offer" | "app"; href: string; score: number | null; title: string; sub: string; state: React.ReactNode; meta: string; at: string };
+  type Item = { key: string; kind: "offer" | "app"; href: string; score: number | null; rough?: boolean; title: string; sub: string; state: React.ReactNode; meta: string; at: string };
   const items: Item[] = [
     ...todo.map((o) => ({
-      key: o.id, kind: "offer" as const, href: `/offres/${o.id}`, score: o.score as number | null, title: o.title as string,
+      key: o.id, kind: "offer" as const, href: `/offres/${o.id}`, score: o.score as number | null, rough: Boolean((o as unknown as { estimated?: boolean | null }).estimated), title: o.title as string,
       sub: [o.company, o.location, (o as unknown as { company_type?: string | null }).company_type].filter(Boolean).join(", "),
       state: (status.has(o.id) ? statusLabel(status.get(o.id)!) : <span className="text-muted">À décider</span>) as React.ReactNode,
       meta: `${cvCount.get(o.id) ? `${cvCount.get(o.id)} CV` : "Aucun CV"}, ${fmtDate(o.created_at)}`, at: o.created_at as string,
@@ -53,6 +54,7 @@ export default async function Offres() {
       <PageTitle title="Offres & CV" sub="Les offres analysées qu'il te reste à traiter, leur score et les CV générés pour elles. Le reste est dans Suivi.">
         <Link href="/offres/nouvelle" className="btn btn-primary"><Plus size={16} /> Analyser une offre</Link>
       </PageTitle>
+      {(loose?.length ?? 0) > 0 && <AnalyzeAll count={loose!.length} />}
       {!items.length ? (
         <Empty action={<Link href="/offres/nouvelle" className="btn btn-primary">{offers?.length ? "Analyser une offre" : "Analyser ma première offre"}</Link>}>
           {offers?.length
@@ -64,7 +66,7 @@ export default async function Offres() {
           {items.map((it) => (
             <li key={it.key} className="flex items-center hover:bg-paper/60">
               <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                <ScorePill value={it.score} />
+                <ScorePill value={it.score} rough={it.rough} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{it.title}</p>
                   <p className="truncate text-sm text-muted">{it.sub}</p>

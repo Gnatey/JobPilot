@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { rejectLabel } from "@/lib/types";
+import { rejectLabelInline } from "@/lib/types";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 
@@ -38,7 +38,7 @@ export function useRecoDecision(onUndo?: (id: string) => void, opts: { toSuivi?:
     if (decision === "restore") { toast("Remise dans les offres à trier", { tone: "info" }); return res; }
     const name = r.title ? ` : ${r.title}` : "";
     toast(
-      decision === "accept" ? `Ajoutée au suivi${name}` : `${toSuivi ? "Abandonnée" : "Écartée"}${reason ? ` (${rejectLabel(reason).toLowerCase()})` : ""}${name}`,
+      decision === "accept" ? `Ajoutée au suivi${name}` : `${toSuivi ? "Abandonnée" : "Écartée"}${reason ? ` (${rejectLabelInline(reason)})` : ""}${name}`,
       { action: { label: "Annuler", run: async () => { const u = await call(r.id, "restore"); if (u.error) toast(u.error, { tone: "err" }); else { onUndo?.(r.id); refreshBadges(); router.refresh(); } } } }
     );
     return res;

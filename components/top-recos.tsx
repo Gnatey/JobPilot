@@ -2,7 +2,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Check, X, ExternalLink } from "lucide-react";
-import { ScorePill } from "@/components/ui/score";
+import { ScorePill, PreStar, isClose } from "@/components/ui/score";
 import { ReasonChips } from "@/components/reason-chips";
 import { useRecoDecision } from "@/components/reco-actions";
 
@@ -27,7 +27,9 @@ export function TopRecos({ recos }: { recos: TopReco[] }) {
       {list.map((r) => (
         <li key={r.id} className="px-4 py-3.5">
           <div className="flex items-start gap-3">
-            <div className="w-[5.6rem] shrink-0 pt-0.5 text-center"><ScorePill value={r.score} estimate={!r.ai} /></div>
+            {(r.ai || isClose(r.score)) && (
+              <div className="w-[5.6rem] shrink-0 pt-0.5 text-center">{r.ai ? <ScorePill value={r.score} /> : <PreStar value={r.score} />}</div>
+            )}
             <div className="min-w-0 flex-1">
               <p className="font-semibold leading-snug">{r.title}</p>
               <p className="truncate text-sm text-muted">{[r.company, r.location, r.source].filter(Boolean).join(", ")}</p>

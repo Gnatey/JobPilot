@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Mail, MessagesSquare, Check, Send, Recycle, X, Undo2, Loader2, RefreshCw, SlidersHorizontal, Trash2, ScanSearch } from "lucide-react";
-import { TEMPLATES, REJECT_REASONS, templateLabel, rejectLabel } from "@/lib/types";
+import { TEMPLATES, templateLabel, rejectLabelInline } from "@/lib/types";
+import { ReasonChips } from "@/components/reason-chips";
 import { fmtDate } from "@/lib/format";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
@@ -207,15 +208,13 @@ export function OfferActions(props: {
       {rejecting && (
         <div className="mt-4">
           <p className="text-sm font-semibold">Pourquoi ? L'app s'en sert pour mieux trier les prochaines offres.</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {REJECT_REASONS.map((r) => <button key={r.id} className="chip" onClick={() => decide("reject", { reason: r.id })}>{r.label}</button>)}
-          </div>
+          <ReasonChips className="mt-2" disabled={!!busy} onPick={(reason) => decide("reject", { reason })} />
         </div>
       )}
 
       {props.decision === "rejected" && (
         <p className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
-          Abandonnée : {rejectLabel(props.rejectReason).toLowerCase()}.
+          Abandonnée : {rejectLabelInline(props.rejectReason)}.
           <button className="inline-flex items-center gap-1 font-semibold text-ink underline" onClick={() => decide("restore")} disabled={!!busy}><Undo2 size={14} /> Remettre à trier</button>
         </p>
       )}

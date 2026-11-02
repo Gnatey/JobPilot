@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { STATUSES, variantLabel, isNeverSent, type Application } from "./types";
+import { STATUSES, variantLabel, isNeverSent, reasonKey, type Application } from "./types";
 
 const RESPONSE = new Set(["entretien", "test", "offre", "refuse"]);
 const INTERVIEW = new Set(["entretien", "test", "offre"]);
@@ -100,7 +100,8 @@ export async function computeStats(supabase: SupabaseClient) {
     if (r.status === "accepted") g.accepted++;
     else if (r.status === "rejected") {
       g.rejected++;
-      reasons[r.reject_reason ?? "autre"] = (reasons[r.reject_reason ?? "autre"] ?? 0) + 1;
+      const why = reasonKey(r.reject_reason) ?? "autre"; // « autre: texte » compte comme « autre »
+      reasons[why] = (reasons[why] ?? 0) + 1;
     } else g.pending++;
     triageBySource.set(k, g);
   }

@@ -4,6 +4,7 @@ import { fetchOfferText } from "@/lib/fetch-offer";
 import { createAnalyzedOffer, ensureApplication, ensureGivenUp, undoGivenUp } from "@/lib/offer-ops";
 import { externalId } from "@/lib/sources";
 import { recoText } from "@/lib/reco-text";
+import { cleanReason } from "@/lib/types";
 
 export const maxDuration = 60;
 
@@ -20,7 +21,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   return handle(52_000, async () => {
     const { id } = await ctx.params;
     const { supabase, user } = await requireUser();
-    const { decision, reason, analyze, to_suivi } = (await req.json()) as Body;
+    const body = (await req.json()) as Body;
+    const { decision, analyze, to_suivi } = body;
+    const reason = cleanReason(body.reason) ?? undefined; // « autre » peut porter un pourquoi libre, borné
     const { data: reco } = await supabase.from("recommendations").select("*").eq("id", id).single();
     if (!reco) throw new HttpError(404, "Offre introuvable");
     const now = new Date().toISOString();

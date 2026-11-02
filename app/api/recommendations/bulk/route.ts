@@ -1,12 +1,15 @@
 import { requireUser } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { KEPT } from "@/lib/fit";
+import { cleanReason } from "@/lib/types";
 
 /** Tri en lot : écarter (ou remettre à trier) plusieurs offres d'un coup. */
 export async function POST(req: Request) {
   return handle(async () => {
     const { supabase } = await requireUser();
-    const { ids, decision, reason } = (await req.json()) as { ids: string[]; decision: "reject" | "restore" | "keep"; reason?: string };
+    const body = (await req.json()) as { ids: string[]; decision: "reject" | "restore" | "keep"; reason?: string };
+    const { ids, decision } = body;
+    const reason = cleanReason(body.reason) ?? undefined;
     const list = (ids ?? []).slice(0, 500);
     if (!list.length) return { ok: true, count: 0 };
     const now = new Date().toISOString();

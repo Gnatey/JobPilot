@@ -198,7 +198,7 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
                 <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
                   <span className={`h-2.5 w-2.5 rounded-full ${s.color}`} /> {s.label} <span className="font-normal text-muted">{rows.length}</span>
                 </h2>
-                <div className={`min-h-28 space-y-2 rounded-2xl p-2 transition-colors ${over === s.id ? "bg-marigold/20 ring-2 ring-marigold" : "bg-line/45"}`}>
+                <div className={`min-h-28 max-h-[65vh] space-y-2 overflow-y-auto overscroll-contain rounded-2xl p-2 transition-colors ${over === s.id ? "bg-marigold/20 ring-2 ring-marigold" : "bg-line/45"}`}>
                   {rows.map((a) => {
                     const late = a.next_action_at && a.next_action_at <= today() && ["postule", "relance"].includes(a.status);
                     return (

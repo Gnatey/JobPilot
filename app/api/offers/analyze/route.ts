@@ -2,13 +2,15 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { extractOffer, analyzeOffer } from "@/lib/ai";
-import { readOffer, goneMessage, detectSource, normalizeJobUrl } from "@/lib/fetch-offer";
+import { readOffer, goneMessage, detectSource, normalizeJobUrl, unreadableMessage } from "@/lib/fetch-offer";
 import { markRecoGone } from "@/lib/offer-ops";
 import { spendAi, AI_COST } from "@/lib/quota";
+import { recoText } from "@/lib/reco-text";
+import type { OfferAnalysis } from "@/lib/types";
 
 export const maxDuration = 60;
 
-type Body = { url?: string; text?: string; source?: string; external_id?: string; reco_id?: string; app_id?: string; force?: boolean };
+type Body = { url?: string; text?: string; source?: string; external_id?: string; reco_id?: string; app_id?: string; force?: boolean; allow_partial?: boolean };
 
 export async function POST(req: Request) {
   return handle(52_000, async () => {
@@ -17,13 +19,27 @@ export async function POST(req: Request) {
     const rawUrl = body.url?.trim() || undefined;
     const url = rawUrl ? normalizeJobUrl(rawUrl) : undefined;
     let text = (body.text?.trim() || "").slice(0, 30000);
+    let extract = ""; // simple extrait de liste ou d'alerte : l'annonce n'a pas été lue en entier
+    let partial = false;
+
+    // Texte déjà en base pour cette offre recommandée (page lue par le favori, recherche automatique) : inutile de relire un site souvent bloqué
+    if (!text && body.reco_id) {
+      const { data: reco } = await supabase.from("recommendations").select("origin, snippet").eq("id", body.reco_id).maybeSingle();
+      text = recoText(reco ?? {}).slice(0, 30000);
+      extract = (reco?.snippet ?? "").trim();
+    }
 
     // Déjà analysée : on la rouvre au lieu de consommer du quota IA pour rien
+    // (sauf si cette analyse n'était qu'une estimation d'après un extrait et qu'on a maintenant l'annonce entière : on la refait)
+    let upgradeId: string | null = null;
     if (url && !body.force) {
       const { data: dup } = await supabase.from("offers").select("id, score, analysis").in("url", [...new Set([url, rawUrl!])]).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (dup) {
-        await link(supabase, body, dup.id, dup.score, dup.analysis?.recommended_variant);
-        return { id: dup.id, existing: true };
+        if (dup.analysis?.estimated && text.length >= 300) upgradeId = dup.id;
+        else {
+          await link(supabase, body, dup.id, dup.score, dup.analysis?.recommended_variant);
+          return { id: dup.id, existing: true };
+        }
       }
     }
 
@@ -35,36 +51,46 @@ export async function POST(req: Request) {
         throw new HttpError(410, goneMessage(Boolean(body.reco_id)));
       }
       text = read.text ?? "";
-      if (!text) throw new HttpError(422, "Impossible de lire cette page (LinkedIn et Indeed bloquent souvent la lecture automatique). Colle le texte de l'offre.");
     }
+    // Page illisible (Indeed, LinkedIn, Glassdoor…) mais on a un extrait : on analyse quand même, le pourcentage sera marqué « estimé »
+    if (!text && body.allow_partial && extract.length >= 150) {
+      text = extract.slice(0, 30000);
+      partial = true;
+    }
+    if (!text && url) throw new HttpError(422, unreadableMessage(url));
     if (text.length < 150) throw new HttpError(400, "Le texte de l'offre est trop court : colle l'annonce complète.");
 
     await spendAi(supabase, user, AI_COST.offer);
     const profile = await getProfile(supabase, user);
     const extracted = await extractOffer(text, url);
-    const analysis = await analyzeOffer(profile, extracted);
+    const analysis: OfferAnalysis = { ...(await analyzeOffer(profile, extracted)), ...(partial ? { estimated: true } : {}) };
 
-    const { data, error } = await supabase
-      .from("offers")
-      .insert({
-        user_id: user.id,
-        url,
-        source: body.source ?? detectSource(url),
-        external_id: body.external_id ?? null,
-        title: extracted.title,
-        company: extracted.company,
-        location: extracted.location,
-        contract: extracted.contract,
-        raw_text: text.slice(0, 30000),
-        extracted,
-        analysis,
-        score: analysis.score,
-      })
-      .select("id")
-      .single();
-    if (error) throw error;
-    await link(supabase, body, data.id, analysis.score, analysis.recommended_variant);
-    return { id: data.id };
+    const fields = {
+      title: extracted.title,
+      company: extracted.company,
+      location: extracted.location,
+      contract: extracted.contract,
+      raw_text: text.slice(0, 30000),
+      extracted,
+      analysis,
+      score: analysis.score,
+    };
+    let offerId: string;
+    if (upgradeId) {
+      const { error } = await supabase.from("offers").update(fields).eq("id", upgradeId);
+      if (error) throw error;
+      offerId = upgradeId;
+    } else {
+      const { data, error } = await supabase
+        .from("offers")
+        .insert({ user_id: user.id, url, source: body.source ?? detectSource(url), external_id: body.external_id ?? null, ...fields })
+        .select("id")
+        .single();
+      if (error) throw error;
+      offerId = data.id as string;
+    }
+    await link(supabase, body, offerId, analysis.score, analysis.recommended_variant);
+    return { id: offerId, estimated: partial || undefined };
   });
 }
 

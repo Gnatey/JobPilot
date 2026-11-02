@@ -22,7 +22,11 @@ export const forAi = (p: Profile): Profile => ({ ...p, experiences: p.experience
 export async function extractOffer(text: string, url?: string): Promise<OfferExtract> {
   return structured<OfferExtract>({
     fast: true,
-    system: "Tu extrais les informations d'une offre d'emploi française. Si une info est absente, mets une chaîne vide ou un tableau vide. N'invente rien.",
+    system: `Tu extrais les informations d'une offre d'emploi française. Si une info est absente, mets une chaîne vide ou un tableau vide. N'invente rien.
+Le texte peut commencer par un bandeau (contrat, salaire, expérience, études, lieu) : lis-le, il prime sur le reste.
+- "seniority" : recopie le niveau ou les années d'expérience écrits dans l'annonce. S'ils ne sont écrits nulle part, mets « Non précisé » : ne déduis jamais la séniorité du titre ni du ton de l'annonce.
+- "salary" : recopie la rémunération telle qu'écrite (fourchette, k€, €/mois, brut/net). Vide seulement si aucune rémunération n'apparaît nulle part dans le texte.
+- "company_context" : si l'annonce est publiée par une agence d'intérim, un cabinet de recrutement ou une ESN pour le compte d'un client, dis-le.`,
     prompt: `URL : ${url ?? "aucune"}\n\nTexte de l'offre :\n"""\n${text.slice(0, 18000)}\n"""`,
     schema: {
       properties: {
@@ -52,7 +56,8 @@ export async function analyzeOffer(profile: Profile, offer: OfferExtract): Promi
   const a = await structured<OfferAnalysis>({
     system: `Tu es un recruteur exigeant et honnête. Tu évalues la compatibilité entre un profil et une offre.
 Barème de chaque bloc (0-100) : 90+ = correspond parfaitement, 70 = bonne base avec écarts mineurs, 50 = écarts réels, <30 = hors cible.
-"experience" compare le niveau demandé au niveau réel du profil (une alternance ou un stage compte comme de l'expérience de débutant, pas comme plusieurs années).
+"experience" compare le niveau demandé au niveau réel du profil (une alternance ou un stage compte comme de l'expérience de débutant, pas comme plusieurs années). Si l'offre ne précise ni niveau ni années d'expérience, ne le déduis pas du titre : note-le « non précisé » dans le commentaire et ne pénalise pas ce bloc.
+Ce que l'annonce ne dit pas (salaire, télétravail, taille de l'entreprise) n'est jamais un point négatif : ne pénalise que ce qui est écrit.
 "logistics" = lieu, mobilité, type de contrat, disponibilité.
 Choisis recommended_variant parmi les ids de "targets" du profil.
 company_type : ESN/Conseil, Banque/Finance/Assurance, Secteur public, Grand groupe, Startup/Scale-up, PME, Cabinet de recrutement.

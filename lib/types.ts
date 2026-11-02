@@ -90,6 +90,7 @@ export const isNeverSent = (a: { status: string; applied_at?: string | null }) =
 export const CHANNELS = [
   "LinkedIn",
   "Indeed",
+  "Glassdoor",
   "France Travail",
   "Welcome to the Jungle",
   "APEC",
@@ -190,6 +191,8 @@ export type OfferAnalysis = {
   should_apply: "oui" | "oui_avec_effort" | "non";
   questions_to_expect: string[];
   skill_suggestions?: SkillSuggestion[]; // mots-clés manquants que le profil rend plausibles, à confirmer
+  /** Analyse faite d'après un simple extrait de l'annonce (Indeed…) : le pourcentage est une estimation, jusqu'à ce que l'annonce entière soit lue. */
+  estimated?: boolean;
 };
 
 export type CvDoc = {
@@ -246,9 +249,34 @@ export const REJECT_REASONS = [
 ] as const;
 /** Raisons qui ne disent rien de tes goûts (annonce retirée, tri en lot) : l'app n'en tire aucune règle. */
 export const NEUTRAL_REASONS: readonly string[] = ["score_bas", "expiree", "fit_stage", "fit_alternance", "fit_metier", "garde"];
+
+/**
+ * « Autre » peut s'accompagner d'un pourquoi libre, facultatif (ex. « offre entièrement en anglais »).
+ * Il est rangé dans la même colonne que la raison, sous la forme « autre: texte » : aucune migration de base à faire.
+ */
+export const OTHER_REASON = "autre";
+export const REASON_NOTE_MAX = 200;
+export function withReasonNote(id: string, note?: string | null): string {
+  const n = (note ?? "").replace(/\s+/g, " ").trim().slice(0, REASON_NOTE_MAX);
+  return id === OTHER_REASON && n ? `${OTHER_REASON}: ${n}` : id;
+}
+/** La raison sans son pourquoi libre : c'est elle qu'on compte et dont l'app apprend. */
+export const reasonKey = (r?: string | null): string | null => (r && r.startsWith(`${OTHER_REASON}:`) ? OTHER_REASON : r ?? null);
+export const reasonNote = (r?: string | null): string => (r && r.startsWith(`${OTHER_REASON}:`) ? r.slice(OTHER_REASON.length + 1).trim() : "");
+/** Raison reçue du navigateur : une des raisons connues, ou « autre » avec son pourquoi, borné. */
+export function cleanReason(r?: string | null): string | null {
+  if (!r || typeof r !== "string") return null;
+  return r.startsWith(`${OTHER_REASON}:`) ? withReasonNote(OTHER_REASON, reasonNote(r)) : r.slice(0, 40);
+}
+
 // « score_bas » vient du tri en lot : pas proposé comme choix, mais affiché dans les stats
-export const rejectLabel = (id?: string | null) =>
-  id === "score_bas" ? "Score trop bas" : id === "fit_stage" ? "Stage" : id === "fit_alternance" ? "Alternance" : id === "fit_metier" ? "Métier éloigné" : REJECT_REASONS.find((r) => r.id === id)?.label ?? id ?? "";
+export const rejectLabel = (id?: string | null) => {
+  const note = reasonNote(id);
+  if (note) return `Autre : ${note}`;
+  return id === "score_bas" ? "Score trop bas" : id === "fit_stage" ? "Stage" : id === "fit_alternance" ? "Alternance" : id === "fit_metier" ? "Métier éloigné" : REJECT_REASONS.find((r) => r.id === id)?.label ?? id ?? "";
+};
+/** Pour l'insérer dans une phrase : « trop senior », mais le pourquoi libre garde sa casse. */
+export const rejectLabelInline = (id?: string | null) => (reasonNote(id) ? rejectLabel(id) : rejectLabel(id).toLowerCase());
 
 /* ---------- Questionnaire d'accueil et diagnostic ---------- */
 

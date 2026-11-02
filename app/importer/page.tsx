@@ -7,6 +7,7 @@ import { PageTitle } from "@/components/ui/page-title";
 import { Bookmarklet } from "@/components/settings-controls";
 import { analyzeOffer, captureList, useSteps, type CaptureItem, type CaptureResult } from "@/lib/client/analyze";
 import { usableJobText } from "@/lib/reco-text";
+import { withHeader } from "@/lib/offer-header";
 
 type Payload = { jp: 1; url: string; title: string; one: string; page: string; links: { t: string; h: string }[] };
 
@@ -42,7 +43,9 @@ export default function Importer() {
 
   const runOne = useCallback(async (m: Payload) => {
     setPhase("one"); setErr(null);
-    const r = await analyzeOffer({ url: m.url, text: (m.one.length >= 150 ? m.one : m.page).slice(0, 30000) });
+    // Description seule (sélection, bloc reconnu) : on y joint le bandeau de l'annonce (salaire, expérience, études) pris dans la page
+    const text = m.one.length >= 150 ? withHeader(m.one, m.page, m.title) : m.page;
+    const r = await analyzeOffer({ url: m.url, text: text.slice(0, 30000) });
     if (r.error || !r.id) { setErr(r.error ?? "L'analyse a échoué."); setPhase("error"); return; }
     router.replace(`/offres/${r.id}`);
   }, [router]);

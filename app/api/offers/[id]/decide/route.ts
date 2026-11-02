@@ -2,13 +2,16 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { ensureApplication, ensureGivenUp, findApplication, undoGivenUp } from "@/lib/offer-ops";
 import { pickApplication } from "@/lib/app-pick";
+import { cleanReason } from "@/lib/types";
 
 /** Même logique que les recommandations, pour une offre analysée à la main. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const { id } = await ctx.params;
     const { supabase, user } = await requireUser();
-    const { decision, reason, status } = (await req.json()) as { decision: "accept" | "reject" | "restore" | "undo" | "unsend"; reason?: string; status?: string };
+    const body = (await req.json()) as { decision: "accept" | "reject" | "restore" | "undo" | "unsend"; reason?: string; status?: string };
+    const { decision, status } = body;
+    const reason = cleanReason(body.reason) ?? undefined; // « autre » peut porter un pourquoi libre, borné
     const { data: offer } = await supabase.from("offers").select("*").eq("id", id).single();
     if (!offer) throw new HttpError(404, "Offre introuvable");
 

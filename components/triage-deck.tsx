@@ -5,7 +5,8 @@ import { ArrowLeft, Check, CornerUpRight, ExternalLink, Loader2, PartyPopper, X 
 import { Gauge, ScorePill } from "./ui/score";
 import { useRecoDecision } from "./reco-actions";
 import { useFeedback } from "./ui/feedback";
-import { REJECT_REASONS } from "@/lib/types";
+import { OTHER_REASON, REJECT_REASONS } from "@/lib/types";
+import { OtherNote } from "@/components/reason-chips";
 import { ago } from "@/lib/format";
 import type { Reco } from "./reco-list";
 
@@ -22,6 +23,7 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
   const [yes, setYes] = useState(0);
   const [moreBusy, setMoreBusy] = useState(false);
   const [reasonFor, setReasonFor] = useState<Reco | null>(null);
+  const [other, setOther] = useState(false); // « Autre » : on demande le pourquoi libre (facultatif)
   const [leaving, setLeaving] = useState<Leaving>(null);
   const [drag, setDrag] = useState<{ x: number; start: number; active: boolean }>({ x: 0, start: 0, active: false });
   const byId = useMemo(() => new Map(initial.map((r) => [r.id, r])), [initial]);
@@ -52,9 +54,12 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
     if (!reasonFor) return;
     const r = reasonFor;
     setReasonFor(null);
+    setOther(false);
     advance("left", () => { setQueue((q) => q.filter((x) => x.id !== r.id)); setHandled((h) => h + 1); });
     decide(r, "reject", reason).then((res) => { if (!res) setQueue((q) => [r, ...q]); });
   }, [reasonFor, advance, decide]);
+
+  const chooseReason = useCallback((id: string) => (id === OTHER_REASON ? setOther(true) : pickReason(id)), [pickReason]);
 
   /** « Voir d'autres offres du même type » : un nouveau lot pour les mêmes critères, puis on recharge le tri. */
   async function more() {
@@ -77,11 +82,11 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
       if (reasonFor) {
-        if (e.key === "Escape") setReasonFor(null);
+        if (e.key === "Escape") { setReasonFor(null); setOther(false); }
         // 1 à 9 pour les neuf premiers motifs, 0 pour le dixième
         if (/^[0-9]$/.test(e.key)) {
           const r = REJECT_REASONS[e.key === "0" ? 9 : Number(e.key) - 1];
-          if (r) pickReason(r.id);
+          if (r) { e.preventDefault(); chooseReason(r.id); }
         }
         return;
       }
@@ -92,7 +97,7 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [reasonFor, cur, accept, skip, pickReason]);
+  }, [reasonFor, cur, accept, skip, chooseReason]);
 
   const pointer = {
     onPointerDown: (e: React.PointerEvent) => { if (reasonFor || leaving || (e.target as HTMLElement).closest("a,button")) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setDrag({ x: 0, start: e.clientX, active: true }); },
@@ -174,10 +179,11 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
               <p className="mb-2 text-sm font-semibold">Pourquoi pas ? <span className="font-normal text-muted">Un clic, ou le chiffre au clavier. L'app s'en sert pour mieux trier.</span></p>
               <div className="flex flex-wrap gap-2">
                 {REJECT_REASONS.map((r, i) => (
-                  <button key={r.id} className="chip !px-3.5 !py-2" onClick={() => pickReason(r.id)}><span className="kbd">{(i + 1) % 10}</span>{r.label}</button>
+                  <button key={r.id} className="chip !px-3.5 !py-2" aria-pressed={r.id === OTHER_REASON ? other : undefined} onClick={() => chooseReason(r.id)}><span className="kbd">{(i + 1) % 10}</span>{r.label}</button>
                 ))}
               </div>
-              <button className="btn btn-ghost btn-sm mt-3" onClick={() => setReasonFor(null)}>Annuler</button>
+              {other && <OtherNote onDone={pickReason} onCancel={() => setOther(false)} />}
+              <button className="btn btn-ghost btn-sm mt-3" onClick={() => { setReasonFor(null); setOther(false); }}>Annuler</button>
             </div>
           ) : (
             <div className="mt-7 flex items-center justify-center gap-5">

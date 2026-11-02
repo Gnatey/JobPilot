@@ -58,6 +58,19 @@ const MODELS = {
 };
 const modelOf = (id: ProviderId, fast: boolean) => (fast ? MODELS[id].fast() : MODELS[id].main());
 
+/**
+ * Modèles de repli quand l'offre gratuite d'un fournisseur refuse le modèle choisi (403 « not available in your subscription tier » :
+ * la clé est bonne, c'est le modèle qui n'est pas inclus). On passe au suivant de la liste.
+ */
+const FALLBACK_MODELS: Partial<Record<ProviderId, { main: string[]; fast: string[] }>> = {
+  mistral: { main: ["mistral-medium-latest", "mistral-small-latest"], fast: ["mistral-small-latest", "open-mistral-nemo"] },
+};
+const candidates = (id: ProviderId, fast: boolean) =>
+  [modelOf(id, fast), ...(FALLBACK_MODELS[id]?.[fast ? "fast" : "main"] ?? [])].filter((m, i, a) => a.indexOf(m) === i);
+/** Modèles refusés par l'offre de la personne : on ne les réessaie pas tant que l'instance vit (une aide, pas une garantie). */
+const refused = new Set<string>();
+const pickModel = (id: ProviderId, fast: boolean) => candidates(id, fast).find((m) => !refused.has(`${id}:${m}`)) ?? modelOf(id, fast);
+
 /** Quels fournisseurs et quels modèles sont utilisés (affiché dans Réglages). */
 export function modelInfo() {
   const fast = chainFor(true), main = chainFor(false);
@@ -91,6 +104,15 @@ class Busy extends HttpError {
 const clean = (s: string) => s.replace(/org_\w+/g, "org_…").replace(/\s+/g, " ").slice(0, 220);
 
 const BUSY_ALL = "Toutes les IA configurées sont saturées ou ont atteint leur limite du jour. Réessaie dans quelques minutes : rien n'est perdu.";
+/** Pourquoi chaque fournisseur n'a pas pu répondre, en mots simples (« Google (saturée) »). */
+function whyNot(id: ProviderId, e: unknown): string {
+  const name = PROVIDER_NAMES[id].replace(/\s*\(.*\)/, "");
+  const status = e instanceof HttpError ? e.status : (e as { status?: number })?.status;
+  const kind = status === 429 ? "limite atteinte" : status === 503 ? "saturée" : status === 504 ? "trop lente" : status === 500 && e instanceof Busy ? "clé ou modèle refusé" : "réponse inutilisable";
+  return `${name} (${kind})`;
+}
+const busyAll = (trace: string[]) =>
+  trace.length ? `Toutes les IA configurées sont saturées ou indisponibles : ${[...new Set(trace)].join(", ")}. Réessaie dans quelques minutes ; les limites gratuites du jour reviennent chaque matin. Rien n'est perdu.` : BUSY_ALL;
 const call = <T>(id: ProviderId, o: Opts): Promise<T> => (id === "gemini" ? gemini<T>(o) : id === "anthropic" ? claude<T>(o) : compat<T>(id, o));
 
 /**
@@ -108,6 +130,7 @@ export async function structured<T>(opts: Opts): Promise<T> {
   if (!all.length) throw new HttpError(500, "Aucune clé IA : ajoute GEMINI_API_KEY (gratuit) dans Vercel. GROQ_API_KEY et MISTRAL_API_KEY (gratuits aussi) répartissent la charge.");
   const chain = [...all.filter((id) => !cooling(id)), ...all.filter(cooling)];
   let busy = 0;
+  const trace: string[] = [];
   let geminiPassed = false; // Gemini a seulement « passé son tour » (saturation passagère, 503) pour laisser la main au suivant
   for (let i = 0; i < chain.length; i++) {
     const rest = chain.length - i - 1;
@@ -115,8 +138,9 @@ export async function structured<T>(opts: Opts): Promise<T> {
       return await call<T>(chain[i], { ...opts, failover: rest > 0 });
     } catch (e) {
       const status = e instanceof HttpError ? e.status : (e as { status?: number })?.status;
+      trace.push(whyNot(chain[i], e));
       if (status === 429) coolDown(chain[i], e instanceof Busy && e.retryAfter ? e.retryAfter * 1000 : 60_000);
-      if (status && [429, 503, 504].includes(status)) busy++;
+      if (e instanceof Busy || (status && [429, 503, 504].includes(status))) busy++; // saturé, limite atteinte, clé ou modèle refusé : ce fournisseur est indisponible
       if (chain[i] === "gemini" && status === 503 && rest > 0) geminiPassed = true;
       // Dernier fournisseur, ou plus assez de temps pour en essayer un autre : l'erreur remonte
       if (!rest || timeLeft() < 9_000) {
@@ -128,17 +152,17 @@ export async function structured<T>(opts: Opts): Promise<T> {
             return await call<T>("gemini", { ...opts, failover: false });
           } catch (e2) {
             // Tout le monde est vraiment saturé : message commun ; sinon, celui de Gemini (la seule raison encore valable d'échouer)
-            if (busy === chain.length && e2 instanceof HttpError && e2.status === 503) throw new HttpError(503, BUSY_ALL);
+            if (busy === chain.length && e2 instanceof HttpError && e2.status === 503) throw new HttpError(503, busyAll(trace));
             throw e2;
           }
         }
-        if (chain.length > 1 && busy === i + 1 && !(e instanceof HttpError && e.status === 504)) throw new HttpError(503, BUSY_ALL);
+        if (chain.length > 1 && busy === i + 1 && !(e instanceof HttpError && e.status === 504)) throw new HttpError(503, busyAll(trace));
         throw e;
       }
       console.warn(`[ia] ${chain[i]} n'a pas pu répondre (${e instanceof Error ? e.message : e}${e instanceof Busy && e.detail ? ` | ${e.detail}` : ""}) : bascule sur ${chain[i + 1]}`);
     }
   }
-  throw new HttpError(503, BUSY_ALL);
+  throw new HttpError(503, busyAll(trace));
 }
 
 /** Interroge chaque fournisseur configuré, un par un (bouton « Tester l'IA » de Réglages). */
@@ -317,7 +341,7 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
   const key = process.env[cfg.env];
   if (!key) throw new HttpError(500, `${cfg.env} manquante dans les variables d'environnement`);
   const relax = st.relax ?? 0;
-  const model = modelOf(id, Boolean(opts.fast));
+  const model = pickModel(id, Boolean(opts.fast));
   const schema = { type: "object", ...opts.schema };
   const again = (patch: CState) => compat<T>(id, opts, { ...st, ...patch });
   const left = timeLeft();
@@ -361,7 +385,17 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
     const msg = fromBody || (raw && !raw.trim().startsWith("{") ? raw.trim() : "") || `HTTP ${res.status} (corps vide)`;
     // Demande refusée (400/422) : on la simplifie (schéma JSON → « objet JSON » → sans réglage de réflexion)
     if ((res.status === 400 || res.status === 422) && relax < 2) return again({ relax: relax + 1 });
-    if (res.status === 401 || res.status === 403) throw new Busy(500, `Clé ${cfg.label} invalide : vérifie ${cfg.env} dans Vercel.`, undefined, clean(`HTTP ${res.status} ${msg}`));
+    if (res.status === 401 || res.status === 403) {
+      const detail = clean(`HTTP ${res.status} ${msg}`);
+      // 403 « ce modèle n'est pas dans ton offre » : la clé est bonne, c'est le modèle qui est refusé → modèle suivant de la liste
+      if (res.status === 403 && /subscription|tier|plan\b|not available|not allowed|not included|permission/i.test(msg)) {
+        refused.add(`${id}:${model}`);
+        if (candidates(id, Boolean(opts.fast)).some((m) => !refused.has(`${id}:${m}`)) && timeLeft() > 12_000) return again({});
+        const envName = `${id.toUpperCase()}_${opts.fast ? "FAST_" : ""}MODEL`;
+        throw new Busy(500, `${cfg.label} : le modèle ${model} n'est pas inclus dans ton offre gratuite (la clé est bonne). Change ${envName} dans Vercel.`, undefined, detail);
+      }
+      throw new Busy(500, `Clé ${cfg.label} invalide : vérifie ${cfg.env} dans Vercel.`, undefined, detail);
+    }
     // 413 sur le palier gratuit : « Limit 8000, Requested 8063 » = tokens par minute, consigne + place de réponse. On retire l'excédent de la place de réponse et on réessaie.
     if (res.status === 413 && (st.capTry ?? 0) < 2) {
       const m = /limit\s+(\d+)\D+requested\s+(\d+)/i.exec(msg);

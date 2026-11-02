@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { words } from "./quick-score";
-import { NEUTRAL_REASONS } from "./types";
+import { NEUTRAL_REASONS, reasonKey } from "./types";
 
 /**
  * Ce que l'app apprend des offres acceptées et écartées.
@@ -34,10 +34,11 @@ export async function computeLearning(supabase: SupabaseClient, userId: string):
     const ws = new Set(words(it.title).filter((w) => !STOP.has(w)));
     if (it.ok) ws.forEach((w) => good.set(w, (good.get(w) ?? 0) + 1));
     else {
-      if (it.reason) reasons[it.reason] = (reasons[it.reason] ?? 0) + 1;
-      if (it.reason === "entreprise" && it.company) blocked.add(it.company.toLowerCase().trim());
+      const why = reasonKey(it.reason); // « autre: texte » compte comme « autre »
+      if (why) reasons[why] = (reasons[why] ?? 0) + 1;
+      if (why === "entreprise" && it.company) blocked.add(it.company.toLowerCase().trim());
       // seules les raisons liées au poste lui-même apprennent des mots du titre
-      if (it.reason === "metier" || it.reason === "trop_senior" || it.reason === "secteur") ws.forEach((w) => bad.set(w, (bad.get(w) ?? 0) + 1));
+      if (why === "metier" || why === "trop_senior" || why === "secteur") ws.forEach((w) => bad.set(w, (bad.get(w) ?? 0) + 1));
     }
   }
   return {

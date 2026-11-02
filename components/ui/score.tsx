@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import { preBand } from "@/lib/quick-score";
 
 /** Cadran de score : l'élément signature de l'app (un arc de 270° gradué comme un instrument de bord). */
@@ -37,7 +38,7 @@ export const ScoreRing = Gauge;
  * `estimate` : l'offre n'a pas encore été analysée, on affiche son niveau de pré-tri (titre, mots-clés) sans chiffre,
  * en pointillés, pour que personne ne le prenne pour un diagnostic.
  */
-export function ScorePill({ value, estimate = false }: { value: number | null | undefined; estimate?: boolean }) {
+export function ScorePill({ value, estimate = false, rough = false }: { value: number | null | undefined; estimate?: boolean; rough?: boolean }) {
   if (value == null) return <span className="text-xs text-muted">—</span>;
   if (estimate) {
     const b = preBand(value);
@@ -50,7 +51,30 @@ export function ScorePill({ value, estimate = false }: { value: number | null | 
     );
   }
   const cls = value >= 70 ? "tag-good" : value >= 50 ? "tag-warn" : "tag-bad";
+  // Analyse faite d'après un extrait de l'annonce (Indeed…) : pourcentage marqué « estimé » jusqu'à la lecture de l'annonce entière
+  if (rough) {
+    return (
+      <span className={`tag ${cls} min-w-11 justify-center whitespace-nowrap border border-dashed border-current !px-2 !py-0.5 !text-sm font-bold tabular-nums`}
+        title="Estimation d'après un extrait de l'annonce. Ouvre l'annonce et clique sur le favori pour l'analyser en entier.">~{value}%</span>
+    );
+  }
   return <span className={`tag ${cls} min-w-11 justify-center !px-2 !py-0.5 !text-sm font-bold tabular-nums`}>{value}%</span>;
+}
+
+/**
+ * Pour une offre pas encore analysée : une étoile seulement si elle est vraiment proche du profil, rien sinon.
+ * (Un « Peu probable » sur chaque ligne ne disait rien d'utile : le tri se fait avec l'analyse complète.)
+ */
+export function isClose(value: number | null | undefined) {
+  return preBand(value).id === "top";
+}
+export function PreStar({ value }: { value: number | null | undefined }) {
+  if (!isClose(value)) return null;
+  return (
+    <span className="tag tag-good !px-2 !py-0.5" title="Très proche de ton profil. Le pourcentage s'affiche après l'analyse complète." role="img" aria-label="Très proche de ton profil">
+      <Star size={15} fill="currentColor" />
+    </span>
+  );
 }
 
 export function Bar({ value }: { value: number }) {

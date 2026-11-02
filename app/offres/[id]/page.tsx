@@ -85,6 +85,11 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
             {[offer.location, offer.contract, x.remote].filter(Boolean).length > 0 && <span>{[offer.location, offer.contract, x.remote].filter(Boolean).join(", ")}</span>}
           </p>
           {a.verdict && <p className="mt-3 max-w-[62ch]">{a.verdict}</p>}
+          {a.estimated && (
+            <p className="mt-2 max-w-[62ch] text-sm text-marigold-deep">
+              Pourcentage estimé : l'analyse repose sur un extrait de l'annonce. Ouvre l'annonce et clique sur le favori « Envoyer à JobPilot » pour l'analyser en entier.
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {apply && <span className={`tag ${apply.tone}`}>{apply.text}</span>}
             {a.company_type && <span className="tag">{a.company_type}</span>}
