@@ -1,19 +1,26 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CornerUpRight, ExternalLink, PartyPopper, X } from "lucide-react";
+import { ArrowLeft, Check, CornerUpRight, ExternalLink, Loader2, PartyPopper, X } from "lucide-react";
 import { Gauge, ScorePill } from "./ui/score";
 import { useRecoDecision } from "./reco-actions";
+import { useFeedback } from "./ui/feedback";
 import { REJECT_REASONS } from "@/lib/types";
 import { ago } from "@/lib/format";
 import type { Reco } from "./reco-list";
 
 type Leaving = "left" | "right" | "skip" | null;
 
+/** `day` : tri de la liste du jour (page Recherche › Préparer ma journée). `accepted` : offres de la liste déjà retenues avant cette visite. */
+export type DayInfo = { total: number; accepted: number; quota: number };
+
 /** Une offre à la fois. → je candidate, ← pas pour moi, ↓ plus tard. Au doigt : glisser la carte. */
-export function TriageDeck({ initial }: { initial: Reco[] }) {
+export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo }) {
+  const { toast } = useFeedback();
   const [queue, setQueue] = useState(initial);
   const [handled, setHandled] = useState(0);
+  const [yes, setYes] = useState(0);
+  const [moreBusy, setMoreBusy] = useState(false);
   const [reasonFor, setReasonFor] = useState<Reco | null>(null);
   const [leaving, setLeaving] = useState<Leaving>(null);
   const [drag, setDrag] = useState<{ x: number; start: number; active: boolean }>({ x: 0, start: 0, active: false });
@@ -37,8 +44,8 @@ export function TriageDeck({ initial }: { initial: Reco[] }) {
   const accept = useCallback(() => {
     if (!cur || leaving) return;
     const r = cur;
-    advance("right", () => { setQueue((q) => q.filter((x) => x.id !== r.id)); setHandled((h) => h + 1); });
-    decide(r, "accept").then((res) => { if (!res) setQueue((q) => [r, ...q]); });
+    advance("right", () => { setQueue((q) => q.filter((x) => x.id !== r.id)); setHandled((h) => h + 1); setYes((n) => n + 1); });
+    decide(r, "accept").then((res) => { if (!res) { setQueue((q) => [r, ...q]); setHandled((h) => Math.max(0, h - 1)); setYes((n) => Math.max(0, n - 1)); } });
   }, [cur, leaving, advance, decide]);
 
   const pickReason = useCallback((reason: string) => {
@@ -48,6 +55,16 @@ export function TriageDeck({ initial }: { initial: Reco[] }) {
     advance("left", () => { setQueue((q) => q.filter((x) => x.id !== r.id)); setHandled((h) => h + 1); });
     decide(r, "reject", reason).then((res) => { if (!res) setQueue((q) => [r, ...q]); });
   }, [reasonFor, advance, decide]);
+
+  /** « Voir d'autres offres du même type » : un nouveau lot pour les mêmes critères, puis on recharge le tri. */
+  async function more() {
+    setMoreBusy(true);
+    const r = await fetch("/api/day", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ more: true }) })
+      .then((x) => x.json()).catch(() => ({ error: "Connexion interrompue, réessaie." }));
+    if (r.error) { setMoreBusy(false); return toast(r.error, { tone: "err" }); }
+    if (!r.added) { setMoreBusy(false); return toast(r.message ?? "Pas d'autres offres pour ces critères pour l'instant.", { tone: "info", ms: 9000 }); }
+    window.location.assign("/recommandees/tri?jour=1");
+  }
 
   const skip = useCallback(() => {
     if (!cur || leaving || queue.length < 2) return;
@@ -101,18 +118,23 @@ export function TriageDeck({ initial }: { initial: Reco[] }) {
   return (
     <div className="mx-auto max-w-xl">
       <div className="mb-5 flex items-center gap-3">
-        <Link href="/recommandees" className="btn btn-ghost btn-sm -ml-3"><ArrowLeft size={16} /> Recommandées</Link>
-        {total > 0 && <p className="ml-auto text-sm text-muted tabular-nums">{queue.length > 0 ? `${queue.length} restante${queue.length > 1 ? "s" : ""}` : "Terminé"}</p>}
+        <Link href={day ? "/recherche" : "/recommandees"} className="btn btn-ghost btn-sm -ml-3"><ArrowLeft size={16} /> {day ? "Recherche" : "Recommandées"}</Link>
+        {total > 0 && <p className="ml-auto text-sm text-muted tabular-nums">{queue.length > 0 ? `${day ? "Ma journée, " : ""}${queue.length} restante${queue.length > 1 ? "s" : ""}` : "Terminé"}</p>}
       </div>
       {total > 0 && <div className="mb-6 h-1.5 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-marigold transition-[width] duration-300" style={{ width: `${(handled / total) * 100}%` }} /></div>}
 
       {!cur ? (
         <div className="rounded-3xl border border-dashed border-line px-6 py-14 text-center">
           <PartyPopper className="pop mx-auto text-marigold-deep" size={40} />
-          <h1 className="display mt-4 text-3xl">{total ? "Tout est trié." : "Rien à trier."}</h1>
-          <p className="mt-2 text-muted">{total ? `${handled} offre${handled > 1 ? "s" : ""} traitée${handled > 1 ? "s" : ""}. Celles que tu as retenues t'attendent dans le suivi.` : "Les nouvelles offres arrivent avec ta synchronisation du matin."}</p>
+          <h1 className="display mt-4 text-3xl">{day ? "Ta liste du jour est triée." : total ? "Tout est trié." : "Rien à trier."}</h1>
+          <p className="mt-2 text-muted">
+            {day
+              ? `${day.accepted + yes} offre${day.accepted + yes > 1 ? "s" : ""} retenue${day.accepted + yes > 1 ? "s" : ""} sur ${day.quota} visée${day.quota > 1 ? "s" : ""} aujourd'hui. Elles t'attendent dans Offres & CV et dans le suivi.`
+              : total ? `${handled} offre${handled > 1 ? "s" : ""} traitée${handled > 1 ? "s" : ""}. Celles que tu as retenues t'attendent dans le suivi.` : "Les nouvelles offres arrivent avec ta synchronisation du matin."}
+          </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Link href="/" className="btn btn-primary">Retour à l'accueil</Link>
+            {day && <button className="btn btn-primary" onClick={more} disabled={moreBusy}>{moreBusy ? <><Loader2 size={16} className="animate-spin" /> Recherche…</> : "Voir d'autres offres du même type"}</button>}
+            {day ? <Link href="/offres" className="btn">Ouvrir Offres & CV</Link> : <Link href="/" className="btn btn-primary">Retour à l'accueil</Link>}
             <Link href="/suivi" className="btn">Voir le suivi</Link>
           </div>
         </div>

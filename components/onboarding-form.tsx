@@ -10,7 +10,7 @@ import { ZonePicker } from "@/components/zone-picker";
 import { JOB_OPTIONS, SECTOR_OPTIONS } from "@/lib/job-families";
 import { ChipGroup } from "@/components/ui/chip-group";
 import {
-  APPS_PER_WEEK, AVAILABILITY, CONTRACT_OPTIONS, REMOTE_OPTIONS, RESPONSES, SEARCH_SINCE, YEAR_BANDS,
+  APPS_PER_WEEK, AVAILABILITY, CONTRACT_OPTIONS, DAILY_QUOTA, REMOTE_OPTIONS, RESPONSES, SEARCH_SINCE, YEAR_BANDS,
   emptyAnswers, missingAnswers, withZoneText,
 } from "@/lib/onboarding";
 import type { OnboardingAnswers } from "@/lib/types";
@@ -118,9 +118,9 @@ export function OnboardingForm({ initial }: { initial?: Partial<OnboardingAnswer
       {step === 1 ? (
         <form className="mt-8 space-y-9" onSubmit={next} noValidate>
           <Block title="Ce que tu cherches">
-            <Q id="target_roles" required title="Quels postes vises-tu ?" hint="Choisis dans la liste, rangée par familles de métiers, ou écris le tien. 4 postes au maximum." error={err("target_roles")}>
+            <Q id="target_roles" required title="Quels postes vises-tu ?" hint="Choisis dans la liste, rangée par familles de métiers, ou écris le tien. 5 postes au maximum." error={err("target_roles")}>
               <div className="mt-3">
-                <Combobox label="Postes visés" placeholder="Cherche un poste : Data Analyst…" options={JOBS} allowCustom max={4} maxMessage="4 postes au maximum : retire-en un pour en ajouter un autre."
+                <Combobox label="Postes visés" placeholder="Cherche un poste : Data Analyst…" options={JOBS} allowCustom max={5} maxMessage="5 postes au maximum : retire-en un pour en ajouter un autre."
                   invalid={!!err("target_roles")} value={toOpts(a.target_roles)} onChange={(v) => set("target_roles")(v.map((o) => o.label))} />
               </div>
             </Q>
@@ -164,6 +164,9 @@ export function OnboardingForm({ initial }: { initial?: Partial<OnboardingAnswer
             </Q>
             <Q id="applications_per_week" required title="Combien de candidatures par semaine, en moyenne ?" error={err("applications_per_week")}>
               <ChipGroup label="Candidatures par semaine" options={APPS_PER_WEEK} value={a.applications_per_week ? [a.applications_per_week] : []} onChange={(v) => set("applications_per_week")(v[0] ?? "")} invalid={!!err("applications_per_week")} />
+            </Q>
+            <Q id="daily_quota" title="Combien de candidatures veux-tu envoyer par jour ?" hint="L'app te prépare ce nombre d'offres chaque jour (page Recherche). Tu pourras le changer quand tu veux.">
+              <ChipGroup label="Candidatures par jour" options={DAILY_QUOTA} value={a.daily_quota ? [a.daily_quota] : []} onChange={(v) => set("daily_quota")(v[0] ?? "")} />
             </Q>
             <Q id="responses" title="Qu'est-ce que tu obtiens ?">
               <ChipGroup label="Réponses obtenues" options={RESPONSES} value={a.responses ? [a.responses] : []} onChange={(v) => set("responses")(v[0] ?? "")} />

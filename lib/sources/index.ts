@@ -1,5 +1,6 @@
 import { HttpError } from "../supabase/server";
 import { requiredYears } from "../quick-score";
+import { detectContracts } from "../fit";
 import { adzuna } from "./adzuna";
 import { jooble } from "./jooble";
 import type { JobOffer, SearchCriteria, SearchOpts, Source } from "./types";
@@ -34,9 +35,8 @@ export function filterOffers(list: JobOffer[], c: SearchCriteria): JobOffer[] {
     const years = o.years ?? requiredYears(blob);
     if (c.maxYears != null && years != null && years > c.maxYears) return false;
     // Alternance et stage n'apparaissent que si la personne les a demandés
-    const label = `${o.title} ${o.contract}`.toLowerCase();
-    if (!c.contracts.includes("ALT") && /alternan|apprenti|professionnalisation/.test(label)) return false;
-    if (!c.contracts.includes("STG") && /(^|[^a-zà-ÿ])(stage|stagiaire|internship)([^a-zà-ÿ]|$)/.test(label)) return false;
+    const kinds = detectContracts(`${o.title} ${o.contract}`, o.description);
+    if (kinds.length && !kinds.some((k) => c.contracts.includes(k === "stage" ? "STG" : "ALT"))) return false;
     const t = Date.parse(o.date);
     if (!Number.isNaN(t) && t < oldest) return false;
     return true;

@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { quickScore } from "@/lib/quick-score";
+import { fitCheck } from "@/lib/fit";
+import { splitRoles } from "@/lib/job-families";
 import { computeLearning } from "@/lib/learning";
 import { searchAll, externalId } from "@/lib/sources";
 import { sanitizeCriteria } from "@/lib/sources/criteria";
@@ -33,7 +35,9 @@ export async function POST(req: Request) {
       results: found.offers
         .map((o) => {
           const q = quickScore(profile, o.title, `${o.experience} ${o.description}`, learning, o.company);
-          return { ...o, quick_score: q.score, matched: q.matched, penalties: q.penalties, offer_id: known.get(externalId(o.key)) ?? null, decision: decided.get(o.key) ?? null };
+          // Métier éloigné des postes demandés : masqué par défaut dans l'aperçu (la case « Afficher aussi » le montre)
+          const fit = fitCheck(profile, { title: o.title, text: `${o.experience} ${o.description}` }, { roles: splitRoles(criteria.keywords), contracts: criteria.contracts });
+          return { ...o, quick_score: q.score, matched: q.matched, penalties: q.penalties, offer_id: known.get(externalId(o.key)) ?? null, decision: decided.get(o.key) ?? null, fit_reason: fit.ok ? null : fit.reason };
         })
         .filter((o) => o.decision !== "rejected")
         .sort((a, b) => b.quick_score - a.quick_score),

@@ -116,7 +116,7 @@ export function flattenFamilies(families: Family[]): { id: string; label: string
 export const JOB_OPTIONS = flattenFamilies(JOB_FAMILIES);
 export const SECTOR_OPTIONS = flattenFamilies(SECTOR_FAMILIES);
 
-/** Postes saisis dans une recherche : séparés par des virgules, 3 au maximum. */
-export const MAX_ROLES = 3;
+/** Postes saisis dans une recherche : séparés par des virgules, 5 au maximum. */
+export const MAX_ROLES = 5;
 export const splitRoles = (keywords: string): string[] =>
   [...new Set(keywords.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean))].slice(0, MAX_ROLES);

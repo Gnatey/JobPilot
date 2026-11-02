@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { syncGmail, runSavedSearches, autoPrepare } from "@/lib/sync";
+import { syncGmail, runSavedSearches, autoPrepare, refitStock } from "@/lib/sync";
 import { sendDailyRecap } from "@/lib/recap";
+import { prepareDayAuto } from "@/lib/day";
 import { HttpError } from "@/lib/supabase/server";
 import { Deadline, withDeadline } from "@/lib/budget";
 
@@ -47,16 +48,18 @@ export async function GET(req: NextRequest) {
     const sync = mine.minus(RECAP_MS);
     try {
       // Chaque étape est indépendante : un échec (ex. Gmail expiré) n'empêche ni la recherche ni le récap
+      await step(() => refitStock(admin, user_id)); // le profil a pu changer depuis hier : le tri « adapté à mon profil » se remet à jour
       const gmail = aiDown ? { skipped: "IA indisponible" } : await step(() => withDeadline(sync.slice(sync.left() * 0.55), () => syncGmail(admin, user_id)));
       if (typeof gmail === "object" && "stopped" in gmail && gmail.stopped === "ia") aiDown = true;
       const searches = await step(() => withDeadline(sync, () => runSavedSearches(admin, user_id)));
+      const day = await step(() => withDeadline(sync, () => prepareDayAuto(admin, user_id))); // liste du jour prête (sans IA) pour qui a validé ses critères
       const prep = aiDown ? { skipped: "IA indisponible" } : await step(() => withDeadline(sync, async () => {
         const r = await autoPrepare(admin, user_id);
         if (r.stopped && r.stopped !== "temps") aiDown = true; // « temps » ne concerne que ce compte
         return r;
       }));
       const recap = await step(() => withDeadline(mine, () => sendDailyRecap(admin, user_id)));
-      report[user_id] = { gmail, searches, prep, recap };
+      report[user_id] = { gmail, searches, day, prep, recap };
     } catch (e) {
       report[user_id] = { error: e instanceof Error ? e.message : "erreur" };
     }

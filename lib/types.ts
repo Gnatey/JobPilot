@@ -42,10 +42,28 @@ export type Profile = {
     search_zone?: SearchZone;   // où chercher (questionnaire d'accueil), reprise par défaut dans Recherche
     onboarded?: boolean;        // questionnaire d'accueil terminé (avec ou sans diagnostic)
     dismissed_skills?: string[]; // suggestions de compétences refusées : on ne les repropose pas
+    daily_quota?: number;       // candidatures visées par jour : taille de la liste du jour
+    criteria?: SavedCriteria;   // critères de recherche validés (page Recherche) ; remplacent les précédents
+    day?: DayList | null;       // liste du jour (offres préparées pour le Tri rapide)
+    fit_sig?: string;           // empreinte du dernier tri « offres adaptées à mon profil » (voir lib/fit.ts)
   };
   rules: string[];
   todo: string[];
 };
+
+/** Critères de recherche validés : un seul jeu à la fois, le dernier enregistré remplace le précédent. */
+export type SavedCriteria = {
+  roles: string[];                       // 5 postes au maximum
+  zone: SearchZone | null;
+  contracts: string[];                   // codes des sources : CDI, CDD, MIS, LIB, ALT, STG ; vide = tous
+  publishedWithin: "1" | "3" | "7" | "14" | "31";
+  remoteOnly?: boolean;
+  exclude?: string;
+  maxYears?: number | null;
+  saved_at: string;
+};
+/** Offres préparées pour aujourd'hui (identifiants des recommandations), dans l'ordre de présentation. */
+export type DayList = { date: string; ids: string[]; batches: number };
 
 export const STATUSES = [
   { id: "a_postuler", label: "À postuler", color: "bg-slate-400" },
@@ -227,10 +245,10 @@ export const REJECT_REASONS = [
   { id: "autre", label: "Autre" },
 ] as const;
 /** Raisons qui ne disent rien de tes goûts (annonce retirée, tri en lot) : l'app n'en tire aucune règle. */
-export const NEUTRAL_REASONS: readonly string[] = ["score_bas", "expiree"];
+export const NEUTRAL_REASONS: readonly string[] = ["score_bas", "expiree", "fit_stage", "fit_alternance", "fit_metier", "garde"];
 // « score_bas » vient du tri en lot : pas proposé comme choix, mais affiché dans les stats
 export const rejectLabel = (id?: string | null) =>
-  id === "score_bas" ? "Score trop bas" : REJECT_REASONS.find((r) => r.id === id)?.label ?? id ?? "";
+  id === "score_bas" ? "Score trop bas" : id === "fit_stage" ? "Stage" : id === "fit_alternance" ? "Alternance" : id === "fit_metier" ? "Métier éloigné" : REJECT_REASONS.find((r) => r.id === id)?.label ?? id ?? "";
 
 /* ---------- Questionnaire d'accueil et diagnostic ---------- */
 
@@ -253,6 +271,7 @@ export type OnboardingAnswers = {
   salary: string;              // prétentions, libre
   search_since: string;        // depuis combien de temps
   applications_per_week: string;
+  daily_quota: string;         // candidatures visées par jour (« 15 ») ; vide = pas de réponse, 10 par défaut
   responses: string;           // Aucune réponse, Refus sans entretien, Entretiens sans offre, Ça avance
   blockers: string;            // ce qui coince selon la personne
   sectors: string[];

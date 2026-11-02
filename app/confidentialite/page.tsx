@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 /** Ce que chaque fournisseur d'IA indique faire des contenus envoyés (offres gratuites). À relire si leurs conditions changent. */
 const RULES: Record<ProviderId, string> = {
-  gemini: "avec l'offre gratuite, Google indique pouvoir utiliser ces contenus pour améliorer ses produits, et des personnes peuvent les relire.",
+  gemini: "selon ses conditions, quand l'application est exploitée depuis l'Espace économique européen, la Suisse ou le Royaume-Uni, les règles des services payants s'appliquent aussi au quota gratuit (les contenus ne servent pas à améliorer ses produits). Ailleurs, l'offre gratuite permet à Google de les utiliser et de les faire relire. Google déconseille d'y envoyer des données sensibles.",
   groq: "ne conserve pas les contenus des requêtes par défaut ; des journaux temporaires (30 jours au plus) peuvent exister pour dépanner ou repérer des abus.",
-  mistral: "avec l'offre gratuite, Mistral indique que les requêtes peuvent servir à entraîner ses modèles, sauf si le titulaire du compte l'a refusé dans sa console.",
+  mistral: "avec l'offre gratuite, Mistral indique que les requêtes peuvent servir à entraîner ses modèles, sauf si le titulaire du compte l'a refusé dans sa console (réglage Confidentialité de l'API).",
   anthropic: "API payante, soumise aux conditions commerciales d'Anthropic.",
 };
 

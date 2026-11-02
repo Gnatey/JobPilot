@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, X, Undo2, ExternalLink, Sparkles, Zap, Eraser, Search, Loader2 } from "lucide-react";
+import { Check, X, Undo2, ExternalLink, Sparkles, Zap, Eraser, Search, Loader2, EyeOff, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ScorePill } from "./ui/score";
 import { Empty } from "./ui/page-title";
@@ -12,6 +12,7 @@ import { refreshBadges } from "./nav";
 import { rejectLabel } from "@/lib/types";
 import { PRE_FILTERS } from "@/lib/quick-score";
 import { fmtDate } from "@/lib/format";
+import { FIT_LABELS, isFitReason } from "@/lib/fit";
 
 export type Reco = {
   id: string; title: string | null; company: string | null; location: string | null; url: string | null;
@@ -24,6 +25,7 @@ const TABS = [
   { id: "todo", label: "À trier", match: (s: string) => s === "new" || s === "analyzed" },
   { id: "accepted", label: "Acceptées", match: (s: string) => s === "accepted" },
   { id: "rejected", label: "Écartées", match: (s: string) => s === "rejected" },
+  { id: "hidden", label: "Masquées", match: (s: string) => s === "filtered" },
 ] as const;
 
 export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; rules: string[]; decided: number; reasons: Record<string, number> }) {
@@ -59,6 +61,15 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
     if (!res) return;
     setRejecting(null);
     patch(r.id, { status: d === "accept" ? "accepted" : d === "reject" ? "rejected" : r.offer_id ? "analyzed" : "new", reject_reason: reason ?? null, offer_id: res.offer_id ?? r.offer_id });
+  }
+
+  /** « Garder » une offre masquée : elle revient dans À trier et le filtre ne la masque plus. */
+  async function keep(r: Reco) {
+    const res = await bulkDecision([r.id], "keep");
+    if (!res.ok) return toast(res.error, { tone: "err" });
+    patch(r.id, { status: "new", reject_reason: "garde" });
+    refreshBadges();
+    toast("Remise dans ta liste à trier.", { tone: "info" });
   }
 
   /** Lance la vraie analyse (IA) de l'offre, puis ouvre le diagnostic. Sans texte d'annonce, on propose de le coller. */
@@ -141,11 +152,17 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
         </div>
       )}
 
+      {tab === "hidden" && (
+        <p className="mb-4 flex max-w-[70ch] items-start gap-2 text-sm text-muted">
+          <EyeOff size={16} className="mt-0.5 shrink-0" />
+          <span>Ces offres ne correspondent pas à ce que tu as demandé : stages et alternances si tu n'as pas coché ces contrats, métiers éloignés de tes postes visés. Rien n'est supprimé : « Garder dans ma liste » les remet à trier.</span>
+        </p>
+      )}
       {!list.length ? (
         <Empty icon={<Sparkles />}>
           {tab === "todo"
             ? q || source || minScore ? "Aucune offre ne correspond à ces filtres." : <>Rien à trier. <Link href="/parametres#gmail" className="link font-semibold text-ink">Connecte Gmail</Link> pour lire tes alertes emploi, ou <Link href="/recherche" className="link font-semibold text-ink">sauvegarde une recherche</Link> : elle tournera chaque matin.</>
-            : tab === "accepted" ? "Aucune offre acceptée pour l'instant." : "Aucune offre écartée."}
+            : tab === "accepted" ? "Aucune offre acceptée pour l'instant." : tab === "hidden" ? "Aucune offre masquée : tout ce qui arrive correspond à ce que tu as demandé." : "Aucune offre écartée."}
         </Empty>
       ) : (
         <ul className="list 2xl:grid 2xl:grid-cols-2 2xl:gap-3 2xl:!border-0 2xl:!bg-transparent 2xl:!overflow-visible">
@@ -170,6 +187,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
                   )}
                   {r.penalties.length > 0 && tab === "todo" && <p className="mt-1.5 text-xs text-bad">{r.penalties.join(" ; ")}</p>}
                   {r.status === "rejected" && <p className="mt-1.5 text-sm">Raison : {rejectLabel(r.reject_reason)}</p>}
+                  {r.status === "filtered" && <p className="mt-1.5 text-sm text-muted">Masquée : {isFitReason(r.reject_reason) ? FIT_LABELS[r.reject_reason] : "ne correspond pas à ton profil"}</p>}
                 </div>
               </div>
 
@@ -188,7 +206,8 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
                 {tab === "accepted" && (r.offer_id
                   ? <Link href={`/offres/${r.offer_id}`} className="btn btn-sm">Ouvrir l'offre et le CV</Link>
                   : <Link href={`/offres/nouvelle?reco=${r.id}&then=cv${r.url ? `&url=${encodeURIComponent(r.url)}&auto=1` : "&needtext=1"}`} className="btn btn-sm btn-primary">Faire le CV</Link>)}
-                {tab !== "todo" && <button className="btn btn-sm btn-ghost" onClick={() => act(r, "restore")}><Undo2 size={16} /> Remettre à trier</button>}
+                {tab === "hidden" && <button className="btn btn-sm" onClick={() => keep(r)}><RotateCcw size={16} /> Garder dans ma liste</button>}
+                {(tab === "accepted" || tab === "rejected") && <button className="btn btn-sm btn-ghost" onClick={() => act(r, "restore")}><Undo2 size={16} /> Remettre à trier</button>}
                 {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost"><ExternalLink size={16} /> Annonce</a>}
               </div>
 

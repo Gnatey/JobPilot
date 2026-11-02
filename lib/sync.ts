@@ -5,14 +5,19 @@ import { accessToken, fetchMeta, gmailEmail, listJobEmails } from "./gmail";
 import { isOwnMail, matchApplication, nextStatus } from "./email-match";
 import { analyzeOffer, classifyEmails, extractAlertOffers, extractOffer, generateCv } from "./ai";
 import { quickScore } from "./quick-score";
+import { fitCheck } from "./fit";
+import { criteriaRoles, ensureFit } from "./fit-stock";
 import { computeLearning } from "./learning";
 import { getProfileById } from "./profile";
-import { searchAll, hasSource, externalId, type SearchCriteria } from "./sources";
+import { searchAll, hasSource, externalId, type SearchCriteria, type JobOffer } from "./sources";
+import type { Profile } from "./types";
+import type { Learning } from "./learning";
 import { HttpError } from "./supabase/server";
 import { timeLeft } from "./budget";
 import { readOffer, detectSource, normalizeJobUrl, httpUrlOrNull } from "./fetch-offer";
 import { recoText } from "./reco-text";
 import { markRecoGone } from "./offer-ops";
+import { splitRoles } from "./job-families";
 
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\b(sa|sas|group|groupe|france)\b/g, "").replace(/[^a-z0-9]/g, "");
@@ -135,15 +140,18 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
       const rows = offers.map((o) => {
         const q = quickScore(profile, o.title, `${o.snippet} ${o.location}`, learning, o.company);
         const url = httpUrlOrNull(o.url) ? normalizeJobUrl(o.url) : "";
+        // Une alerte contient de tout (stages, alternances, métiers voisins) : ce qui n'est pas pour toi est rangé dans « Masquées », pas dans À trier
+        const fit = fitCheck(profile, { title: o.title, text: `${o.snippet} ${o.location}` }, { roles: criteriaRoles(profile) });
         return {
+          status: fit.ok ? "new" : "filtered", reject_reason: fit.ok ? null : fit.reason,
           user_id: userId, origin: "email", source: detectSource(url) === "Site entreprise" ? senderName(m.from) : detectSource(url),
           dedupe_key: dedupeKey(url, o.title, o.company), title: o.title, company: o.company, location: o.location,
           url: url || null, snippet: (o.snippet ?? "").slice(0, 280), quick_score: q.score, matched: q.matched, senior: q.senior, email_id: m.id, received_at: m.date,
         };
       });
       if (rows.length) {
-        const { data } = await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id");
-        recommended += data?.length ?? 0;
+        const { data } = await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id, status");
+        recommended += (data ?? []).filter((d) => d.status === "new").length;
       }
       continue;
     }
@@ -184,22 +192,33 @@ export async function runSavedSearches(supabase: SupabaseClient, userId: string)
   for (const s of searches.slice(0, 6)) {
     if (timeLeft() < 20_000) { partial = true; break; }
     // Tâche du matin : peu de requêtes par recherche (les sources gratuites ont un quota quotidien partagé)
-    const found = await searchAll({ ...(s.criteria as SearchCriteria), publishedWithin: "3" }, { maxRequests: 6 }).catch(() => null);
+    const sc = s.criteria as SearchCriteria;
+    const found = await searchAll({ ...sc, publishedWithin: "3" }, { maxRequests: 6 }).catch(() => null);
     if (!found) { failed++; continue; }
-    const rows = found.offers.map((o) => {
-      const q = quickScore(profile, o.title, `${o.experience} ${o.description}`, learning, o.company);
-      return {
-        user_id: userId, origin: "search", source: o.source, dedupe_key: o.key,
-        title: o.title, company: o.company, location: o.location, url: o.url,
-        snippet: o.description.slice(0, 4000), quick_score: q.score, matched: q.matched, senior: q.senior, received_at: o.date || new Date().toISOString(),
-      };
-    }).filter((r) => r.quick_score >= 30);
-    if (rows.length) {
-      const { data } = await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id");
-      added += data?.length ?? 0;
-    }
+    added += await storeSearchOffers(supabase, userId, profile, learning, found.offers, sc);
   }
   return { added, ...(failed ? { failed } : {}), ...(partial ? { partial: true } : {}) };
+}
+
+/**
+ * Range les offres trouvées par une recherche dans les recommandations (les déjà connues sont ignorées).
+ * Ce qui n'est pas pour la personne (stage non demandé, métier éloigné) est rangé en « Masquées » au lieu de À trier.
+ * Renvoie le nombre de nouvelles offres visibles dans À trier.
+ */
+export async function storeSearchOffers(supabase: SupabaseClient, userId: string, profile: Profile, learning: Learning, offers: JobOffer[], sc: SearchCriteria): Promise<number> {
+  const rows = offers.map((o) => {
+    const q = quickScore(profile, o.title, `${o.experience} ${o.description}`, learning, o.company);
+    const fit = fitCheck(profile, { title: o.title, text: `${o.experience} ${o.description}` }, { roles: [...splitRoles(sc.keywords), ...criteriaRoles(profile)], contracts: sc.contracts });
+    return {
+      status: fit.ok ? "new" : "filtered", reject_reason: fit.ok ? null : fit.reason,
+      user_id: userId, origin: "search", source: o.source, dedupe_key: o.key,
+      title: o.title, company: o.company, location: o.location, url: o.url,
+      snippet: o.description.slice(0, 4000), quick_score: q.score, matched: q.matched, senior: q.senior, received_at: o.date || new Date().toISOString(),
+    };
+  }).filter((r) => r.quick_score >= 30);
+  if (!rows.length) return 0;
+  const { data } = await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id, status");
+  return (data ?? []).filter((d) => d.status === "new").length;
 }
 
 /* ---------- 3. Analyse automatique des meilleures offres ----------
@@ -253,4 +272,9 @@ export async function autoPrepare(supabase: SupabaseClient, userId: string, spen
     }
   }
   return { prepared };
+}
+
+/** Avant la synchro : revoit les offres déjà reçues si ton profil ou ta recherche ont changé (sans effet sinon). */
+export async function refitStock(supabase: SupabaseClient, userId: string) {
+  return ensureFit(supabase, userId, await getProfileById(supabase, userId));
 }

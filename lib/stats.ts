@@ -23,12 +23,14 @@ function group(apps: Application[], reached: Map<string, Set<string>>, by: (a: A
 }
 
 export async function computeStats(supabase: SupabaseClient) {
-  const [{ data: appsRaw }, { data: hist }, { data: emails }, { data: recos }] = await Promise.all([
+  const [{ data: appsRaw }, { data: hist }, { data: emails }, { data: recosAll }] = await Promise.all([
     supabase.from("applications").select("*"),
     supabase.from("status_history").select("application_id, to_status, changed_at").order("changed_at"),
     supabase.from("emails").select("category, received_at, application_id"),
     supabase.from("recommendations").select("status, reject_reason, source, quick_score, senior"),
   ]);
+  // Les offres masquées par le filtre « adapté à mon profil » n'ont jamais été proposées : elles ne comptent pas dans le tri
+  const recos = (recosAll ?? []).filter((r) => r.status !== "filtered");
   // Les offres que tu n'as pas voulu postuler (Abandonné, Offre plus disponible, sans date d'envoi) ne sont pas des candidatures
   const all = ((appsRaw ?? []) as Application[]).filter((a) => !isNeverSent(a));
   const sent = all.filter((a) => a.status !== "a_postuler");

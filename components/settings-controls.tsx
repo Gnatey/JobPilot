@@ -93,12 +93,13 @@ export function LogoutButton() {
 }
 
 /** Objectif de la semaine et ancienneté maximale demandée : enregistrés dès que tu quittes le champ. */
-export function Prefs({ maxYears, weeklyGoal }: { maxYears: number | null; weeklyGoal: number }) {
+export function Prefs({ maxYears, weeklyGoal, dailyQuota }: { maxYears: number | null; weeklyGoal: number; dailyQuota: number }) {
   const sb = useMemo(() => supabaseBrowser(), []);
   const { toast } = useFeedback();
   const [years, setYears] = useState(maxYears ?? 3);
   const [limited, setLimited] = useState(maxYears != null);
   const [goal, setGoal] = useState(weeklyGoal);
+  const [quota, setQuota] = useState(dailyQuota);
   async function save(patch: Partial<Profile["preferences"]>) {
     const id = await myId(sb);
     const { data } = await sb.from("profiles").select("data").maybeSingle();
@@ -106,7 +107,7 @@ export function Prefs({ maxYears, weeklyGoal }: { maxYears: number | null; weekl
     const { error } = await sb.from("profiles").upsert({ user_id: id, data: { ...p, preferences: { ...p.preferences, ...patch } }, updated_at: new Date().toISOString() });
     toast(error ? "Réglage non enregistré." : "Enregistré.", { tone: error ? "err" : "ok", ms: 1800 });
   }
-  const num = (v: number, set: (n: number) => void, key: "max_years" | "weekly_goal", min: number, max: number) => ({
+  const num = (v: number, set: (n: number) => void, key: "max_years" | "weekly_goal" | "daily_quota", min: number, max: number) => ({
     type: "number" as const, min, max, className: "field !w-20 text-center", value: v,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(Number(e.target.value)),
     onBlur: () => { const n = Math.max(min, Math.min(max, Math.round(v) || min)); set(n); save({ [key]: n }); },
@@ -117,6 +118,11 @@ export function Prefs({ maxYears, weeklyGoal }: { maxYears: number | null; weekl
         <span>Mon objectif : envoyer</span>
         <input aria-label="Candidatures par semaine" {...num(goal, setGoal, "weekly_goal", 1, 50)} />
         <span>candidatures par semaine</span>
+      </label>
+      <label className="flex flex-wrap items-center gap-3">
+        <span>Ma liste du jour (page Recherche) : </span>
+        <input aria-label="Candidatures visées par jour" {...num(quota, setQuota, "daily_quota", 1, 50)} />
+        <span>offres par jour</span>
       </label>
       <div className="space-y-2">
         <label className="flex items-center gap-2">

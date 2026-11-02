@@ -145,7 +145,7 @@ export default async function Parametres({ searchParams }: { searchParams: Promi
       )}
 
       <Section title="Mes objectifs">
-        <Prefs maxYears={profile.preferences.max_years ?? null} weeklyGoal={profile.preferences.weekly_goal ?? 5} />
+        <Prefs maxYears={profile.preferences.max_years ?? null} weeklyGoal={profile.preferences.weekly_goal ?? 5} dailyQuota={profile.preferences.daily_quota ?? 10} />
       </Section>
 
       <Section title="Analyser une offre en un clic">

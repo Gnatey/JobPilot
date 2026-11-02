@@ -2,8 +2,10 @@ import type { Profile } from "./types";
 import type { Learning } from "./learning";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Sigles de deux lettres qui disent le métier (« BI », « IA ») : ils comptent comme des mots. */
+const SHORT = new Set(["bi", "ia", "ai", "ml", "ux", "ui", "rh", "hr"]);
 export const words = (s: string) =>
-  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9+#]+/).filter((w) => w.length > 2);
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9+#]+/).filter((w) => w.length > 2 || SHORT.has(w));
 
 /** Années d'expérience demandées par l'offre (null si non précisé). */
 export function requiredYears(text: string): number | null {

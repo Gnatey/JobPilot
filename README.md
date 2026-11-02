@@ -7,15 +7,15 @@ Ta plateforme de recherche d'emploi : elle trouve les offres, les score par rapp
 | Écran | Rôle |
 |---|---|
 | **Aujourd'hui** | Le « cap du jour » en une phrase et un gros bouton : entretien à préparer, relance due, candidature à envoyer ou offres à trier. Colle un lien d'offre en haut : l'analyse démarre toute seule |
-| **Recommandées** | Les offres lues dans tes alertes emploi (LinkedIn, Indeed, APEC, WTTJ…) et tes recherches sauvegardées, triées par compatibilité. **Je candidate** les envoie dans le suivi, **Pas pour moi** les range dans les **Écartées** avec une raison (annulable). Bouton « Écarter sous X % » pour vider d'un coup les offres faibles |
+| **Recommandées** | Les offres lues dans tes alertes emploi (LinkedIn, Indeed, APEC, WTTJ…) et tes recherches sauvegardées, triées par compatibilité. **Je candidate** les envoie dans le suivi, **Pas pour moi** les range dans les **Écartées** avec une raison (annulable). Bouton « Écarter sous X % » pour vider d'un coup les offres faibles. Onglet **Masquées** : les stages et alternances que tu n'as pas cochés, et les métiers qui n'ont aucun point commun avec tes postes visés, y sont rangés au lieu d'encombrer À trier (rien n'est supprimé, « Garder dans ma liste » les récupère ; sans questionnaire rempli, rien n'est masqué) |
 | **Tri rapide** | Une offre à la fois, en plein écran : glisse à droite pour candidater (elle arrive dans Offres & CV, à postuler), à gauche pour ne pas postuler (elle part dans Suivi, en **Abandonné**, avec sa raison ; annulable). Flèches du clavier, 1 à 9 et 0 pour la raison. 30 offres triées en 2 minutes |
 | **Suivi** | Ton « Notion » : liste, tableau ou **calendrier du mois** (entretiens, relances à faire, envois : un clic sur un jour liste les événements, un clic sur un événement ouvre la fiche), glisser-déposer, relances, date et heure des entretiens, historique des statuts, documents rattachés, classement des candidatures sans nouvelles depuis 3 semaines, export CSV. Icône d'origine (offre analysée ou saisie à la main), fiche en lecture seule d'un clic, bouton **Agenda** (relances et entretiens dans Google Agenda ou Apple Calendrier) |
 | **Offres & CV** | Ce qu'il te reste à traiter : offres à postuler ou pas encore tranchées (les autres sont dans Suivi). **Refaire l'analyse** (une analyse du quota du jour), **Supprimer** une offre, **Je ne postule pas** (→ Suivi, Abandonné). Score détaillé, mots-clés présents ou manquants, modèle de CV conseillé, liens pour se renseigner sur l'entreprise (avis, santé financière, actualités). CV, LM (lettre de motivation) et préparation d'entretien en un clic |
 | **CV** | Enregistrement automatique, couverture des mots-clés de l'offre en direct, nom du PDF automatique, bouton « J'ai envoyé ma candidature » (statut et relance à 7 jours mis à jour) |
-| **Recherche** | Jusqu'à 3 postes (liste déroulante par familles de métiers ou saisie libre), zone (France, départements ou villes), contrat, ancienneté : tout se coche et se décoche. Interroge Adzuna et Jooble si tu as branché une clé (sinon, liens préremplis vers LinkedIn, Indeed, WTTJ, France Travail…) ; ta dernière recherche est mémorisée ; « Recevoir chaque matin » la relance automatiquement. Villes cherchées par nom, code postal ou numéro de département. Section **Chercher aussi sur les autres sites** : Indeed, LinkedIn, HelloWork, Welcome to the Jungle, Meteojob, APEC, France Travail ouvrent leur page de résultats avec ton poste et ta zone déjà remplis |
+| **Recherche** | Tes critères du jour : jusqu'à 5 postes (liste déroulante par familles de métiers ou saisie libre, aucun poste imposé), zone (France, départements ou villes), contrat, ancienneté, candidatures par jour. **1. Valider mes critères** : les enregistre à la place des précédents (la recherche du matin les suit, les anciennes recherches automatiques passent en pause). **2. Préparer ma journée** : choisit, parmi les offres déjà reçues (puis sur le web s'il en manque), tes meilleures offres pour ces postes, autant que ton quota, et ouvre le **Tri rapide** (oui : suivi et Offres & CV, non : Abandonné) ; « Voir d'autres offres du même type » ajoute un lot. Le choix se fait sans IA. Interroge Adzuna et Jooble si tu as branché une clé (sinon, liens préremplis vers LinkedIn, Indeed, WTTJ, France Travail…). Villes cherchées par nom, code postal ou numéro de département. Section **Chercher aussi sur les autres sites** : Indeed, LinkedIn, HelloWork, Welcome to the Jungle, Meteojob, APEC, France Travail ouvrent leur page de résultats avec ton poste et ta zone déjà remplis |
 | **Stats** | Répartition des candidatures par statut (camembert ; les offres abandonnées sans avoir postulé n'y comptent pas), taux de réponse en phrases lisibles par site, par CV, par score et par contrat, raisons d'écart, et un diagnostic IA avec un objectif chiffré pour la semaine |
 | **Page d'accueil publique** | Ce que voit un visiteur sur `/` : à quoi sert le site, aperçus de l'appli (données fictives), étapes, questions fréquentes, boutons « Créer mon espace » et « Se connecter ». Toutes les autres pages demandent d'être connecté |
-| **Questionnaire d'accueil (première connexion)** | Listes déroulantes avec recherche : postes par familles de métiers (comme Indeed ou Welcome to the Jungle), secteurs, zone (France, départements ou villes via geo.api.gouv.fr). Boutons à cocher et à décocher, plusieurs tranches d'expérience possibles. Sept réponses obligatoires (postes, contrats, zone, expérience, disponibilité, durée de recherche, candidatures par semaine), le reste est facultatif ; un brouillon est gardé si la page se recharge. Ces réponses règlent aussi la page Recherche |
+| **Questionnaire d'accueil (première connexion)** | Listes déroulantes avec recherche : postes par familles de métiers (comme Indeed ou Welcome to the Jungle), secteurs, zone (France, départements ou villes via geo.api.gouv.fr). Boutons à cocher et à décocher, plusieurs tranches d'expérience possibles. Sept réponses obligatoires (postes, 5 au maximum, contrats, zone, expérience, disponibilité, durée de recherche, candidatures par semaine), le reste est facultatif (dont le nombre de candidatures par jour, qui fixe la taille de ta liste du jour) ; un brouillon est gardé si la page se recharge. Ces réponses règlent aussi la page Recherche |
 | **Diagnostic (étape 2, facultative)** | Dépôt d'un ou plusieurs CV (PDF, Word), puis diagnostic : score, positionnement, crédibilité, lecture ATS, plan d'action. L'analyse tourne en arrière-plan : la page affiche l'avancement et se met à jour toute seule, tu peux la quitter ; en cas d'échec, un bouton relance sans redéposer le fichier. Ton profil maître est créé automatiquement. « Passer cette étape » enregistre les réponses sans CV ; le CV se dépose plus tard depuis « Mon CV » |
 | **Mon CV** | Redépose une nouvelle version : analyse, progrès depuis la dernière fois, mise à jour du profil en un clic (rien n'est supprimé) |
 | **Profil maître** | Tout ton parcours, modifiable sans JSON (expériences, formations, projets, langues…) et enregistré automatiquement. Chaque CV est taillé à partir d'ici, rien n'est inventé |
@@ -36,8 +36,9 @@ Ta plateforme de recherche d'emploi : elle trouve les offres, les score par rapp
 **Chaque matin vers 7 h**, l'app :
 1. lit Gmail : accusés de réception, refus, invitations et alertes emploi ;
 2. met les statuts du suivi à jour ;
-3. relance tes recherches sauvegardées et range les nouvelles offres dans Recommandées ;
-4. calcule le vrai score des meilleures offres.
+3. relance tes recherches sauvegardées et range les nouvelles offres dans Recommandées (stages, alternances et métiers éloignés vont dans Masquées) ;
+4. prépare ta liste du jour si tu as validé des critères dans Recherche (sans IA) ;
+5. calcule le vrai score des meilleures offres.
 
 Elle ne génère aucun CV et n'envoie rien sans toi.
 
@@ -98,7 +99,7 @@ Bon à savoir :
 #### Facultatif : répartir la charge avec Groq et Mistral (gratuits)
 Quand plusieurs personnes utilisent l'app en même temps, une seule IA gratuite sature vite. Avec deux clés de plus, les tâches sont réparties et chaque fournisseur est le secours des autres.
 1. **Groq** : [console.groq.com](https://console.groq.com) → API Keys → Create. Variable : `GROQ_API_KEY`.
-2. **Mistral** : [console.mistral.ai](https://console.mistral.ai), plan **Experiment** (gratuit, vérification par téléphone) → API Keys. Variable : `MISTRAL_API_KEY`. Sur l'offre gratuite, Mistral peut entraîner ses modèles avec tes requêtes : dans **Admin Console → Privacy**, désactive **Anonymous improvement data**.
+2. **Mistral** : [console.mistral.ai](https://console.mistral.ai), plan **Experiment** (gratuit, vérification par téléphone) → API Keys. Variable : `MISTRAL_API_KEY`. Sur l'offre gratuite, Mistral peut entraîner ses modèles avec tes requêtes : dans **Admin Console → API → Confidentialité**, désactive **« Autoriser l'utilisation de vos appels API pour entraîner les modèles d'IA de Mistral »**.
 3. Ajoute les clés dans Vercel (Settings → Environment Variables), redéploie, puis **Réglages → Tester l'IA** : chaque fournisseur s'affiche avec son temps de réponse.
 
 Répartition par défaut : tri des emails et extractions → Groq, puis Mistral, puis Gemini. Analyse et CV → Gemini, puis Mistral, puis Groq. Sans ces clés, rien ne change. Les limites gratuites restent des limites (Groq : de l'ordre de 200 000 tokens par jour) : ça absorbe plus de monde, pas une affluence illimitée.
@@ -167,7 +168,7 @@ Avant d'inviter des amis :
 3. **Anti-robots** : Supabase → Authentication → Attack Protection → active la protection CAPTCHA (Cloudflare Turnstile est gratuit).
 4. **Gmail** : tant que l'écran de consentement Google est en mode « Testing », seules les adresses ajoutées dans **Test users** (100 maximum) peuvent connecter Gmail, et la connexion expire au bout de 7 jours. Tes amis peuvent utiliser JobPilot sans Gmail (favori, copier-coller).
 5. **Pages légales** : ajoute `PUBLISHER_NAME` et `PUBLISHER_EMAIL` dans Vercel (ils s'affichent dans `/mentions-legales` et `/confidentialite`). Ces pages sont des modèles honnêtes, pas un avis juridique.
-6. **IA partagée** : la clé Gemini gratuite est partagée entre tous les comptes. Chaque personne a un plafond quotidien d'actions IA (`AI_DAILY_BUDGET`, 60 par défaut). Ton adresse (dans `OWNER_EMAILS`) n'a pas de plafond. Avec l'offre gratuite de Gemini, Google peut utiliser les textes envoyés pour améliorer ses produits : c'est dit clairement dans la politique de confidentialité.
+6. **IA partagée** : la clé Gemini gratuite est partagée entre tous les comptes. Chaque personne a un plafond quotidien d'actions IA (`AI_DAILY_BUDGET`, 60 par défaut). Ton adresse (dans `OWNER_EMAILS`) n'a pas de plafond. Côté Gemini, les conditions de Google prévoient que, pour une application exploitée depuis l'Espace économique européen, la Suisse ou le Royaume-Uni, les règles des services payants s'appliquent aussi au quota gratuit (contenus non utilisés pour améliorer ses produits) ; ailleurs, Google peut les utiliser et les faire relire. C'est dit dans la page Confidentialité. À revérifier sur [ai.google.dev/gemini-api/terms](https://ai.google.dev/gemini-api/terms) avant d'ouvrir l'app à des inconnus.
 
 ### Variables optionnelles
 
@@ -197,7 +198,7 @@ Avant d'inviter des amis :
 - **Inscriptions ouvertes** : la page d'accueil invite n'importe qui à créer un compte. Pour garder l'app pour toi seule, désactive les nouvelles inscriptions dans Supabase (Authentication, réglages d'inscription) une fois ton compte créé.
 - **Ouvrir l'app à d'autres** : le code est déjà multi-utilisateur, chacun ne voit que ses données. Deux choses changent :
   - **Gmail** : au-delà de 100 utilisateurs test, Google exige une vérification de l'app. Pour le scope `gmail.readonly`, cela inclut un audit de sécurité payant. Sans Gmail, tout le reste fonctionne.
-  - **IA** : en UE, Gemini doit alors passer en version payante, et le coût devient le tien. Il faudra un quota par utilisateur ou un abonnement.
+  - **IA** : le quota gratuit est partagé entre tous les comptes (plafond par personne, `AI_DAILY_BUDGET`). Gemini, Groq et Mistral se relaient pour absorber plus de monde, mais restent des offres gratuites aux limites réelles. Côté données, voir la page Confidentialité : dans l'Espace économique européen, Google applique au quota gratuit les règles des services payants ; Mistral demande de désactiver l'usage des appels API pour l'entraînement.
 - La durée max d'exécution (5 min) du cron demande **Fluid compute**, activé par défaut sur les nouveaux projets Vercel.
 
 ## En cas de problème
@@ -239,6 +240,9 @@ lib/cv-job.ts          analyse d'un CV en arrière-plan (diagnostic + profil), r
 lib/diagnostic-state.ts  état d'une analyse : en cours, terminée ou échouée
 lib/onboarding.ts      choix et validation du questionnaire d'accueil, application des réponses au profil
 lib/sync.ts            lecture Gmail, alertes, recherches sauvegardées
+lib/fit.ts             « offre adaptée à ton profil ? » : stage/alternance non demandés, métier éloigné (sans IA)
+lib/fit-stock.ts       revoit les offres déjà reçues quand le profil ou la recherche changent
+lib/day.ts             critères validés et liste du jour (Préparer ma journée)
 lib/quick-score.ts     pré-score gratuit + détection de l'expérience demandée
 lib/learning.ts        règles apprises des offres acceptées / écartées
 lib/empty-profile.ts   profil vide donné à chaque nouveau compte

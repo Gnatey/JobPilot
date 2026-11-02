@@ -13,13 +13,21 @@ export const YEAR_BANDS: { label: string; max: number | null }[] = [
 export const AVAILABILITY = ["Immédiate", "Sous 1 mois", "Sous 3 mois"];
 export const SEARCH_SINCE = ["Je commence", "1 à 3 mois", "3 à 6 mois", "6 mois à 1 an", "Plus d'un an"];
 export const APPS_PER_WEEK = ["0 à 2", "3 à 5", "6 à 10", "Plus de 10"];
+/** Candidatures visées par jour : taille de la liste du jour proposée par la page Recherche. */
+export const DAILY_QUOTA = ["3", "5", "10", "15", "20", "30"];
+export const DEFAULT_DAILY_QUOTA = 10;
+export const MAX_DAILY_QUOTA = 50;
+/** Contrats du questionnaire → codes des sources d'offres (Recherche). */
+export const CONTRACT_CODE: Record<string, string> = { CDI: "CDI", CDD: "CDD", "Intérim": "MIS", Freelance: "LIB", Alternance: "ALT", Stage: "STG" };
 export const RESPONSES = ["Aucune réponse", "Des refus, pas d'entretien", "Des entretiens, pas d'offre", "Ça avance"];
+/** Postes visés : 5 au maximum (questionnaire et page Recherche). */
+export const MAX_TARGET_ROLES = 5;
 /** Une recherche par lieu : on plafonne la zone à 5 pour garder des recherches rapides. */
 export const MAX_ZONE = 5;
 
 export const emptyAnswers = (): OnboardingAnswers => ({
   target_roles: [], contracts: [], zone: null, location: "", mobility: "", remote: [], experience_years: [],
-  availability: "", salary: "", search_since: "", applications_per_week: "", responses: "", blockers: "", sectors: [],
+  availability: "", salary: "", search_since: "", applications_per_week: "", daily_quota: "", responses: "", blockers: "", sectors: [],
 });
 
 export const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 30);
@@ -73,19 +81,23 @@ const strs = (v: unknown, max = 40): string[] =>
   (Array.isArray(v) ? v : typeof v === "string" ? v.split(",") : []).map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, max);
 const str = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 500) : "");
 
+/** Zone reçue de l'API : on ne garde que des valeurs connues (cinq départements ou villes au plus). */
+export function normalizeZone(raw: unknown): SearchZone | null {
+  const z = raw as Partial<SearchZone> | null | undefined;
+  return z && (z.scope === "france" || z.scope === "departement" || z.scope === "ville")
+    ? {
+        scope: z.scope,
+        departments: (Array.isArray(z.departments) ? z.departments : []).slice(0, MAX_ZONE).map((d) => ({ code: str(d?.code), name: str(d?.name) })).filter((d) => d.code),
+        cities: (Array.isArray(z.cities) ? z.cities : []).slice(0, MAX_ZONE).map((c) => ({ name: str(c?.name), dept: str(c?.dept), deptName: str(c?.deptName) || undefined })).filter((c) => c.name),
+      }
+    : null;
+}
+
 export function normalizeAnswers(raw: unknown): OnboardingAnswers {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const z = r.zone as Partial<SearchZone> | null | undefined;
-  const zone: SearchZone | null =
-    z && (z.scope === "france" || z.scope === "departement" || z.scope === "ville")
-      ? {
-          scope: z.scope,
-          departments: (Array.isArray(z.departments) ? z.departments : []).slice(0, MAX_ZONE).map((d) => ({ code: str(d?.code), name: str(d?.name) })).filter((d) => d.code),
-          cities: (Array.isArray(z.cities) ? z.cities : []).slice(0, MAX_ZONE).map((c) => ({ name: str(c?.name), dept: str(c?.dept), deptName: str(c?.deptName) || undefined })).filter((c) => c.name),
-        }
-      : null;
+  const zone = normalizeZone(r.zone);
   return {
-    target_roles: strs(r.target_roles, 8),
+    target_roles: strs(r.target_roles, MAX_TARGET_ROLES),
     contracts: strs(r.contracts, 8),
     zone,
     location: str(r.location),
@@ -96,6 +108,7 @@ export function normalizeAnswers(raw: unknown): OnboardingAnswers {
     salary: str(r.salary),
     search_since: str(r.search_since),
     applications_per_week: str(r.applications_per_week),
+    daily_quota: /^\d{1,2}$/.test(str(r.daily_quota)) ? String(Math.max(1, Math.min(MAX_DAILY_QUOTA, Number(str(r.daily_quota))))) : "",
     responses: str(r.responses),
     blockers: str(r.blockers),
     sectors: strs(r.sectors, 12),
@@ -127,7 +140,7 @@ export function maxYearsOf(bands: string[]): number | undefined {
 export function mergeTargets(existing: Target[], roles: string[], hints: { title: string; pitch: string }[] = []): Target[] {
   const out: Target[] = [];
   const used = new Set<string>();
-  for (const title of roles.slice(0, 4)) {
+  for (const title of roles.slice(0, MAX_TARGET_ROLES)) {
     const known = existing.find((t) => slug(t.title) === slug(title));
     const ws = new Set(words(title));
     const hint = hints.find((h) => words(h.title).some((w) => ws.has(w)));
@@ -152,6 +165,7 @@ export function applyAnswers(p: Profile, a: OnboardingAnswers, hints: { title: s
   if (a.salary) prefs.salary = a.salary;
   if (a.sectors.length) prefs.sectors = a.sectors;
   if (a.zone) prefs.search_zone = a.zone;
+  if (a.daily_quota) prefs.daily_quota = Number(a.daily_quota);
   if (a.experience_years.length) {
     const max = maxYearsOf(a.experience_years);
     if (max === undefined) delete prefs.max_years;

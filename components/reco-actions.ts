@@ -47,8 +47,8 @@ export function useRecoDecision(onUndo?: (id: string) => void, opts: { toSuivi?:
   return { decide, busy };
 }
 
-/** Écarte ou restaure plusieurs offres d'un coup. */
-export async function bulkDecision(ids: string[], decision: "reject" | "restore", reason?: string) {
+/** Écarte ou restaure plusieurs offres d'un coup (« keep » : remet des offres masquées dans la liste à trier). */
+export async function bulkDecision(ids: string[], decision: "reject" | "restore" | "keep", reason?: string) {
   const res = await fetch("/api/recommendations/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, decision, reason }) });
   const j = await res.json().catch(() => ({}));
   return res.ok && !j.error ? { ok: true as const } : { ok: false as const, error: (j.error as string) ?? "L'action a échoué." };
