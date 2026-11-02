@@ -108,6 +108,7 @@ export async function structured<T>(opts: Opts): Promise<T> {
   if (!all.length) throw new HttpError(500, "Aucune clé IA : ajoute GEMINI_API_KEY (gratuit) dans Vercel. GROQ_API_KEY et MISTRAL_API_KEY (gratuits aussi) répartissent la charge.");
   const chain = [...all.filter((id) => !cooling(id)), ...all.filter(cooling)];
   let busy = 0;
+  let geminiPassed = false; // Gemini a seulement « passé son tour » (saturation passagère, 503) pour laisser la main au suivant
   for (let i = 0; i < chain.length; i++) {
     const rest = chain.length - i - 1;
     try {
@@ -116,8 +117,21 @@ export async function structured<T>(opts: Opts): Promise<T> {
       const status = e instanceof HttpError ? e.status : (e as { status?: number })?.status;
       if (status === 429) coolDown(chain[i], e instanceof Busy && e.retryAfter ? e.retryAfter * 1000 : 60_000);
       if (status && [429, 503, 504].includes(status)) busy++;
+      if (chain[i] === "gemini" && status === 503 && rest > 0) geminiPassed = true;
       // Dernier fournisseur, ou plus assez de temps pour en essayer un autre : l'erreur remonte
       if (!rest || timeLeft() < 9_000) {
+        // Les autres n'ont pas pu aider (clé refusée, demande trop grosse pour leur palier gratuit…) alors que Gemini n'était que saturé :
+        // on lui redonne sa chance avec sa patience habituelle (attente, puis modèle léger) plutôt que d'abandonner.
+        if (!rest && geminiPassed && timeLeft() > 25_000) {
+          console.warn("[ia] aucun autre fournisseur n'a pu répondre : Gemini est réessayé avec patience");
+          try {
+            return await call<T>("gemini", { ...opts, failover: false });
+          } catch (e2) {
+            // Tout le monde est vraiment saturé : message commun ; sinon, celui de Gemini (la seule raison encore valable d'échouer)
+            if (busy === chain.length && e2 instanceof HttpError && e2.status === 503) throw new HttpError(503, BUSY_ALL);
+            throw e2;
+          }
+        }
         if (chain.length > 1 && busy === i + 1 && !(e instanceof HttpError && e.status === 504)) throw new HttpError(503, BUSY_ALL);
         throw e;
       }
@@ -283,7 +297,12 @@ type CState = {
   relax?: number; // 0 = schéma JSON demandé au fournisseur · 1 = « objet JSON » + schéma dans la consigne · 2 = en plus sans réglage de réflexion
   grow?: number;  // place supplémentaire après une réponse coupée
   attempt?: number;
+  cap?: number;    // plafond de la place de réponse, imposé par la limite de débit du fournisseur (erreur 413)
+  capTry?: number; // nombre de réductions déjà tentées
 };
+
+/** Place minimale laissée à la réponse quand on la réduit pour tenir dans la limite de débit d'un fournisseur : en dessous, mieux vaut passer au suivant. */
+const MIN_ANSWER = 1800;
 
 /** Les clés « required » du schéma doivent toutes être présentes : sinon la réponse est écartée et le fournisseur suivant prend le relais. */
 function checkShape(value: unknown, schema: Record<string, unknown>) {
@@ -304,8 +323,10 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
   const left = timeLeft();
   if (left < 7_000) throw new HttpError(504, TIME_MSG);
   // Pas de réflexion interne « maximale » sur ces modèles : plus rapide, et la place de réponse reste raisonnable pour les plafonds de débit du palier gratuit
-  const maxTokens = Math.min(16_000, Math.round(((opts.maxTokens ?? 4000) + 1500) * (st.grow ?? 1)));
-  const reasoning = id === "groq" && model.startsWith("openai/gpt-oss") && relax < 2 ? { reasoning_effort: (opts.thinking ?? 1024) <= 512 || opts.fast ? "low" : "medium" } : {};
+  const asked = Math.min(16_000, Math.round(((opts.maxTokens ?? 4000) + 1500) * (st.grow ?? 1)));
+  const maxTokens = st.cap ? Math.min(asked, st.cap) : asked;
+  // Place de réponse réduite : la réflexion en prend sa part, on la limite aussi
+  const reasoning = id === "groq" && model.startsWith("openai/gpt-oss") && relax < 2 ? { reasoning_effort: (opts.thinking ?? 1024) <= 512 || opts.fast || st.cap ? "low" : "medium" } : {};
   const base = opts.patient ? 70_000 : opts.fast ? 25_000 : 40_000;
   const timeout = Math.max(5_000, Math.min(base, left - 2_000));
 
@@ -340,7 +361,15 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
     const msg = fromBody || (raw && !raw.trim().startsWith("{") ? raw.trim() : "") || `HTTP ${res.status} (corps vide)`;
     // Demande refusée (400/422) : on la simplifie (schéma JSON → « objet JSON » → sans réglage de réflexion)
     if ((res.status === 400 || res.status === 422) && relax < 2) return again({ relax: relax + 1 });
-    if (res.status === 401 || res.status === 403) throw new HttpError(500, `Clé ${cfg.label} invalide : vérifie ${cfg.env} dans Vercel.`);
+    if (res.status === 401 || res.status === 403) throw new Busy(500, `Clé ${cfg.label} invalide : vérifie ${cfg.env} dans Vercel.`, undefined, clean(`HTTP ${res.status} ${msg}`));
+    // 413 sur le palier gratuit : « Limit 8000, Requested 8063 » = tokens par minute, consigne + place de réponse. On retire l'excédent de la place de réponse et on réessaie.
+    if (res.status === 413 && (st.capTry ?? 0) < 2) {
+      const m = /limit\s+(\d+)\D+requested\s+(\d+)/i.exec(msg);
+      if (m) {
+        const cap = Number(m[1]) - (Number(m[2]) - maxTokens) - 150; // limite − part « consigne » − marge
+        if (cap >= MIN_ANSWER && cap < maxTokens && timeLeft() > 15_000) return again({ cap, capTry: (st.capTry ?? 0) + 1 });
+      }
+    }
     if (res.status === 429) {
       const wait = Number(res.headers?.get?.("retry-after")) || undefined;
       // Dernier recours (aucun autre fournisseur) et attente courte : on patiente une fois
@@ -351,7 +380,7 @@ async function compat<T>(id: "groq" | "mistral", opts: Opts, st: CState = {}): P
       throw new Busy(429, `${cfg.label} : limite gratuite atteinte pour le moment.`, wait, clean(`${msg}${wait ? ` (retry-after ${wait} s)` : ""}`));
     }
     if (res.status >= 500) throw new Busy(503, `${cfg.label} est saturé en ce moment.`, undefined, clean(`HTTP ${res.status} ${msg}`));
-    // 413 (demande trop grosse pour le palier gratuit) et le reste : on passe au fournisseur suivant
+    // 413 impossible à réduire (consigne trop longue pour leur palier gratuit) et le reste : on passe au fournisseur suivant
     throw new Error(`${cfg.label} (${model}) : ${msg}`);
   }
 
