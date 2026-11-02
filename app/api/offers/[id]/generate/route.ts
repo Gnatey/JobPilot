@@ -5,6 +5,7 @@ import { generateCv, generateLetter, generatePrep } from "@/lib/ai";
 import type { CvDoc, OfferExtract } from "@/lib/types";
 import { letterTemplateFor } from "@/lib/letter";
 import { spendAi, AI_COST } from "@/lib/quota";
+import { pickApplication } from "@/lib/app-pick";
 
 export const maxDuration = 60;
 
@@ -36,7 +37,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const profile = await getProfile(supabase, user);
     const variant = body.variant || offer.analysis?.recommended_variant || profile.targets[0]?.id || "general";
     const template = body.template || offer.analysis?.recommended_template || "compact";
-    const { data: app } = await supabase.from("applications").select("id").eq("offer_id", id).maybeSingle();
+    const { data: appRows } = await supabase.from("applications").select("id, status").eq("offer_id", id).limit(20);
+    const app = pickApplication(appRows);
 
     if (body.kind === "cv") {
       // 1) Réutilisation explicite d'un CV existant

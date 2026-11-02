@@ -13,6 +13,7 @@ import { useFeedback } from "@/components/ui/feedback";
 import { TEMPLATES, type CvDoc, type LetterDoc, type PrepDoc, type Profile } from "@/lib/types";
 import { docFileName } from "@/lib/cv-format";
 import { LETTER_TEMPLATES, isLetterTemplate, letterDoc, letterParts, letterTemplateFor, type LetterParts } from "@/lib/letter";
+import { pickApplication } from "@/lib/app-pick";
 
 type Doc = {
   id: string;
@@ -75,7 +76,7 @@ export function DocumentView({ doc, identity, reusedFrom, recommended, sibling =
   // Candidature liée à l'offre : permet le bouton « J'ai envoyé »
   useEffect(() => {
     if (!doc.offers) return;
-    sb.from("applications").select("id, status").eq("offer_id", doc.offers.id).maybeSingle().then(({ data }) => setApp(data));
+    sb.from("applications").select("id, status").eq("offer_id", doc.offers.id).limit(20).then(({ data }) => setApp(pickApplication(data)));
   }, [sb, doc.offers]);
 
   function updCv(fn: (cv: CvDoc) => void) {

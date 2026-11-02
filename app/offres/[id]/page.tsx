@@ -9,6 +9,7 @@ import { SkillSuggestions } from "@/components/skill-suggestions";
 import { fresh } from "@/lib/skills";
 import { OfferActions } from "@/components/offer-actions";
 import { statusLabel, templateLabel, TEMPLATES, type OfferAnalysis, type OfferExtract } from "@/lib/types";
+import { pickApplication } from "@/lib/app-pick";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Offre" };
@@ -41,12 +42,13 @@ function findEmails(raw: string | null): string[] {
 export default async function OfferPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await requireUser();
-  const [{ data: offer }, { data: docs }, { data: app }, profile] = await Promise.all([
+  const [{ data: offer }, { data: docs }, { data: appRows }, profile] = await Promise.all([
     supabase.from("offers").select("*").eq("id", id).maybeSingle(),
     supabase.from("documents").select("id, kind, variant, template, created_at, reused_from").eq("offer_id", id).order("created_at", { ascending: false }),
-    supabase.from("applications").select("id, status").eq("offer_id", id).maybeSingle(),
+    supabase.from("applications").select("id, status").eq("offer_id", id).limit(20),
     getProfile(supabase, user),
   ]);
+  const app = pickApplication(appRows);
   if (!offer) notFound();
 
   const a = (offer.analysis ?? {}) as Partial<OfferAnalysis>;

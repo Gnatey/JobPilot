@@ -3,6 +3,7 @@ import { handle } from "@/lib/http";
 import { syncGmail, runSavedSearches, autoPrepare, refitStock } from "@/lib/sync";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { currentDeadline, withDeadline } from "@/lib/budget";
+import { mergeDuplicateApplications } from "@/lib/offer-ops";
 
 export const maxDuration = 300;
 
@@ -15,6 +16,7 @@ export async function POST() {
   return handle(270_000, async () => {
     const { supabase, user } = await requireUser();
     await spendAi(supabase, user, AI_COST.mailSync);
+    await mergeDuplicateApplications(supabase, user.id).catch(() => null);
     await refitStock(supabase, user.id).catch(() => null);
     const total = currentDeadline()!;
     // Gmail ne mange pas tout le temps : les recherches et l'analyse des meilleures offres doivent aussi avoir leur tour

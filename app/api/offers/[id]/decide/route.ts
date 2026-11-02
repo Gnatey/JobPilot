@@ -1,6 +1,7 @@
 import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { ensureApplication, ensureGivenUp, findApplication, undoGivenUp } from "@/lib/offer-ops";
+import { pickApplication } from "@/lib/app-pick";
 
 /** Même logique que les recommandations, pour une offre analysée à la main. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -26,9 +27,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
     // Retour en arrière après « Je candidate » : l'offre sort du suivi tant que la candidature n'est pas partie
     if (decision === "undo") {
-      const { data: app } = await supabase.from("applications").select("id,status").eq("offer_id", id).maybeSingle();
+      const { data: rows } = await supabase.from("applications").select("id,status").eq("offer_id", id).limit(20);
+      const app = pickApplication(rows);
       if (app && app.status !== "a_postuler") throw new HttpError(409, "Cette candidature est déjà envoyée : annule d'abord l'envoi.");
-      if (app) await supabase.from("applications").delete().eq("id", app.id);
+      // Toutes les lignes « À postuler » de cette offre (il peut y avoir des doublons)
+      if (app) await supabase.from("applications").delete().eq("offer_id", id).eq("status", "a_postuler").is("applied_at", null);
       await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", id);
       await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).eq("offer_id", id);
       return { ok: true };

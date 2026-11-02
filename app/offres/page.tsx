@@ -5,6 +5,8 @@ import { PageTitle, Empty } from "@/components/ui/page-title";
 import { ScorePill } from "@/components/ui/score";
 import { fmtDate } from "@/lib/format";
 import { statusLabel } from "@/lib/types";
+import { OfferRowDelete } from "@/components/offer-row-delete";
+import { pickApplication } from "@/lib/app-pick";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Offres & CV" };
@@ -18,17 +20,20 @@ export default async function Offres() {
     // « Je candidate » sans analyse : la candidature est déjà « À postuler », l'offre n'a simplement pas encore été analysée
     supabase.from("applications").select("id, title, company, location, url, created_at").eq("status", "a_postuler").is("offer_id", null),
   ]);
-  const status = new Map((apps ?? []).map((a) => [a.offer_id, a.status]));
+  // Une offre peut avoir plusieurs lignes dans Suivi (doublons) : on retient celle qui est la plus avancée
+  const byOffer = new Map<string, { status: string }[]>();
+  for (const a of apps ?? []) byOffer.set(a.offer_id, [...(byOffer.get(a.offer_id) ?? []), a]);
+  const status = new Map([...byOffer].map(([id, rows]) => [id, pickApplication(rows)!.status]));
   // Cette page ne garde que ce qu'il reste à faire : offres « À postuler » ou pas encore tranchées.
   // Postulées, abandonnées, refusées… sont dans Suivi ; les offres écartées nourrissent l'apprentissage sans encombrer la liste.
   const todo = (offers ?? []).filter((o) => (status.has(o.id) ? status.get(o.id) === "a_postuler" : o.decision !== "rejected"));
   const cvCount = new Map<string, number>();
   for (const d of docs ?? []) cvCount.set(d.offer_id, (cvCount.get(d.offer_id) ?? 0) + 1);
   const hidden = (offers?.length ?? 0) - todo.length;
-  type Item = { key: string; href: string; score: number | null; title: string; sub: string; state: React.ReactNode; meta: string; at: string };
+  type Item = { key: string; kind: "offer" | "app"; href: string; score: number | null; title: string; sub: string; state: React.ReactNode; meta: string; at: string };
   const items: Item[] = [
     ...todo.map((o) => ({
-      key: o.id, href: `/offres/${o.id}`, score: o.score as number | null, title: o.title as string,
+      key: o.id, kind: "offer" as const, href: `/offres/${o.id}`, score: o.score as number | null, title: o.title as string,
       sub: [o.company, o.location, (o as unknown as { company_type?: string | null }).company_type].filter(Boolean).join(", "),
       state: (status.has(o.id) ? statusLabel(status.get(o.id)!) : <span className="text-muted">À décider</span>) as React.ReactNode,
       meta: `${cvCount.get(o.id) ? `${cvCount.get(o.id)} CV` : "Aucun CV"}, ${fmtDate(o.created_at)}`, at: o.created_at as string,
@@ -36,7 +41,7 @@ export default async function Offres() {
     ...(loose ?? []).map((a) => ({
       // Un clic ouvre la fiche : l'analyse se lance (lien prérempli, ou texte à coller) puis la fiche s'affiche, rattachée à cette candidature.
       // Pas de pourcentage : sans analyse complète, il n'y en a pas (un ancien pré-tri copié dans le suivi n'est pas un score).
-      key: a.id, href: `/offres/nouvelle?auto=1&app=${a.id}${a.url ? `&url=${encodeURIComponent(a.url)}` : "&needtext=1"}`, score: null, title: a.title as string,
+      key: a.id, kind: "app" as const, href: `/offres/nouvelle?auto=1&app=${a.id}${a.url ? `&url=${encodeURIComponent(a.url)}` : "&needtext=1"}`, score: null, title: a.title as string,
       sub: [a.company, a.location].filter(Boolean).join(", "),
       state: statusLabel("a_postuler") as React.ReactNode,
       meta: `À analyser, ${fmtDate(a.created_at)}`, at: a.created_at as string,
@@ -57,8 +62,8 @@ export default async function Offres() {
       ) : (
         <ul className="list">
           {items.map((it) => (
-            <li key={it.key}>
-              <Link href={it.href} className="flex items-center gap-3 px-4 py-3 hover:bg-paper/60">
+            <li key={it.key} className="flex items-center hover:bg-paper/60">
+              <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
                 <ScorePill value={it.score} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{it.title}</p>
@@ -69,6 +74,7 @@ export default async function Offres() {
                   <p className="text-muted">{it.meta}</p>
                 </div>
               </Link>
+              <OfferRowDelete kind={it.kind} id={it.key} label={it.title} />
             </li>
           ))}
         </ul>

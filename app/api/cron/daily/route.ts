@@ -5,6 +5,7 @@ import { sendDailyRecap } from "@/lib/recap";
 import { prepareDayAuto } from "@/lib/day";
 import { HttpError } from "@/lib/supabase/server";
 import { Deadline, withDeadline } from "@/lib/budget";
+import { mergeDuplicateApplications } from "@/lib/offer-ops";
 
 export const maxDuration = 300;
 
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
     const sync = mine.minus(RECAP_MS);
     try {
       // Chaque étape est indépendante : un échec (ex. Gmail expiré) n'empêche ni la recherche ni le récap
+      await step(() => mergeDuplicateApplications(admin, user_id)); // lignes en double dans Suivi (même offre)
       await step(() => refitStock(admin, user_id)); // le profil a pu changer depuis hier : le tri « adapté à mon profil » se remet à jour
       const gmail = aiDown ? { skipped: "IA indisponible" } : await step(() => withDeadline(sync.slice(sync.left() * 0.55), () => syncGmail(admin, user_id)));
       if (typeof gmail === "object" && "stopped" in gmail && gmail.stopped === "ia") aiDown = true;

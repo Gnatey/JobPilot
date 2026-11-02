@@ -3,6 +3,7 @@ import { extractOffer, analyzeOffer } from "./ai";
 import { getProfile } from "./profile";
 import { addDays, today } from "./format";
 import { spendAi, AI_COST } from "./quota";
+import { pickApplication, UNSENT } from "./app-pick";
 
 type User = { id: string; email?: string | null };
 
@@ -37,7 +38,8 @@ export async function ensureApplication(
   status = "a_postuler"
 ) {
   if (src.offer_id) {
-    const { data: existing } = await supabase.from("applications").select("id, status, applied_at").eq("offer_id", src.offer_id).maybeSingle();
+    const { data: rows } = await supabase.from("applications").select("id, status, applied_at").eq("offer_id", src.offer_id).order("created_at", { ascending: true }).limit(20);
+    const existing = pickApplication(rows as { id: string; status: string; applied_at: string | null }[] | null);
     if (existing) {
       if (status !== existing.status && status === "postule") {
         await supabase.from("applications").update({ status, ...(existing.applied_at ? {} : { applied_at: today(), next_action_at: addDays(7) }) }).eq("id", existing.id);
@@ -78,8 +80,9 @@ export async function findApplication(supabase: SupabaseClient, src: AppSrc): Pr
   const cols = "id, status, applied_at";
   const q = supabase.from("applications").select(cols);
   if (src.offer_id) {
-    const { data } = await q.eq("offer_id", src.offer_id).limit(1).maybeSingle();
-    if (data) return data as AppRow;
+    const { data } = await q.eq("offer_id", src.offer_id).order("created_at", { ascending: true }).limit(20);
+    const best = pickApplication(data as AppRow[] | null);
+    if (best) return best;
   }
   if (src.url) {
     const { data } = await supabase.from("applications").select(cols).eq("url", src.url).limit(1).maybeSingle();
@@ -135,4 +138,34 @@ export async function undoGivenUp(supabase: SupabaseClient, src: AppSrc, backTo?
   if (!app || !["abandonne", "expiree"].includes(app.status) || app.applied_at) return;
   if (backTo === "a_postuler") await supabase.from("applications").update({ status: "a_postuler" }).eq("id", app.id);
   else await supabase.from("applications").delete().eq("id", app.id);
+}
+
+/**
+ * Doublons dans Suivi : plusieurs lignes pour une même offre (double clic, ancienne version).
+ * On garde la plus avancée et on retire les lignes en trop, mais seulement celles qui n'ont rien : pas envoyées,
+ * sans note, contact ni salaire saisis. Une candidature envoyée ou annotée n'est jamais supprimée.
+ * Renvoie le nombre de lignes retirées.
+ */
+export async function mergeDuplicateApplications(supabase: SupabaseClient, userId: string): Promise<number> {
+  const { data } = await supabase
+    .from("applications")
+    .select("id, offer_id, status, applied_at, notes, contact, salary")
+    .eq("user_id", userId)
+    .not("offer_id", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(3000);
+  type Row = { id: string; offer_id: string; status: string; applied_at: string | null; notes: string | null; contact: string | null; salary: string | null };
+  const groups = new Map<string, Row[]>();
+  for (const r of (data ?? []) as Row[]) groups.set(r.offer_id, [...(groups.get(r.offer_id) ?? []), r]);
+  const drop: string[] = [];
+  for (const rows of groups.values()) {
+    if (rows.length < 2) continue;
+    const keep = pickApplication(rows)!;
+    for (const r of rows) {
+      const empty = !r.applied_at && !(r.notes ?? "").trim() && !(r.contact ?? "").trim() && !(r.salary ?? "").trim();
+      if (r.id !== keep.id && UNSENT.includes(r.status) && empty) drop.push(r.id);
+    }
+  }
+  for (let i = 0; i < drop.length; i += 100) await supabase.from("applications").delete().eq("user_id", userId).in("id", drop.slice(i, i + 100));
+  return drop.length;
 }
