@@ -42,3 +42,6 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 
 ## Rondes de contrôle
 Une ronde = audit + tests + corrections sûres. Elle lit `docs/journal-des-rondes.md` avant de commencer et y ajoute son entrée à la fin.
+- `docs/cahier-de-recette.md` : les parcours à pouvoir refaire, avec ce qui est vérifié automatiquement, relu, ou à tester par Juliana. Une ronde le met à jour et y ajoute une ligne pour chaque nouveau parcours.
+- `npm test` : tests sans réseau ni vraie IA (dans `tests/`, un fichier = un processus ; ajouter un fichier `*.test.ts` suffit). Les routes ne peuvent exporter que GET/POST…, donc la logique à tester vit dans `lib/`.
+- Une ronde corrige seulement ce qui est petit, sûr et testé ; le reste est signalé à Juliana, jamais fait de nuit (migrations, montées de version, changements qui touchent toutes les routes).

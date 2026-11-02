@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-
-/** Destination après connexion : uniquement un chemin interne (jamais un autre site). */
-const safeNext = (n: string | null) => (n && n.startsWith("/") && !n.startsWith("//") ? n : "/");
+import { safeNext } from "@/lib/safe-next";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");

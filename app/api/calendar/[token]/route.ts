@@ -3,7 +3,7 @@ import { appUrl } from "@/lib/gmail";
 
 export const dynamic = "force-dynamic";
 
-const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n");
 /** Les lignes d'un fichier .ics ne dépassent pas 75 caractères : on replie les plus longues. */
 const fold = (line: string) => line.match(/.{1,72}/g)?.join("\r\n ") ?? line;
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
