@@ -14,7 +14,7 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 |---|----------|------------------|----------|-----------------|
 | 1 | Ouvrir une page privée sans être connectée (`/suivi`, `/offres`, `/profil`, `/stats`, `/parametres`, `/importer`…) | Renvoi vers `/login` | Auto (essai serveur) | 2026-11-02 |
 | 2 | Appeler une route `/api/...` sans session | Réponse 401 « Non connecté », rien de lu ni d'écrit | Auto (essai serveur) | 2026-11-02 |
-| 3 | Pages publiques (`/`, `/login`, mentions légales, confidentialité, `/configuration`) | S'affichent sans connexion | Auto (essai serveur) | 2026-11-02 |
+| 3 | Pages publiques (`/`, `/login`, mentions légales, confidentialité) | S'affichent sans connexion. `/configuration` n'est plus publique une fois l'app configurée (voir 39) | Auto (essai serveur) | 2026-11-02 |
 | 4 | Connexion par lien : `/auth/callback?next=…` | Va seulement vers une page de JobPilot, jamais vers un autre site (`//x`, `/\x`, `https://x`…) | Auto (tests + serveur) | 2026-11-02 |
 | 5 | Créer un compte, se connecter (mot de passe ou lien par email) | Arrive sur l'accueil ou « Bienvenue » | À toi | |
 | 6 | Mot de passe oublié | Le lien mène à Paramètres pour en choisir un nouveau | Code | 2026-11-02 |
@@ -64,3 +64,18 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 30 | Mistral refuse un modèle hors offre gratuite (403) | Bascule vers un autre modèle Mistral, puis Groq si tous sont refusés ; une vraie clé invalide (401) reste annoncée comme telle | Auto (`llm-mistral.test.ts`) ; noms de modèles réels : À toi | 2026-11-02 |
 | 31 | Toutes les IA indisponibles | Message qui nomme chaque IA et la cause (clé ou modèle refusé, limite atteinte…) | Auto | 2026-11-02 |
 | 32 | Budget d'actions IA du jour atteint (60 par défaut, une analyse = 2) | Message clair, arrêt propre de « Tout analyser », reprise le lendemain | Code ; plafond non contournable côté client (SQL `spend_ai`) | 2026-11-02 |
+
+## Administration (réservée aux adresses de OWNER_EMAILS)
+
+| # | Parcours | Résultat attendu | Contrôle | Dernière vérif. |
+|---|----------|------------------|----------|-----------------|
+| 33 | Compte ordinaire ouvre `/admin` | Page « introuvable » (rien sur les comptes, les clés ou l'installation) ; pas d'entrée « Administration » dans le menu ni dans Réglages | Auto (essai local, faux Supabase) | 2026-11-03 |
+| 34 | Visiteur déconnecté ouvre `/admin` ou `/configuration` | Renvoi vers `/login` | Auto (essai local) | 2026-11-03 |
+| 35 | Admin ouvre `/admin` (bureau et téléphone) | Comptes et usage de l'IA, installation, sources d'offres, liens ; aucun débordement ni erreur console ; menu « Administration » | Auto (faux Supabase) ; vraie liste de comptes : À toi | 2026-11-03 |
+| 36 | `POST /api/health/ai` (test des IA) | 404 pour un compte ordinaire et un visiteur ; l'admin passe la garde | Auto (essai local) ; réponse réelle des IA : À toi | 2026-11-03 |
+| 37 | Erreur technique (nom de clé, Vercel, Supabase, SQL) renvoyée par une route | Message simple pour un compte ordinaire, message complet pour l'admin ; le détail reste dans les journaux | Auto (`admin.test.ts` : 10 messages techniques masqués, 6 messages normaux gardés, vrai message de limite du jour gardé) ; affichage réel : Code | 2026-11-03 |
+| 38 | Calculs de `/admin` : IA du jour et sur 7 jours, tri, au plafond, comptes sans adresse, liste vide | Chiffres justes | Auto (`admin.test.ts`) | 2026-11-03 |
+| 39 | `/configuration` | Redirige vers `/admin` dès que Supabase est configuré ; reste publique tant qu'il ne l'est pas (personne ne peut alors se connecter) | Auto (essai local, cas configuré) ; cas non configuré : Code | 2026-11-03 |
+| 40 | Accueil sans clé d'IA | Le rappel « Ajoute la clé IA gratuite » n'apparaît que pour l'admin, avec un lien vers `/admin` | Auto (essai local) | 2026-11-03 |
+| 41 | Porte de `/admin` : adresse dans OWNER_EMAILS **et** adresse confirmée selon Supabase | Un compte non confirmé qui porterait la même adresse n'entre pas | Code (le faux Supabase répond toujours « confirmée ») | 2026-11-03 |
+| 42 | Page Confidentialité | Dit ce que l'admin voit (comptes, dates, usage IA, nombre de candidatures) et jamais le contenu | À toi : relire le texte | |

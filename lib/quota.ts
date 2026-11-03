@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HttpError } from "./supabase/server";
+import { isAdminEmail } from "./admin";
 
 /**
  * Quota d'actions IA par personne et par jour.
@@ -13,19 +14,8 @@ export const AI_COST = { offer: 2, document: 1, cv: 2, cvDiagnosis: 3, followup:
 
 export const dailyBudget = () => Math.max(5, Number(process.env.AI_DAILY_BUDGET ?? 60) || 60);
 
-/** Les adresses listées dans OWNER_EMAILS (séparées par des virgules) n'ont pas de plafond. */
-export function isOwner(email?: string | null) {
-  if (!email) return false;
-  const list = `${process.env.OWNER_EMAILS ?? ""},${process.env.SEED_PROFILE_EMAIL ?? ""}`
-    .toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
-  return list.includes(email.toLowerCase());
-}
-
-/** Qui voit l'installation et les clés dans Réglages : les adresses de OWNER_EMAILS ; sans liste, tout le monde (usage personnel). */
-export function isAdmin(email?: string | null) {
-  const configured = `${process.env.OWNER_EMAILS ?? ""},${process.env.SEED_PROFILE_EMAIL ?? ""}`.split(",").some((s) => s.trim());
-  return !configured || isOwner(email);
-}
+/** Les adresses listées dans OWNER_EMAILS (séparées par des virgules) sont administratrices : pas de plafond d'IA, accès à /admin. */
+export const isOwner = (email?: string | null) => isAdminEmail(email);
 
 /** Réserve `cost` actions IA pour aujourd'hui ; lève une erreur 429 claire si le quota du jour est atteint. */
 export async function spendAi(supabase: SupabaseClient, user: { email: string | null }, cost: number): Promise<void> {

@@ -20,3 +20,15 @@ Rapport complet : `docs/audit-2026-11-02.md`. Lecture seule, rien de modifié da
 - **Bon** : zéro débordement, zéro erreur console, zéro requête en échec ; « Autre » et « Tout analyser » se comportent comme prévu.
 - **À corriger** : stats et apprentissage sans pagination (coupés à 1 000 lignes) ; Suivi sur téléphone (200 cartes à plat) ; « Tout analyser (N) » qui ne dit pas combien sont analysables ; trois chiffres différents pour « à trier » ; Offres & CV en liste plate.
 - **À vérifier avec Juliana** : nombre de recommandations en base (> 1 000 ?), titre « En cours de développement » de Recherche, type de clés JWT de Supabase, réponse à « À décider ».
+
+## Évolution : partie admin du site (3 novembre 2026, nuit)
+Demandée par Juliana (« des choses que les utilisateurs ne devraient pas voir »). Pas une ronde de contrôle, mais elle clôt un point laissé ouvert par la ronde 1 (messages d'erreur techniques renvoyés tels quels).
+
+- **Ajouté** : page `/admin` (comptes et usage de l'IA, installation, test des IA, sources d'offres, liens) ; garde `lib/admin-guard.ts` (adresse dans OWNER_EMAILS **et** adresse confirmée selon Supabase, sinon page introuvable) ; entrée de menu et bouton dans Réglages réservés à l'admin ; logique pure testable `lib/admin.ts` + `tests/admin.test.ts` ; lecture des comptes par la clé de service (`lib/admin-data.ts`), uniquement des totaux, jamais de contenu.
+- **Verrouillé** : `/configuration` (publique) redirige vers `/admin` une fois l'app configurée ; `POST /api/health/ai` réservé à l'admin (n'importe quel compte pouvait déclencher des appels IA) ; messages d'erreur avec noms de clés, « Vercel », « Supabase », SQL masqués aux non-admins dans `handle()` (8 messages concernés sur 71 passés en revue) ; message de l'agenda neutre ; rappel « Ajoute la clé IA » de l'accueil réservé à l'admin.
+- **Changé de sens** : être admin demande maintenant une adresse dans OWNER_EMAILS (ou SEED_PROFILE_EMAIL). Avant, sans liste, tout le monde voyait l'installation. `isAdmin` supprimé de `lib/quota.ts`.
+- **Vérifié** : typecheck, build, `npm test` (5 fichiers) ; rendu local avec faux Supabase : admin (bureau et téléphone), compte ordinaire, visiteur déconnecté.
+- **Non testé** : vrai compte admin sur Vercel, vraie liste de comptes Supabase, réponse réelle des IA depuis `/admin`, porte « adresse confirmée » (le faux Supabase répond toujours oui).
+- **Texte légal modifié** : la page Confidentialité précise ce que l'admin voit. À relire par Juliana.
+- **Détail technique** : la page « introuvable » est servie avec le code HTTP 200 (le chargement progressif de `app/loading.tsx` est déjà parti) ; elle porte `noindex` et ne révèle rien.
+

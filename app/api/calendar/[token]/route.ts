@@ -19,7 +19,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   if (!/^[a-f0-9]{32,64}$/.test(token)) return new Response("Introuvable", { status: 404 });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return new Response("Agenda indisponible : SUPABASE_SERVICE_ROLE_KEY n'est pas configurée dans Vercel.", { status: 501 });
+  if (!url || !key) {
+    console.error("Agenda indisponible : SUPABASE_SERVICE_ROLE_KEY n'est pas configurée dans Vercel.");
+    return new Response("Agenda indisponible pour le moment.", { status: 501 });
+  }
 
   const admin = createClient(url, key, { auth: { persistSession: false } });
   const { data: prof } = await admin.from("profiles").select("user_id").eq("data->preferences->>ics_token", token).maybeSingle();

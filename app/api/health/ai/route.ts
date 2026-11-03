@@ -1,14 +1,15 @@
-import { requireUser, HttpError } from "@/lib/supabase/server";
+import { HttpError } from "@/lib/supabase/server";
+import { requireAdminApi } from "@/lib/admin-guard";
 import { handle } from "@/lib/http";
 import { pingProviders, modelInfo } from "@/lib/llm";
 import { spendAi, AI_COST } from "@/lib/quota";
 
 export const maxDuration = 30;
 
-/** Petit appel de test, fournisseur par fournisseur : la clé fonctionne-t-elle, le quota est-il épuisé, en combien de temps ça répond ? */
+/** Réservé à l'admin : sans cette garde, n'importe quel compte pouvait déclencher des appels IA et lire les noms des modèles. Petit appel de test, fournisseur par fournisseur : la clé fonctionne-t-elle, le quota est-il épuisé, en combien de temps ça répond ? */
 export async function POST() {
   return handle(25_000, async () => {
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireAdminApi();
     await spendAi(supabase, user, AI_COST.test);
     const t0 = Date.now();
     const providers = await pingProviders();

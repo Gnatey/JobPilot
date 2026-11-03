@@ -7,6 +7,7 @@ import { supabaseConfigured } from "@/lib/env";
 import { Landing } from "@/components/landing";
 import { getProfile } from "@/lib/profile";
 import { modelInfo } from "@/lib/llm";
+import { isAdminEmail } from "@/lib/admin";
 import { Section } from "@/components/ui/page-title";
 import { Gauge } from "@/components/ui/score";
 import { SyncButton } from "@/components/sync-button";
@@ -119,7 +120,7 @@ async function Today() {
   const ai = modelInfo();
   const setup = [
     !profile.experiences.length && { href: "/mon-cv", text: "Dépose ton CV : sans lui, pas de diagnostic ni de CV sur mesure pour les offres." },
-    !ai.configured && { href: "/parametres#installation", text: "Ajoute la clé IA gratuite : sans elle, aucune analyse ni aucun CV." },
+    !ai.configured && isAdminEmail(user.email) && { href: "/admin#installation", text: "Ajoute la clé IA gratuite : sans elle, aucune analyse ni aucun CV." },
     !gmailRes.data && { href: "/parametres#gmail", text: "Connecte Gmail : alertes emploi et réponses se rangent toutes seules." },
     !searchesRes.count && { href: "/recherche", text: "Sauvegarde une recherche : les nouvelles offres arrivent chaque matin." },
     profile.todo.length > 0 && { href: "/profil", text: `Complète ton profil (${plural(profile.todo.length, "point", "points")}) pour des CV plus solides.` },

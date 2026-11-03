@@ -50,7 +50,7 @@ export default function Confidentialite() {
 
       <section>
         <H2>Qui peut voir tes données</H2>
-        <p>Toi, dans ton compte. Chaque personne ne voit que ses propres lignes (règle appliquée par la base de données elle-même). L'éditeur administre l'installation et pourrait techniquement accéder à la base ; il s'engage à ne le faire que pour réparer un problème que tu lui signales.</p>
+        <p>Toi, dans ton compte. Chaque personne ne voit que ses propres lignes (règle appliquée par la base de données elle-même). L'éditeur administre l'installation et pourrait techniquement accéder à la base ; il s'engage à ne le faire que pour réparer un problème que tu lui signales. Son espace d'administration affiche la liste des comptes (adresse, dates de création et de dernière connexion), le nombre d'actions IA utilisées et le nombre de candidatures par compte ; il n'affiche jamais le contenu de tes offres, de tes CV, de tes emails ni de tes candidatures.</p>
         <p className="mt-2">Prestataires techniques : Vercel (hébergement de l'application), Supabase (base de données et comptes), {providers.map((id) => PROVIDER_NAMES[id]).join(", ")} pour l'IA, et Google pour Gmail si tu le connectes. Certains sont situés hors de l'Union européenne, avec les garanties prévues par leurs conditions.</p>
       </section>
 

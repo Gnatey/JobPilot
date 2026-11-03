@@ -8,6 +8,7 @@ import { FeedbackProvider } from "@/components/ui/feedback";
 import { THEME_BOOT } from "@/components/theme";
 import { getUser } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/env";
+import { isAdminEmail } from "@/lib/admin";
 
 export const metadata: Metadata = {
   title: { default: "JobPilot", template: "%s · JobPilot" },
@@ -35,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <a href="#contenu" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-full focus:bg-marigold focus:px-4 focus:py-2 focus:font-semibold focus:text-chrome">Aller au contenu</a>
           {user ? (
             <div className="md:flex">
-              <Nav />
+              <Nav admin={isAdminEmail(user.email)} />
               <main id="contenu" className="mx-auto w-full min-w-0 max-w-[90rem] px-4 pb-32 pt-6 md:px-8 md:pb-16 md:pt-8 xl:px-12">{children}</main>
               <Palette />
             </div>

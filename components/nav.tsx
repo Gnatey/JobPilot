@@ -4,7 +4,7 @@ export { Logo };
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Sun, Inbox, Plus, Columns3, BarChart3, Search, UserRound, Settings, FileText, ScanSearch, Menu, X, Zap, LogOut } from "lucide-react";
+import { Sun, Inbox, Plus, Columns3, BarChart3, Search, UserRound, Settings, FileText, ScanSearch, Menu, X, Zap, LogOut, ShieldCheck } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { today } from "@/lib/format";
 import { openPalette } from "./palette";
@@ -71,8 +71,10 @@ function useSignOut() {
   };
 }
 
-export function Nav() {
+/** `admin` : l'entrée « Administration » n'existe dans le menu que pour les adresses de OWNER_EMAILS (la page se protège aussi toute seule). */
+export function Nav({ admin = false }: { admin?: boolean }) {
   const path = usePathname();
+  const secondary = admin ? [...SECONDARY, { href: "/admin", label: "Administration", icon: ShieldCheck }] : SECONDARY;
   const signOut = useSignOut();
   const badges = useBadges(path);
   const [more, setMore] = useState(false);
@@ -116,7 +118,7 @@ export function Nav() {
           <Zap size={16} /> Tri rapide des offres
         </Link>
         <nav className="mt-auto flex flex-col gap-0.5 border-t border-white/10 pt-4" aria-label="Compte">
-          {SECONDARY.map((m) => item(m.href, m.label, m.icon))}
+          {secondary.map((m) => item(m.href, m.label, m.icon))}
           <ThemeToggle withLabel className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2 text-[0.94rem] text-chrome-ink hover:bg-chrome-2/60 hover:text-white" />
           <button onClick={signOut} className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-[0.94rem] text-chrome-ink hover:bg-chrome-2/60 hover:text-white">
             <LogOut size={18} /> Se déconnecter
@@ -158,7 +160,7 @@ export function Nav() {
           <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]" style={{ animation: "toast-in .2s ease-out both" }}>
             <div className="mb-2 flex items-center justify-between"><p className="heading text-lg">Plus</p><button aria-label="Fermer" className="btn btn-ghost btn-icon" onClick={() => setMore(false)}><X size={20} /></button></div>
             <div className="grid grid-cols-3 gap-2">
-              {[MAIN[3], MAIN[4], MAIN[5], ...SECONDARY, { href: "/recommandees/tri", label: "Tri rapide", icon: Zap }].map(({ href, label, icon: Icon }) => (
+              {[MAIN[3], MAIN[4], MAIN[5], ...secondary, { href: "/recommandees/tri", label: "Tri rapide", icon: Zap }].map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href} className={`flex flex-col items-center gap-1.5 rounded-2xl border border-line px-2 py-3.5 text-center text-sm ${active(path, href) ? "bg-paper font-semibold" : ""}`}>
                   <Icon size={22} /> {label}
                 </Link>

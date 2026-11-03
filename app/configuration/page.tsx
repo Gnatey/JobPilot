@@ -1,10 +1,15 @@
 import { ENV_VARS, SUPABASE_URL, SUPABASE_ANON_KEY, supabaseConfigured } from "@/lib/env";
 import { Logo } from "@/components/nav";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** Page affichée tant que l'app n'a pas ses variables. N'affiche jamais les valeurs, seulement leur présence. */
+/**
+ * Page affichée tant que l'app n'a pas ses variables (personne ne peut encore se connecter). N'affiche jamais les valeurs, seulement leur présence.
+ * Une fois l'app configurée, elle n'a plus lieu d'être publique : l'état de l'installation est dans /admin (qui demande la connexion).
+ */
 export default function Configuration() {
+  if (supabaseConfigured()) redirect("/admin#installation");
   const rows = ENV_VARS.map((v) => ({ ...v, ok: Boolean(process.env[v.name]) || [v.alt ?? []].flat().some((k) => Boolean(process.env[k])) }));
   const missingRequired = rows.filter((r) => r.required && !r.ok);
   const urlProblem = SUPABASE_URL && !supabaseConfigured()

@@ -24,6 +24,7 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - `lib/offer-ops.ts`, `lib/app-pick.ts` : offres, candidatures, doublons (une offre = une seule ligne « À postuler »).
 - `lib/analyze-queue.ts` + `components/analyze-all.tsx` : « Tout analyser » (file par meilleur pré-score, arrêt propre sur limite d'IA ou budget du jour).
 - `lib/quota.ts` : budget d'actions IA par jour (60 par défaut, une analyse d'offre = 2).
+- `app/admin/page.tsx`, `lib/admin.ts` (logique pure, testée), `lib/admin-guard.ts` (porte), `lib/admin-data.ts` (comptes par la clé de service) : partie admin, réservée aux adresses de `OWNER_EMAILS`. Tout nouvel écran technique (clés, installation, comptes, usage) va là, jamais dans les pages des utilisateurs. `handle()` (`lib/http.ts`) masque aux non-admins les messages d'erreur qui nomment une variable, Vercel, Supabase ou du SQL : écrire ces messages sans crainte, mais garder un message clair pour l'utilisateur quand il peut agir.
 - `lib/bookmarklet.ts`, `app/importer/page.tsx`, `lib/offer-header.ts` : favori « Envoyer à JobPilot ».
 - `components/reason-chips.tsx`, `lib/types.ts` : raisons d'écart, « Autre » avec pourquoi libre.
 
@@ -36,7 +37,7 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 
 ## Pas encore fait (à ne pas faire sans demande)
 - Photo sur le CV (cadre photo dans le profil maître).
-- Partie admin séparée, adresse email professionnelle pour les pages légales.
+- Adresse email professionnelle pour les pages légales.
 - Renforts quand Supabase ou Gemini atteignent leurs limites.
 - Où ranger une offre analysée mais pas encore décidée (Recommandées › À trier, ou section « À décider » dans Offres & CV) : question posée à Juliana, pas de réponse.
 
