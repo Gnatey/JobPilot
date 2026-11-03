@@ -18,7 +18,7 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 4 | Connexion par lien : `/auth/callback?next=…` | Va seulement vers une page de JobPilot, jamais vers un autre site (`//x`, `/\x`, `https://x`…) | Auto (tests + serveur) | 2026-11-02 |
 | 5 | Créer un compte, se connecter (mot de passe ou lien par email) | Arrive sur l'accueil ou « Bienvenue » | À toi | |
 | 6 | Mot de passe oublié | Le lien mène à Paramètres pour en choisir un nouveau | Code | 2026-11-02 |
-| 7 | Vérification en deux étapes activée | Après le mot de passe, seule la page du code est accessible | Code | 2026-11-02 |
+| 7 | Vérification en deux étapes activée | Après le mot de passe, seule la page du code est accessible (sauf appareil de confiance, voir 46-48) | Auto (essai local, faux Supabase, session au niveau mot de passe) ; vrai code de l'application : À toi | 2026-11-03 |
 | 8 | Exporter mes données | Fichier avec toutes mes lignes, et seulement les miennes | Code | 2026-11-02 |
 | 9 | Supprimer mon compte (taper SUPPRIMER) | Compte et données supprimés, accès Gmail révoqué | À toi | |
 | 10 | Un compte voit-il les données d'un autre ? | Non : chaque table filtre sur `user_id = auth.uid()` | Code (SQL des 12 tables) | 2026-11-02 |
@@ -43,7 +43,7 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 |---|----------|------------------|----------|-----------------|
 | 20 | Trier une recommandation et écarter avec une raison | La raison est gardée et compte dans les statistiques | Auto (helpers de raisons) | 2026-11-02 |
 | 21 | Raison « Autre » | Champ « Pourquoi ? » facultatif ; « Valider sans préciser » possible ; Échap annule ; texte limité à 200 caractères | Auto (helpers) ; interface : À toi | 2026-11-02 |
-| 22 | Accueil « Offres pour toi » | Pas d'étiquette « Peu probable » ; une étoile seulement sur les offres vraiment proches (≥ 70) | Auto (`isClose`) ; visuel : À toi | 2026-11-02 |
+| 22 | Accueil, Recommandées, Tri rapide, Recherche | Nulle part d'étiquette « Peu probable » ni de pourcentage de pré-tri bas ; une étoile seulement sur les offres vraiment proches (≥ 70) ; boutons alignés avec le titre quand il n'y a pas d'étoile | Auto (`isClose`, rendu local sans « Peu probable » ni débordement) ; visuel sur vraies données : À toi | 2026-11-03 |
 | 23 | Recherche avec critères et sources | Résultats filtrés, pré-score affiché | À toi | |
 | 24 | Tâche automatique du matin (cron) | Refuse tout appel sans le bon secret (401, même avec « Bearer undefined ») ; sinon lit Gmail, relance les recherches, prépare les offres | Auto pour le refus ; exécution réelle : À toi | 2026-11-02 |
 
@@ -78,5 +78,12 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 39 | `/configuration` | Redirige vers `/admin` dès que Supabase est configuré ; reste publique tant qu'il ne l'est pas (personne ne peut alors se connecter) | Auto (essai local, cas configuré) ; cas non configuré : Code | 2026-11-03 |
 | 40 | Accueil sans clé d'IA | Le rappel « Ajoute la clé IA gratuite » n'apparaît que pour l'admin, avec un lien vers `/admin` | Auto (essai local) | 2026-11-03 |
 | 41 | Porte de `/admin` : adresse dans OWNER_EMAILS **et** adresse confirmée selon Supabase | Un compte non confirmé qui porterait la même adresse n'entre pas | Code (le faux Supabase répond toujours « confirmée ») | 2026-11-03 |
-| 42 | Page Confidentialité | Dit ce que l'admin voit (comptes, dates, usage IA, nombre de candidatures) et jamais le contenu | À toi : relire le texte | |
+| 42 | Page Confidentialité | Dit ce que l'admin voit (liste de comptes anonyme, dates, usage IA, nombre de candidatures) et jamais le contenu ; décrit aussi le cookie de session (90 jours) et le cookie facultatif « appareil de confiance » | À toi : relire le texte | |
 | 43 | Balise `google-site-verification` sur la page d'accueil publique (preuve de propriété pour Google Search Console, requise pour valider le branding de l'écran Gmail) | La balise est dans le HTML de `/` pour un visiteur déconnecté | Auto (build + serveur local, 2026-11-03) ; en ligne : voir journal | 2026-11-03 |
+| 44 | Tableau « Comptes » de `/admin` | Aucune adresse email : un code court (8 premiers caractères de l'identifiant), « Toi » sur ta ligne, bouton qui copie l'identifiant complet pour le retrouver dans Supabase (Authentication > Users) | Auto (`admin.test.ts` + rendu local : aucune adresse dans la page, copie vérifiée) ; vrais comptes : À toi | 2026-11-03 |
+| 45 | Session limitée : 90 jours (30 pour l'admin) depuis la dernière authentification (mot de passe, lien ou code) | Au-delà, la session est fermée sur cet appareil seulement, renvoi vers `/login` avec un message ; l'API répond 401 | Auto (`reauth.test.ts` + essai local avec jetons à 89, 91, 29 et 31 jours) ; durée réelle : À toi (attendre un mois pour l'admin) | 2026-11-03 |
+| 46 | Page du code à 6 chiffres : case « Ne plus demander le code sur cet appareil pendant 90 jours » (30 pour l'admin), cochée par défaut | Cochée : cookie `jp_trust` posé (HttpOnly, signé) et plus de code aux connexions suivantes sur cet appareil ; décochée : code redemandé | Auto (vrai navigateur, faux Supabase, code factice) ; vraie application d'authentification : À toi | 2026-11-03 |
+| 47 | Cookie `jp_trust` falsifié, d'une autre personne, signé avec une autre clé, trop vieux (> 90 jours, > 30 pour l'admin) ou daté du futur | Refusé : le code est demandé | Auto (`reauth.test.ts` + essai local) | 2026-11-03 |
+| 48 | `POST /api/auth/trust` | 401 sans session ou avant le code ; 403 si le code date de plus de 2 minutes ; 503 sans clé de service ; sinon pose le cookie | Auto (essai local) | 2026-11-03 |
+| 49 | Sans `SUPABASE_SERVICE_ROLE_KEY` dans Vercel | La case est masquée (le code est demandé à chaque connexion) ; la session limitée à 90 / 30 jours fonctionne quand même | Auto (essai local) | 2026-11-03 |
+| 50 | Page du code après un bon code | Arrive sur l'accueil sans rester bloquée sur la saisie (rechargement complet) | Auto (vrai navigateur) ; chez toi : À toi | 2026-11-03 |

@@ -25,6 +25,7 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - `lib/analyze-queue.ts` + `components/analyze-all.tsx` : « Tout analyser » (file par meilleur pré-score, arrêt propre sur limite d'IA ou budget du jour).
 - `lib/quota.ts` : budget d'actions IA par jour (60 par défaut, une analyse d'offre = 2).
 - `app/admin/page.tsx`, `lib/admin.ts` (logique pure, testée), `lib/admin-guard.ts` (porte), `lib/admin-data.ts` (comptes par la clé de service) : partie admin, réservée aux adresses de `OWNER_EMAILS`. Tout nouvel écran technique (clés, installation, comptes, usage) va là, jamais dans les pages des utilisateurs. `handle()` (`lib/http.ts`) masque aux non-admins les messages d'erreur qui nomment une variable, Vercel, Supabase ou du SQL : écrire ces messages sans crainte, mais garder un message clair pour l'utilisateur quand il peut agir.
+- `lib/reauth.ts` (logique pure, testée), `middleware.ts`, `app/api/auth/trust/route.ts`, `components/two-factor.tsx` : reconnexion espacée. Session fermée après 90 jours (30 pour l'admin) depuis la dernière authentification ; code à 6 chiffres non redemandé sur un appareil de confiance (cookie `jp_trust` signé avec `SUPABASE_SERVICE_ROLE_KEY`, même durée).
 - `lib/bookmarklet.ts`, `app/importer/page.tsx`, `lib/offer-header.ts` : favori « Envoyer à JobPilot ».
 - `components/reason-chips.tsx`, `lib/types.ts` : raisons d'écart, « Autre » avec pourquoi libre.
 
@@ -33,7 +34,8 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - Suivi : « En cours » cache Refusé / Abandonné / Offre plus disponible ; « Tout » les affiche.
 - Un seul pourcentage par offre : celui de l'analyse complète. Pour une offre analysée d'après un simple extrait (Indeed…), il est marqué « estimé » (`analysis.estimated`) jusqu'à la lecture de l'annonce entière via le favori.
 - Ce que l'annonce ne dit pas n'est jamais un point négatif. La séniorité non écrite est « Non précisé ».
-- Sur l'accueil, pas d'étiquette « Peu probable » : une étoile seulement sur les offres vraiment proches du profil.
+- Nulle part (accueil, Recommandées, Tri rapide, Recherche) d'étiquette « Peu probable » : une étoile ou un pourcentage de pré-tri seulement sur les offres vraiment proches du profil (≥ 70).
+- Le tableau des comptes de `/admin` est anonyme (code court, jamais d'adresse) : le détail d'un compte se consulte dans Supabase. Ne pas y remettre d'emails.
 - La balise `google-site-verification` de `app/layout.tsx` prouve à Google que le site est à Juliana (validation du branding de l'écran d'autorisation Gmail) : ne pas la retirer.
 
 ## Pas encore fait (à ne pas faire sans demande)

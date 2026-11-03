@@ -50,13 +50,13 @@ export default function Confidentialite() {
 
       <section>
         <H2>Qui peut voir tes données</H2>
-        <p>Toi, dans ton compte. Chaque personne ne voit que ses propres lignes (règle appliquée par la base de données elle-même). L'éditeur administre l'installation et pourrait techniquement accéder à la base ; il s'engage à ne le faire que pour réparer un problème que tu lui signales. Son espace d'administration affiche la liste des comptes (adresse, dates de création et de dernière connexion), le nombre d'actions IA utilisées et le nombre de candidatures par compte ; il n'affiche jamais le contenu de tes offres, de tes CV, de tes emails ni de tes candidatures.</p>
+        <p>Toi, dans ton compte. Chaque personne ne voit que ses propres lignes (règle appliquée par la base de données elle-même). L'éditeur administre l'installation et pourrait techniquement accéder à la base ; il s'engage à ne le faire que pour réparer un problème que tu lui signales. Son espace d'administration affiche la liste des comptes de façon anonyme (un code court, sans adresse, avec les dates de création et de dernière connexion), le nombre d'actions IA utilisées et le nombre de candidatures par compte ; il n'affiche jamais le contenu de tes offres, de tes CV, de tes emails ni de tes candidatures.</p>
         <p className="mt-2">Prestataires techniques : Vercel (hébergement de l'application), Supabase (base de données et comptes), {providers.map((id) => PROVIDER_NAMES[id]).join(", ")} pour l'IA, et Google pour Gmail si tu le connectes. Certains sont situés hors de l'Union européenne, avec les garanties prévues par leurs conditions.</p>
       </section>
 
       <section>
         <H2>Cookies</H2>
-        <p>Un cookie de session te garde connecté, et ton navigateur retient ton thème clair ou sombre. Il n'y a ni traceur publicitaire ni mesure d'audience, donc pas de bandeau à valider.</p>
+        <p>Un cookie de session te garde connecté (au plus 90 jours, puis tu te reconnectes). Si tu actives la vérification en deux étapes et coches « Ne plus demander le code sur cet appareil », un second cookie de sécurité, signé et illisible par les scripts, retient pour la même durée que le code a déjà été saisi ici. Ton navigateur retient aussi ton thème clair ou sombre. Ces cookies servent uniquement au fonctionnement et à la sécurité du site : il n'y a ni traceur publicitaire ni mesure d'audience, donc pas de bandeau à valider.</p>
       </section>
 
       <section>

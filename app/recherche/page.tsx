@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, X, Bookmark, Trash2, ExternalLink, Search as SearchIcon, Loader2, CalendarCheck, Zap, Plus } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { PageTitle, Section, Empty } from "@/components/ui/page-title";
-import { ScorePill } from "@/components/ui/score";
+import { ScorePill, isClose } from "@/components/ui/score";
 import { type Profile, type SavedCriteria, type SearchZone } from "@/lib/types";
 import { ReasonChips } from "@/components/reason-chips";
 import type { SearchCriteria } from "@/lib/sources/types";
@@ -375,7 +375,7 @@ export default function Recherche() {
               {shown.map((o) => (
                 <li key={o.key} className="px-4 py-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-[5.6rem] shrink-0 pt-0.5 text-center"><ScorePill value={o.quick_score} estimate /></div>
+                    {isClose(o.quick_score) && <div className="w-[5.6rem] shrink-0 pt-0.5 text-center"><ScorePill value={o.quick_score} estimate /></div>}
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold leading-snug">{o.title}</p>
                       <p className="text-sm text-muted">{[o.company, o.location, o.contract, o.salary].filter(Boolean).join(", ")}</p>
@@ -385,7 +385,7 @@ export default function Recherche() {
                       {o.fit_reason && <p className="mt-1 text-xs text-muted">Éloignée de tes postes visés.</p>}
                     </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2 md:pl-[6.5rem]">
+                  <div className={`mt-2 flex flex-wrap gap-2 ${isClose(o.quick_score) ? "md:pl-[6.5rem]" : ""}`}>
                     {done[o.key] ? <p className="py-2 text-sm font-semibold">{done[o.key]}</p> : o.decision === "accepted" ? <p className="py-2 text-sm font-semibold">Déjà dans ton suivi</p> : (
                       <>
                         <button className="btn btn-sm btn-primary" disabled={rowBusy === o.key} onClick={() => decide(o, "accept")}><Check size={15} /> Je candidate</button>
@@ -397,7 +397,7 @@ export default function Recherche() {
                     <a href={o.url} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost"><ExternalLink size={15} /> Annonce</a>
                   </div>
                   {rejecting === o.key && (
-                    <ReasonChips className="mt-2 md:pl-[6.5rem]" disabled={rowBusy === o.key} onPick={(reason) => decide(o, "reject", reason)} />
+                    <ReasonChips className={`mt-2 ${isClose(o.quick_score) ? "md:pl-[6.5rem]" : ""}`} disabled={rowBusy === o.key} onPick={(reason) => decide(o, "reject", reason)} />
                   )}
                 </li>
               ))}

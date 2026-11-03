@@ -31,7 +31,7 @@ export async function buildRecap(supabase: SupabaseClient, userId: string): Prom
     .sort((a, b) => a.next_action_at.localeCompare(b.next_action_at))
     .map((a) => ({ title: `${a.company} : ${a.title}`, sub: `relance ${until(a.next_action_at)}${a.applied_at ? `, postulé le ${fmtDate(a.applied_at)}` : ""}` }));
 
-  const offers: Line[] = (recos ?? []).map((r) => ({ title: `${r.title}${r.company ? `, ${r.company}` : ""}`, sub: `${r.location ?? ""}${r.quick_score != null ? ` · ${preBand(r.quick_score).label.toLowerCase()}` : ""}`.replace(/^ · /, ""), href: r.url ?? undefined }));
+  const offers: Line[] = (recos ?? []).map((r) => ({ title: `${r.title}${r.company ? `, ${r.company}` : ""}`, sub: `${r.location ?? ""}${r.quick_score != null && preBand(r.quick_score).id !== "far" ? ` · ${preBand(r.quick_score).label.toLowerCase()}` : ""}`.replace(/^ · /, ""), href: r.url ?? undefined }));
   const toSort = count ?? offers.length;
 
   const goal = profile.preferences?.weekly_goal ?? 5;

@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, X, Undo2, ExternalLink, Sparkles, Zap, Eraser, Search, Loader2, EyeOff, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ScorePill } from "./ui/score";
+import { ScorePill, isClose } from "./ui/score";
 import { Empty } from "./ui/page-title";
 import { ReasonChips } from "./reason-chips";
 import { bulkDecision, useRecoDecision } from "./reco-actions";
@@ -169,10 +169,12 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
           {list.map((r) => (
             <li key={r.id} className="px-4 py-4 2xl:rounded-2xl 2xl:border 2xl:border-line 2xl:bg-surface">
               <div className="flex items-start gap-3.5">
-                <div className="w-[5.6rem] shrink-0 pt-0.5 text-center">
-                  <ScorePill value={r.score} estimate={!r.ai} />
-                  <p className="mt-0.5 text-[0.65rem] text-muted">{r.ai ? "analyse complète" : r.read ? "pré-tri, annonce lue" : "pré-tri, titre seul"}</p>
-                </div>
+                {(r.ai || isClose(r.score)) && (
+                  <div className="w-[5.6rem] shrink-0 pt-0.5 text-center">
+                    <ScorePill value={r.score} estimate={!r.ai} />
+                    <p className="mt-0.5 text-[0.65rem] text-muted">{r.ai ? "analyse complète" : r.read ? "pré-tri, annonce lue" : "pré-tri, titre seul"}</p>
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold leading-snug">{r.title}</p>
                   <p className="text-sm text-muted">{[r.company, r.location].filter(Boolean).join(", ")}</p>
@@ -191,7 +193,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2 md:pl-[6.5rem]">
+              <div className={`mt-3 flex flex-wrap gap-2 ${r.ai || isClose(r.score) ? "md:pl-[6.5rem]" : ""}`}>
                 {tab === "todo" && (
                   <>
                     <button className="btn btn-sm border-ink" disabled={busy === r.id} onClick={() => act(r, "accept")}><Check size={16} className="text-good" /> Je candidate</button>
@@ -212,7 +214,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
               </div>
 
               {rejecting === r.id && (
-                <div className="rise mt-3 md:pl-[6.5rem]">
+                <div className={`rise mt-3 ${r.ai || isClose(r.score) ? "md:pl-[6.5rem]" : ""}`}>
                   <p className="mb-1.5 text-sm text-muted">Pourquoi ? L'app s'en sert pour mieux trier les prochaines.</p>
                   <ReasonChips disabled={busy === r.id} onPick={(reason) => act(r, "reject", reason)} />
                 </div>

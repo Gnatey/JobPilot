@@ -6,6 +6,7 @@ import { modelInfo } from "@/lib/llm";
 import { MIGRATION_SQL } from "@/lib/migration-sql";
 import { PageTitle, Section } from "@/components/ui/page-title";
 import { AiTest, CopySql } from "@/components/settings-controls";
+import { CopyId } from "@/components/copy-id";
 import { fmtDate, plural } from "@/lib/format";
 import { activeSources } from "@/lib/sources";
 
@@ -16,7 +17,7 @@ type Check = { id: string; label: string; state: "ok" | "todo" | "optional"; hin
 
 /** Réservée aux adresses de OWNER_EMAILS : tout autre visiteur reçoit une page introuvable. */
 export default async function Admin() {
-  const { supabase } = await requireAdminPage();
+  const { supabase, user } = await requireAdminPage();
   const [interviewCol, diagTable, usageTable, cronCol] = await Promise.all([
     supabase.from("applications").select("interview_at").limit(1),
     supabase.from("diagnostics").select("id").limit(1),
@@ -29,7 +30,7 @@ export default async function Admin() {
   const service = serviceClient();
   if (service) {
     try {
-      overview = await loadOverview(service);
+      overview = await loadOverview(service, user.id);
     } catch (e) {
       overviewError = e instanceof Error ? e.message : "Lecture des comptes impossible.";
     }
@@ -90,7 +91,7 @@ export default async function Admin() {
 
             <div className="list mt-4 overflow-x-auto">
               <table className="w-full min-w-[40rem] text-left text-sm">
-                <caption className="sr-only">Comptes, usage de l'IA et nombre de candidatures</caption>
+                <caption className="sr-only">Comptes anonymes, usage de l'IA et nombre de candidatures</caption>
                 <thead className="text-muted">
                   <tr>
                     <th scope="col" className="px-4 py-2 font-semibold">Compte</th>
@@ -104,7 +105,13 @@ export default async function Admin() {
                 <tbody>
                   {overview.rows.map((r) => (
                     <tr key={r.id} className="border-t border-line">
-                      <th scope="row" className="break-all px-4 py-2 font-medium">{r.email}</th>
+                      <th scope="row" className="px-4 py-1.5 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-mono text-[0.82rem]">{r.code}</span>
+                          {r.me && <span className="tag tag-good">Toi</span>}
+                          <CopyId id={r.id} code={r.code} />
+                        </span>
+                      </th>
                       <td className="px-3 py-2">{fmtDate(r.createdAt) || "—"}</td>
                       <td className="px-3 py-2">{fmtDate(r.lastSignInAt) || "jamais"}</td>
                       <td className={`px-3 py-2 text-right ${r.aiToday >= overview.cap ? "font-semibold text-bad" : ""}`}>{r.aiToday}</td>
@@ -132,7 +139,7 @@ export default async function Admin() {
               })}
             </ul>
             <p className="mt-4 max-w-[62ch] text-sm text-muted">
-              Cette page ne montre que des totaux : jamais les offres, les CV, les emails ni le texte des candidatures d'une personne. Les comptes administrateurs (OWNER_EMAILS) n'ont pas de plafond et ne sont pas comptés dans l'IA.
+              Les comptes sont anonymes : un code court, jamais l'adresse. Pour voir qui est qui, copie l'identifiant complet (l'icône à côté du code) et colle-le dans Supabase (Authentication, Users). Cette page ne montre que des totaux, jamais les offres, les CV, les emails ni le texte des candidatures. Les comptes administrateurs (OWNER_EMAILS) n'ont pas de plafond et ne sont pas comptés dans l'IA.
             </p>
           </>
         )}

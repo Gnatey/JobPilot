@@ -29,11 +29,15 @@ export const messageFor = (message: string, admin: boolean) => (admin || !looksT
 
 /* ---------- Comptes et usage (page /admin) ---------- */
 
-export type AdminUser = { id: string; email: string | null; created_at?: string | null; last_sign_in_at?: string | null };
+/** Aucune adresse email ici : le tableau est anonyme, le détail d'un compte se consulte dans Supabase (Authentication > Users). */
+export type AdminUser = { id: string; created_at?: string | null; last_sign_in_at?: string | null };
 export type UsageRow = { user_id: string; day: string; n: number };
 export type AccountRow = {
   id: string;
-  email: string;
+  /** Code court, lisible, pour s'y retrouver : les 8 premiers caractères de l'identifiant. */
+  code: string;
+  /** C'est le compte de la personne qui regarde la page. */
+  me: boolean;
   createdAt: string | null;
   lastSignInAt: string | null;
   aiToday: number;
@@ -47,15 +51,18 @@ export function lastDays(now: Date, count = 7): string[] {
   return Array.from({ length: count }, (_, i) => isoDay(new Date(now.getTime() - (count - 1 - i) * 86_400_000)));
 }
 
+export const accountCode = (id: string) => id.replace(/-/g, "").slice(0, 8);
+
 /** Rassemble comptes, compteur d'IA et nombre de candidatures en une ligne par compte, les plus actifs d'abord. */
-export function buildAccountRows(users: AdminUser[], usage: UsageRow[], applications: Record<string, number>, now: Date): AccountRow[] {
+export function buildAccountRows(users: AdminUser[], usage: UsageRow[], applications: Record<string, number>, now: Date, meId?: string): AccountRow[] {
   const today = isoDay(now);
   const week = new Set(lastDays(now));
   const rows = users.map((u): AccountRow => {
     const mine = usage.filter((x) => x.user_id === u.id);
     return {
       id: u.id,
-      email: u.email ?? "(sans adresse)",
+      code: accountCode(u.id),
+      me: u.id === meId,
       createdAt: u.created_at ?? null,
       lastSignInAt: u.last_sign_in_at ?? null,
       aiToday: mine.filter((x) => x.day === today).reduce((s, x) => s + x.n, 0),

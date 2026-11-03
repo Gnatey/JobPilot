@@ -2,7 +2,7 @@ import { LoginForm } from "@/components/login-form";
 
 export const metadata = { title: "Connexion" };
 
-export default async function Login({ searchParams }: { searchParams: Promise<{ mode?: string; erreur?: string }> }) {
+export default async function Login({ searchParams }: { searchParams: Promise<{ mode?: string; erreur?: string; session?: string }> }) {
   const sp = await searchParams;
-  return <LoginForm initialMode={sp.mode === "signup" ? "signup" : "login"} linkExpired={sp.erreur === "lien"} />;
+  return <LoginForm initialMode={sp.mode === "signup" ? "signup" : "login"} linkExpired={sp.erreur === "lien"} sessionExpired={sp.session === "expiree"} />;
 }

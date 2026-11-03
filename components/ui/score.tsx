@@ -35,21 +35,12 @@ export const ScoreRing = Gauge;
 
 /**
  * Un seul pourcentage par offre : celui de l'analyse complète (IA).
- * `estimate` : l'offre n'a pas encore été analysée, on affiche son niveau de pré-tri (titre, mots-clés) sans chiffre,
- * en pointillés, pour que personne ne le prenne pour un diagnostic.
+ * `estimate` : l'offre n'a pas encore été analysée. Pas de chiffre ni de libellé (un « Peu probable » sur chaque ligne ne disait rien d'utile) :
+ * une étoile seulement si elle est vraiment proche du profil, rien sinon.
  */
 export function ScorePill({ value, estimate = false, rough = false }: { value: number | null | undefined; estimate?: boolean; rough?: boolean }) {
+  if (estimate) return <PreStar value={value} />;
   if (value == null) return <span className="text-xs text-muted">—</span>;
-  if (estimate) {
-    const b = preBand(value);
-    const cls = b.id === "top" ? "tag-good" : b.id === "maybe" ? "tag-warn" : "tag-bad";
-    return (
-      <span className={`tag ${cls} justify-center whitespace-nowrap border border-dashed border-current !px-2 !py-0.5 !text-xs font-semibold`}
-        title={`${b.hint}. Le pourcentage s'affiche après l'analyse complète.`}>
-        {b.label}
-      </span>
-    );
-  }
   const cls = value >= 70 ? "tag-good" : value >= 50 ? "tag-warn" : "tag-bad";
   // Analyse faite d'après un extrait de l'annonce (Indeed…) : pourcentage marqué « estimé » jusqu'à la lecture de l'annonce entière
   if (rough) {
@@ -61,10 +52,7 @@ export function ScorePill({ value, estimate = false, rough = false }: { value: n
   return <span className={`tag ${cls} min-w-11 justify-center !px-2 !py-0.5 !text-sm font-bold tabular-nums`}>{value}%</span>;
 }
 
-/**
- * Pour une offre pas encore analysée : une étoile seulement si elle est vraiment proche du profil, rien sinon.
- * (Un « Peu probable » sur chaque ligne ne disait rien d'utile : le tri se fait avec l'analyse complète.)
- */
+/** Une offre pas encore analysée est « proche » du profil si son pré-score est d'au moins 70. */
 export function isClose(value: number | null | undefined) {
   return preBand(value).id === "top";
 }

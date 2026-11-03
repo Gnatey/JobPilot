@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, CornerUpRight, ExternalLink, Loader2, PartyPopper, X } from "lucide-react";
-import { Gauge, ScorePill } from "./ui/score";
+import { Gauge, ScorePill, isClose } from "./ui/score";
 import { useRecoDecision } from "./reco-actions";
 import { useFeedback } from "./ui/feedback";
 import { OTHER_REASON, REJECT_REASONS } from "@/lib/types";
@@ -159,7 +159,7 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
               <div className="flex items-start gap-4">
                 {cur.ai
                   ? <Gauge value={cur.score} size={92} label="analysé" />
-                  : <div className="grid w-[92px] shrink-0 place-items-center pt-2 text-center"><ScorePill value={cur.score} estimate /><span className="mt-1.5 text-[0.7rem] leading-tight text-muted">pré-tri, avant analyse</span></div>}
+                  : isClose(cur.score) && <div className="grid w-[92px] shrink-0 place-items-center pt-2 text-center"><ScorePill value={cur.score} estimate /><span className="mt-1.5 text-[0.7rem] leading-tight text-muted">pré-tri, avant analyse</span></div>}
                 <div className="min-w-0 flex-1 pt-1">
                   <h1 className="heading text-[1.35rem] leading-tight">{cur.title}</h1>
                   <p className="mt-1 text-muted">{[cur.company, cur.location].filter(Boolean).join(", ")}</p>

@@ -215,7 +215,7 @@ export default function Importer() {
                 {enriched.skipped === "linkedin"
                   ? "Je n'ai pas lu les annonces une par une : sur LinkedIn je m'en abstiens exprès, pour ne pas mettre ton compte en danger."
                   : "Je n'ai pas pu lire les annonces en entier : le site a refusé, la page d'origine a été fermée, ou ton favori est ancien (supprime-le et glisse-le à nouveau depuis « Analyser une offre »)."}{" "}
-                Ces offres n'ont donc qu'un pré-tri d'après le titre (« Bonne piste », « À regarder », « Peu probable »), sans pourcentage. Pour une offre qui t'intéresse, ouvre-la et reclique sur le favori, ou utilise « Voir le diagnostic » dans Recommandées.
+                Ces offres n'ont donc qu'un pré-tri d'après le titre (une étoile marque celles qui paraissent très proches de ton profil), sans pourcentage. Pour une offre qui t'intéresse, ouvre-la et reclique sur le favori, ou utilise « Voir le diagnostic » dans Recommandées.
               </p>
             )}
             {enriched?.diagError && enriched.diag === 0 && <p className="text-sm text-bad" role="alert">{enriched.diagError}</p>}

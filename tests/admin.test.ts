@@ -1,5 +1,5 @@
 // Partie admin : qui est admin, quels messages d'erreur sont masqués aux autres, calcul de la vue « comptes et usage ».
-import { adminEmails, isAdminEmail, looksTechnical, messageFor, PUBLIC_ERROR, buildAccountRows, aiPerDay, lastDays, summarize, supabaseDashboardUrl, type AdminUser, type UsageRow } from "../lib/admin";
+import { accountCode, adminEmails, isAdminEmail, looksTechnical, messageFor, PUBLIC_ERROR, buildAccountRows, aiPerDay, lastDays, summarize, supabaseDashboardUrl, type AdminUser, type UsageRow } from "../lib/admin";
 import { spendAi, isOwner } from "../lib/quota";
 import { ok, done } from "./helpers";
 
@@ -58,22 +58,24 @@ ok("le message public ne contient rien de technique", !looksTechnical(PUBLIC_ERR
 const now = new Date("2026-11-03T10:00:00Z");
 ok("7 jours, du plus ancien à aujourd'hui", JSON.stringify(lastDays(now)) === JSON.stringify(["2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03"]));
 const users: AdminUser[] = [
-  { id: "a", email: "a@x.fr", created_at: "2026-09-01T10:00:00Z", last_sign_in_at: "2026-11-02T08:00:00Z" },
-  { id: "b", email: "b@x.fr", created_at: "2026-10-01T10:00:00Z", last_sign_in_at: "2026-11-03T07:00:00Z" },
-  { id: "c", email: null, created_at: "2026-10-20T10:00:00Z", last_sign_in_at: null },
-  { id: "d", email: "d@x.fr", created_at: "2026-08-01T10:00:00Z", last_sign_in_at: "2026-09-01T08:00:00Z" },
+  { id: "a", created_at: "2026-09-01T10:00:00Z", last_sign_in_at: "2026-11-02T08:00:00Z" },
+  { id: "b", created_at: "2026-10-01T10:00:00Z", last_sign_in_at: "2026-11-03T07:00:00Z" },
+  { id: "c", created_at: "2026-10-20T10:00:00Z", last_sign_in_at: null },
+  { id: "d", created_at: "2026-08-01T10:00:00Z", last_sign_in_at: "2026-09-01T08:00:00Z" },
 ];
 const usage: UsageRow[] = [
   { user_id: "a", day: "2026-11-03", n: 40 }, { user_id: "a", day: "2026-11-02", n: 12 },
   { user_id: "b", day: "2026-11-03", n: 60 }, { user_id: "b", day: "2026-10-20", n: 99 }, // hors des 7 jours : ignoré
   { user_id: "d", day: "2026-10-30", n: 5 },
 ];
-const rows = buildAccountRows(users, usage, { a: 12, b: 3 }, now);
+const rows = buildAccountRows(users, usage, { a: 12, b: 3 }, now, "b");
 const by = (id: string) => rows.find((r) => r.id === id)!;
 ok("IA aujourd'hui et sur 7 jours", by("a").aiToday === 40 && by("a").ai7 === 52 && by("b").aiToday === 60 && by("b").ai7 === 60 && by("d").aiToday === 0 && by("d").ai7 === 5);
 ok("jours trop anciens ignorés", by("b").ai7 === 60);
 ok("candidatures : nombre connu ou null", by("a").applications === 12 && by("c").applications === null);
-ok("compte sans adresse affiché clairement", by("c").email === "(sans adresse)");
+ok("anonymat : aucune adresse dans les lignes", rows.every((r) => !JSON.stringify(r).includes("@")) && !("email" in rows[0]));
+ok("code court : 8 premiers caractères de l'identifiant", accountCode("3f9a2c1b-0000-4000-8000-000000000001") === "3f9a2c1b" && accountCode("abcdef12345") === "abcdef12" && by("a").code === "a");
+ok("« Toi » : seul le compte de la personne qui regarde", rows.filter((r) => r.me).length === 1 && by("b").me && !by("a").me);
 ok("tri : IA du jour décroissante, puis dernière connexion", rows.map((r) => r.id).join("") === "badc", rows.map((r) => r.id).join(""));
 const perDay = aiPerDay(usage, now);
 ok("total par jour", perDay.length === 7 && perDay[6].n === 100 && perDay[5].n === 12 && perDay[2].n === 5 && perDay[0].n === 0);

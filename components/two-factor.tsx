@@ -22,10 +22,14 @@ function qrSrc(qr: string) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-/** Page affichée après la connexion quand la vérification en deux étapes est activée : on demande le code à 6 chiffres. */
-export function TwoFactorGate() {
+/**
+ * Page affichée après la connexion quand la vérification en deux étapes est activée : on demande le code à 6 chiffres.
+ * `trustDays` > 0 : une case permet de ne plus le redemander sur cet appareil pendant ce nombre de jours (0 : option masquée).
+ */
+export function TwoFactorGate({ trustDays = 0 }: { trustDays?: number }) {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const [trust, setTrust] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -40,8 +44,11 @@ export function TwoFactorGate() {
     const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.replace(/\s/g, "") });
     setBusy(false);
     if (error) return setErr(friendly(error.message));
-    router.replace("/");
-    router.refresh();
+    if (trustDays > 0 && trust) {
+      try { await fetch("/api/auth/trust", { method: "POST" }); } catch { /* pas grave : le code sera simplement redemandé */ }
+    }
+    // Rechargement complet : le cache de navigation de Next garde sinon les pages déjà « préchargées » qui renvoyaient vers cette page du code
+    window.location.assign("/");
   }
 
   async function logout() {
@@ -62,6 +69,12 @@ export function TwoFactorGate() {
             <input className="field mt-1 text-center text-2xl tracking-[0.4em]" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} required autoFocus
               value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={!!err || undefined} />
           </label>
+          {trustDays > 0 && (
+            <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-marigold)]" checked={trust} onChange={(e) => setTrust(e.target.checked)} />
+              <span>Ne plus demander le code sur cet appareil pendant {trustDays} jours. <span className="text-muted">À décocher sur un ordinateur partagé.</span></span>
+            </label>
+          )}
           {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}
           <button className="btn btn-primary btn-xl w-full" disabled={busy || code.replace(/\s/g, "").length < 6}>
             {busy ? <><Loader2 size={18} className="animate-spin" /> Vérification…</> : "Valider"}
@@ -145,7 +158,7 @@ export function TwoFactorCard() {
         <>
           <p className="mt-1 max-w-[60ch] text-sm text-muted">
             {active
-              ? "À chaque connexion, JobPilot demande aussi un code à 6 chiffres affiché par ton application d'authentification."
+              ? "Après ton mot de passe, JobPilot demande aussi un code à 6 chiffres affiché par ton application d'authentification. Tu peux choisir de ne plus le demander sur un appareil que tu utilises seule (90 jours, 30 pour l'administration)."
               : "Ajoute une protection : après ton mot de passe, JobPilot demande un code à 6 chiffres affiché sur ton téléphone. Facultatif."}
           </p>
           <div className="mt-3">

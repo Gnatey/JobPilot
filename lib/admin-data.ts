@@ -26,16 +26,16 @@ export type AdminOverview = {
 
 /**
  * Vue d'ensemble : comptes, usage de l'IA, nombre de candidatures par compte.
- * Volontairement sans contenu : ni offres, ni CV, ni emails, ni textes des candidatures (voir la page « Confidentialité »).
+ * Volontairement anonyme et sans contenu : ni adresses, ni offres, ni CV, ni emails, ni textes des candidatures (voir la page « Confidentialité »).
  */
-export async function loadOverview(sb: SupabaseClient, now = new Date()): Promise<AdminOverview> {
+export async function loadOverview(sb: SupabaseClient, meId?: string, now = new Date()): Promise<AdminOverview> {
   const users: AdminUser[] = [];
   let total = 0;
   for (let page = 1; users.length < MAX_ACCOUNTS; page++) {
     const { data, error } = await sb.auth.admin.listUsers({ page, perPage: PAGE });
     if (error) throw new Error(`Liste des comptes impossible : ${error.message}`);
     total = (data as { total?: number }).total ?? data.users.length;
-    users.push(...data.users.map((u) => ({ id: u.id, email: u.email ?? null, created_at: u.created_at, last_sign_in_at: u.last_sign_in_at ?? null })));
+    users.push(...data.users.map((u) => ({ id: u.id, created_at: u.created_at, last_sign_in_at: u.last_sign_in_at ?? null })));
     if (data.users.length < PAGE) break;
   }
 
@@ -59,7 +59,7 @@ export async function loadOverview(sb: SupabaseClient, now = new Date()): Promis
     }));
   }
 
-  const rows = buildAccountRows(users, usage, applications, now);
+  const rows = buildAccountRows(users, usage, applications, now, meId);
   const cap = dailyBudget();
   return { rows, total: Math.max(total, users.length), truncated: users.length < total, summary: summarize(rows, cap, now), perDay: aiPerDay(usage, now), cap, countedFor: targets.length };
 }

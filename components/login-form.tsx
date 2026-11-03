@@ -28,13 +28,15 @@ const POINTS = [
   { icon: Inbox, text: "Tes emails de recruteurs rangés et ton suivi à jour, tout seuls." },
 ];
 
-export function LoginForm({ initialMode, linkExpired }: { initialMode: "login" | "signup"; linkExpired: boolean }) {
+export function LoginForm({ initialMode, linkExpired, sessionExpired = false }: { initialMode: "login" | "signup"; linkExpired: boolean; sessionExpired?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean; done?: boolean } | null>(
-    linkExpired ? { text: "Ce lien a expiré ou a déjà servi. Demande-en un nouveau ci-dessous.", bad: true } : null,
+    linkExpired ? { text: "Ce lien a expiré ou a déjà servi. Demande-en un nouveau ci-dessous.", bad: true }
+      : sessionExpired ? { text: "Pour protéger ton compte, JobPilot te redemande de te connecter de temps en temps. Reconnecte-toi ci-dessous." }
+      : null,
   );
   const [busy, setBusy] = useState(false);
   const router = useRouter();
