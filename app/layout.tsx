@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
   robots: { index: false, follow: false },
+  // Prouve à Google (Search Console) que ce site est à Juliana : requis pour valider l'écran d'autorisation Gmail. Public par nature, à ne pas retirer.
+  verification: { google: "c2TVbnaQVNk1wfL4i07pcvqOMIfec8a_T-nD3diwk1I" },
   appleWebApp: { capable: true, title: "JobPilot", statusBarStyle: "black-translucent" },
 };
 export const viewport: Viewport = {

@@ -32,3 +32,11 @@ Demandée par Juliana (« des choses que les utilisateurs ne devraient pas voir 
 - **Texte légal modifié** : la page Confidentialité précise ce que l'admin voit. À relire par Juliana.
 - **Détail technique** : la page « introuvable » est servie avec le code HTTP 200 (le chargement progressif de `app/loading.tsx` est déjà parti) ; elle porte `noindex` et ne révèle rien.
 
+## Évolution : balise de vérification Google (3 novembre 2026, après-midi)
+Demandée par Juliana pour valider le branding de l'écran d'autorisation Gmail (Google : « le site n'est pas enregistré à votre nom »). Livrée seule : Google impose 24 h d'attente après la vérification, et rien d'autre n'était prêt à partir avec.
+
+- **Ajouté** : `verification: { google: … }` dans les métadonnées de `app/layout.tsx` → balise `<meta name="google-site-verification">` sur toutes les pages, dont la page d'accueil publique. Vérifié en local (build + serveur, visiteur déconnecté).
+- **Hors code, fait par Juliana** : projet Google Cloud passé « En production » ; page Branding remplie (nom, email d'assistance, accueil, confidentialité, mentions légales, domaine autorisé, logo). L'écran « Google n'a pas validé cette application » s'affiche toujours pour les comptes non testeurs : normal, la validation complète (accès Gmail sensible) n'est pas visée.
+- **À faire par Juliana** : Search Console (propriété « préfixe d'URL », méthode balise HTML) → Valider ; attendre 24 h ; Branding → « J'ai corrigé les problèmes ».
+- **Non testé** : l'acceptation par Google (délai et décision de leur côté).
+

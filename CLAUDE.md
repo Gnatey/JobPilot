@@ -34,6 +34,7 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - Un seul pourcentage par offre : celui de l'analyse complète. Pour une offre analysée d'après un simple extrait (Indeed…), il est marqué « estimé » (`analysis.estimated`) jusqu'à la lecture de l'annonce entière via le favori.
 - Ce que l'annonce ne dit pas n'est jamais un point négatif. La séniorité non écrite est « Non précisé ».
 - Sur l'accueil, pas d'étiquette « Peu probable » : une étoile seulement sur les offres vraiment proches du profil.
+- La balise `google-site-verification` de `app/layout.tsx` prouve à Google que le site est à Juliana (validation du branding de l'écran d'autorisation Gmail) : ne pas la retirer.
 
 ## Pas encore fait (à ne pas faire sans demande)
 - Photo sur le CV (cadre photo dans le profil maître).

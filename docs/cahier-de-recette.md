@@ -79,3 +79,4 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 40 | Accueil sans clé d'IA | Le rappel « Ajoute la clé IA gratuite » n'apparaît que pour l'admin, avec un lien vers `/admin` | Auto (essai local) | 2026-11-03 |
 | 41 | Porte de `/admin` : adresse dans OWNER_EMAILS **et** adresse confirmée selon Supabase | Un compte non confirmé qui porterait la même adresse n'entre pas | Code (le faux Supabase répond toujours « confirmée ») | 2026-11-03 |
 | 42 | Page Confidentialité | Dit ce que l'admin voit (comptes, dates, usage IA, nombre de candidatures) et jamais le contenu | À toi : relire le texte | |
+| 43 | Balise `google-site-verification` sur la page d'accueil publique (preuve de propriété pour Google Search Console, requise pour valider le branding de l'écran Gmail) | La balise est dans le HTML de `/` pour un visiteur déconnecté | Auto (build + serveur local, 2026-11-03) ; en ligne : voir journal | 2026-11-03 |
