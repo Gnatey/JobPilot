@@ -52,3 +52,12 @@ Paquet demandé par Juliana : « auth pas demandée à chaque connexion : utilis
 - **Non testé** : la vraie application d'authentification et le vrai Supabase (durée réelle de session, `amr` après un rafraîchissement du jeton en production), le délai d'un mois pour l'admin.
 - **Limites connues** : après la mise en ligne, toute session de plus de 30 jours (admin) ou 90 jours (autres) est fermée à la première visite. Pas de bouton « oublier tous mes appareils » (changer la clé de service invalide tous les cookies de confiance). Le code à 6 chiffres est une barrière de l'appli, pas de la base : le menu et ses compteurs s'affichent déjà sur la page du code, et un jeton au niveau mot de passe peut interroger Supabase directement (règles RLS « aal2 » = migration, à décider avec Juliana).
 
+## Évolution en préparation : rangement des offres analysées (3 novembre 2026, soir) : branche `paquet-prochain`, pas encore en ligne
+Demandé par Juliana après une vidéo (Recommandées → « Voir le diagnostic » sur une offre Indeed → « Je candidate » → Offres & CV). Elle répond ainsi à la question restée ouverte (où ranger une offre analysée mais pas décidée). À livrer avec le prochain paquet, ou quand elle dit « lance ».
+
+- **Règles** (lecture de ses trois lignes, à confirmer) : analysée mais non décidée → reste dans Recommandées › À trier avec son score ; « Je candidate » (À postuler) → Offres & CV ; postulée (« Envoyée ») → Suivi.
+- **Changé** : `lib/offers-todo.ts` (logique pure, `tests/offers-todo.test.ts`, 10 vérifications) : Offres & CV ne liste plus les offres encore « À trier » dans Recommandées (avant, elles y figuraient aussi, en « À décider ») ; une note dit combien attendent. Les analyses faites à la main restent « À décider » dans Offres & CV (pas d'autre endroit). Toast de « Je candidate » : « Ajoutée à Offres & CV » (avant : « Ajoutée au suivi »).
+- **Corrigé** : « Voir le diagnostic » sur une offre sans texte lisible ouvrait la page de collage avec le champ « Lien de l'offre » vide (le lien n'était pas transmis) et pouvait laisser le bouton sur « Analyse en cours… ».
+- **Vérifié** : typecheck, build, `npm test` (7 fichiers) ; rendu local avec faux Supabase (une reco analysée rattachée à une offre sans candidature) et réponse 422 simulée.
+- **Non testé** : vraies données, vrai Indeed. Le « bug dans les offres recommandées » mentionné par Juliana n'est pas identifié avec certitude (ce que montre la vidéo : le lien manquant ci-dessus, et le libellé « Ajoutée au suivi » alors que l'offre va dans Offres & CV) : à lui faire préciser.
+

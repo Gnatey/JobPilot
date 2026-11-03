@@ -86,7 +86,12 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
         setDiag(null);
         return;
       }
-      if (res.status === 422) { toast(j.error ?? "Il me faut le texte de l'annonce.", { tone: "info", ms: 7000 }); router.push(`/offres/nouvelle?reco=${r.id}&needtext=1`); return; }
+      if (res.status === 422) { // pas de texte lisible (Indeed…) : on ouvre la page de collage, avec le lien déjà rempli pour retrouver l'annonce
+        toast(j.error ?? "Il me faut le texte de l'annonce.", { tone: "info", ms: 7000 });
+        setDiag(null);
+        router.push(`/offres/nouvelle?reco=${r.id}&needtext=1${r.url ? `&url=${encodeURIComponent(r.url)}` : ""}`);
+        return;
+      }
       toast(j.error ?? "L'analyse a échoué, réessaie.", { tone: "err" });
     } catch {
       toast("Connexion interrompue, réessaie.", { tone: "err" });

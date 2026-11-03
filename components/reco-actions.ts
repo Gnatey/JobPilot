@@ -38,7 +38,7 @@ export function useRecoDecision(onUndo?: (id: string) => void, opts: { toSuivi?:
     if (decision === "restore") { toast("Remise dans les offres à trier", { tone: "info" }); return res; }
     const name = r.title ? ` : ${r.title}` : "";
     toast(
-      decision === "accept" ? `Ajoutée au suivi${name}` : `${toSuivi ? "Abandonnée" : "Écartée"}${reason ? ` (${rejectLabelInline(reason)})` : ""}${name}`,
+      decision === "accept" ? `Ajoutée à Offres & CV${name}` : `${toSuivi ? "Abandonnée" : "Écartée"}${reason ? ` (${rejectLabelInline(reason)})` : ""}${name}`,
       { action: { label: "Annuler", run: async () => { const u = await call(r.id, "restore"); if (u.error) toast(u.error, { tone: "err" }); else { onUndo?.(r.id); refreshBadges(); router.refresh(); } } } }
     );
     return res;

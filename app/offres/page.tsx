@@ -8,29 +8,31 @@ import { statusLabel } from "@/lib/types";
 import { OfferRowDelete } from "@/components/offer-row-delete";
 import { pickApplication } from "@/lib/app-pick";
 import { AnalyzeAll } from "@/components/analyze-all";
+import { partitionOffers } from "@/lib/offers-todo";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Offres & CV" };
 
 export default async function Offres() {
   const { supabase } = await requireUser();
-  const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }] = await Promise.all([
+  const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }, { data: waitingRecos }] = await Promise.all([
     supabase.from("offers").select("id, title, company, location, score, decision, created_at, analysis->company_type, analysis->estimated").order("created_at", { ascending: false }).limit(300),
     supabase.from("applications").select("offer_id, status").not("offer_id", "is", null),
     supabase.from("documents").select("offer_id").eq("kind", "cv"),
     // « Je candidate » sans analyse : la candidature est déjà « À postuler », l'offre n'a simplement pas encore été analysée
     supabase.from("applications").select("id, title, company, location, url, created_at").eq("status", "a_postuler").is("offer_id", null),
+    // Offres déjà analysées mais pas encore tranchées dans Recommandées : elles y restent (avec leur score) tant que tu n'as rien décidé
+    supabase.from("recommendations").select("offer_id").in("status", ["new", "analyzed"]).not("offer_id", "is", null),
   ]);
   // Une offre peut avoir plusieurs lignes dans Suivi (doublons) : on retient celle qui est la plus avancée
   const byOffer = new Map<string, { status: string }[]>();
   for (const a of apps ?? []) byOffer.set(a.offer_id, [...(byOffer.get(a.offer_id) ?? []), a]);
   const status = new Map([...byOffer].map(([id, rows]) => [id, pickApplication(rows)!.status]));
-  // Cette page ne garde que ce qu'il reste à faire : offres « À postuler » ou pas encore tranchées.
-  // Postulées, abandonnées, refusées… sont dans Suivi ; les offres écartées nourrissent l'apprentissage sans encombrer la liste.
-  const todo = (offers ?? []).filter((o) => (status.has(o.id) ? status.get(o.id) === "a_postuler" : o.decision !== "rejected"));
+  // Cette page ne garde que ce qu'il reste à faire : offres « À postuler », ou analysées à la main et pas encore tranchées.
+  // Une offre venue de Recommandées et pas encore décidée y reste ; postulées, abandonnées, refusées… sont dans Suivi ; les offres écartées nourrissent l'apprentissage sans encombrer la liste.
+  const { todo, waiting, elsewhere: hidden } = partitionOffers(offers ?? [], status, new Set((waitingRecos ?? []).map((r) => r.offer_id as string)));
   const cvCount = new Map<string, number>();
   for (const d of docs ?? []) cvCount.set(d.offer_id, (cvCount.get(d.offer_id) ?? 0) + 1);
-  const hidden = (offers?.length ?? 0) - todo.length;
   type Item = { key: string; kind: "offer" | "app"; href: string; score: number | null; rough?: boolean; title: string; sub: string; state: React.ReactNode; meta: string; at: string };
   const items: Item[] = [
     ...todo.map((o) => ({
@@ -51,14 +53,14 @@ export default async function Offres() {
 
   return (
     <>
-      <PageTitle title="Offres & CV" sub="Les offres analysées qu'il te reste à traiter, leur score et les CV générés pour elles. Le reste est dans Suivi.">
+      <PageTitle title="Offres & CV" sub="Les offres à postuler, leur score et les CV générés pour elles. Celles que tu n'as pas encore tranchées restent dans Recommandées, les candidatures envoyées sont dans Suivi.">
         <Link href="/offres/nouvelle" className="btn btn-primary"><Plus size={16} /> Analyser une offre</Link>
       </PageTitle>
       {(loose?.length ?? 0) > 0 && <AnalyzeAll count={loose!.length} />}
       {!items.length ? (
         <Empty action={<Link href="/offres/nouvelle" className="btn btn-primary">{offers?.length ? "Analyser une offre" : "Analyser ma première offre"}</Link>}>
           {offers?.length
-            ? "Rien à traiter ici : tes offres sont toutes dans Suivi. Colle un lien ou le texte d'une annonce pour en analyser une nouvelle."
+            ? "Rien à traiter ici : tes offres sont dans Suivi ou attendent ta décision dans Recommandées. Colle un lien ou le texte d'une annonce pour en analyser une nouvelle."
             : "Aucune offre analysée. Colle un lien ou le texte d'une annonce pour obtenir ton score et un CV sur mesure."}
         </Empty>
       ) : (
@@ -80,6 +82,11 @@ export default async function Offres() {
             </li>
           ))}
         </ul>
+      )}
+      {waiting > 0 && (
+        <p className="mt-4 text-sm text-muted">
+          {waiting} {waiting > 1 ? "offres analysées attendent" : "offre analysée attend"} ta décision dans <Link href="/recommandees" className="link font-semibold">Recommandées</Link>, avec {waiting > 1 ? "leur score" : "son score"}.
+        </p>
       )}
       {hidden > 0 && (
         <p className="mt-4 text-sm text-muted">
