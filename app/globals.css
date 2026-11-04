@@ -169,10 +169,12 @@ dialog::backdrop { background: rgb(10 14 30 / .55); backdrop-filter: blur(3px); 
 
 /* Impression des CV : A4, rien d'autre que le document */
 @media print {
-  @page { size: A4; margin: 12mm 14mm; }
+  @page { size: A4; margin: 13mm; } /* même marge partout : voir lib/print-layout.ts */
   html, body { background: #fff !important; color: #000 !important; }
   .no-print { display: none !important; }
   .print-sheet { box-shadow: none !important; border: none !important; padding: 0 !important; max-width: none !important; }
+  /* Largeur mesurée par FitPage : sur iPhone la page est plus étroite, le navigateur réduit alors la feuille (shrink to fit) au lieu de couper les lignes plus court */
+  .print-sheet { min-width: 184mm; }
   .print-sheet, .print-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   main { padding: 0 !important; margin: 0 !important; }
   dialog, [data-toaster] { display: none !important; }

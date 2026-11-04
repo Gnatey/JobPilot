@@ -253,7 +253,7 @@ components/cv-templates.tsx  les 8 modèles de CV
 components/template-picker.tsx  la galerie de modèles (vignettes du vrai CV)
 components/letter-templates.tsx  les 6 modèles de lettre (+ letter-picker.tsx : leur galerie)
 lib/letter.ts          parties d'une lettre, modèles assortis au CV, dates
-components/fit-page.tsx  fait tenir le CV sur une page
+components/fit-page.tsx  fait tenir le CV sur une page (+ lib/print-layout.ts : zone d'impression A4)
 components/skill-suggestions.tsx  compétences probables à confirmer
 lib/bookmarklet.ts  le code du favori
 components/ui/         notifications avec annulation, cadran de score, titres

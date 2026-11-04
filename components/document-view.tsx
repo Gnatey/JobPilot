@@ -118,12 +118,18 @@ export function DocumentView({ doc, identity, reusedFrom, recommended, sibling =
   /** Nom du fichier : « CV_NOM_Prénom_Titre_du_poste » : lisible par n'importe qui, différent pour chaque offre. */
   const fileName = docFileName(doc.kind, identity, doc.offers?.title, doc.kind === "cv" ? (content as CvDoc).headline : null);
 
-  /** Le nom du fichier PDF proposé par le navigateur vient du titre de la page : on le règle avant d'imprimer. */
-  function print() {
+  /**
+   * Le nom du fichier PDF proposé par le navigateur vient du titre de la page. Sur iPhone, l'impression est asynchrone : « afterprint »
+   * part tout de suite et un titre remis en place trop tôt donnait « Document ». Le titre reste donc réglé tant que le document est affiché.
+   */
+  useEffect(() => {
     const before = document.title;
     document.title = fileName;
-    const restore = () => { document.title = before; window.removeEventListener("afterprint", restore); };
-    window.addEventListener("afterprint", restore);
+    return () => { if (document.title === fileName) document.title = before; };
+  }, [fileName]);
+
+  function print() {
+    document.title = fileName;
     window.print();
   }
 
@@ -215,7 +221,7 @@ export function DocumentView({ doc, identity, reusedFrom, recommended, sibling =
         )}
       </div>
 
-      <div id="sheet" className="print-sheet mx-auto max-w-[210mm] rounded-sm bg-white p-[10mm] text-black shadow-[0_2px_24px_-8px_rgba(27,35,64,.35)] md:p-[14mm]">
+      <div id="sheet" className="print-sheet mx-auto max-w-[210mm] rounded-sm bg-white p-[10mm] text-black shadow-[0_2px_24px_-8px_rgba(27,35,64,.35)] md:p-[13mm]">
         {doc.kind === "cv" && (
           <FitPage watch={`${template}|${JSON.stringify(content)}|${JSON.stringify(identity)}`} onFit={setFit}>
             <Tpl cv={content as CvDoc} id={identity} upd={updCv} />
