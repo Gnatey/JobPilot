@@ -18,6 +18,8 @@ import { fmtDate, today, addDays, ago, until, daysAgo, plural } from "@/lib/form
 type Doc = { id: string; kind: string; variant: string | null; template: string | null; created_at: string; reused_from: string | null };
 type Hist = { from_status: string | null; to_status: string; changed_at: string };
 
+/** Vue liste : au-delà de ce nombre (+ 5), une section est repliée avec « Voir les N autres ». */
+const LIST_PREVIEW = 12;
 const blank: Partial<Application> = { company: "", title: "", status: "a_postuler", channel: "LinkedIn" };
 const DONE = ["refuse", "abandonne", "expiree"];
 const KIND: Record<string, string> = { cv: "CV", lettre: "LM", prep: "Préparation entretien", relance: "Relance" };
@@ -54,6 +56,7 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
   const [viewing, setViewing] = useState<Application | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]); // sections de la vue liste dépliées en entier
 
   useEffect(() => { setApps(initial); }, [initial]);
 
@@ -173,14 +176,23 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
           {shownStatuses.map((s) => {
             const rows = filtered.filter((a) => a.status === s.id);
             if (!rows.length) return null;
+            // Une section très longue (200 offres « À postuler ») repousse les autres de plusieurs écrans : on n'en montre qu'un début
+            const full = expanded.includes(s.id) || rows.length <= LIST_PREVIEW + 5;
+            const shown = full ? rows : rows.slice(0, LIST_PREVIEW);
             return (
               <section key={s.id} aria-label={s.label}>
                 <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">
                   <span className={`h-2.5 w-2.5 rounded-full ${s.color}`} /> {s.label} <span className="font-normal">{rows.length}</span>
                 </h2>
                 <ul className="list">
-                  {rows.map((a) => <Row key={a.id} a={a} onOpen={() => setViewing(a)} onStatus={(st) => setStatus(a, st)} />)}
+                  {shown.map((a) => <Row key={a.id} a={a} onOpen={() => setViewing(a)} onStatus={(st) => setStatus(a, st)} />)}
                 </ul>
+                {rows.length > LIST_PREVIEW + 5 && (
+                  <button type="button" className="link mt-2 text-sm text-muted" aria-expanded={full}
+                    onClick={() => setExpanded((e) => (e.includes(s.id) ? e.filter((x) => x !== s.id) : [...e, s.id]))}>
+                    {full ? "Réduire la liste" : `Voir les ${rows.length - LIST_PREVIEW} autres`}
+                  </button>
+                )}
               </section>
             );
           })}

@@ -7,7 +7,7 @@ import { refreshBadges } from "@/components/nav";
 import type { QueueItem } from "@/lib/analyze-queue";
 
 type Skip = { title: string; why: string };
-type Run = { total: number; done: number; ok: number; estimated: number; current: string; skipped: Skip[]; stopped: string | null; finished: boolean; possible: number | null };
+type Run = { total: number; done: number; ok: number; estimated: number; current: string; skipped: Skip[]; stopped: string | null; finished: boolean; possible: number | null; noSource: number };
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -27,13 +27,14 @@ export function AnalyzeAll({ count }: { count: number }) {
   async function start() {
     cancel.current = false;
     setBusy(true);
-    setRun({ total: 0, done: 0, ok: 0, estimated: 0, current: "Je prépare la liste…", skipped: [], stopped: null, finished: false, possible: null });
+    setRun({ total: 0, done: 0, ok: 0, estimated: 0, current: "Je prépare la liste…", skipped: [], stopped: null, finished: false, possible: null, noSource: 0 });
     const q = await fetch("/api/offers/queue").then((r) => r.json()).catch(() => null);
     if (!q || q.error) {
       setBusy(false); setRun(null);
       return toast(q?.error ?? "Connexion interrompue, réessaie.", { tone: "err" });
     }
     const items = q.items as QueueItem[];
+    const noSource = Number(q.skipped) || 0; // lignes sans lien ni texte : jamais analysables d'ici
     const possible = (q.budget?.possible ?? null) as number | null;
     if (!items.length) {
       setBusy(false); setRun(null);
@@ -41,7 +42,7 @@ export function AnalyzeAll({ count }: { count: number }) {
     }
     if (possible === 0) {
       setBusy(false);
-      return setRun({ total: items.length, done: 0, ok: 0, estimated: 0, current: "", skipped: [], stopped: "Tu as déjà utilisé toutes tes actions IA d'aujourd'hui. Elles repartent de zéro cette nuit : reviens demain.", finished: true, possible });
+      return setRun({ total: items.length, done: 0, ok: 0, estimated: 0, current: "", skipped: [], stopped: "Tu as déjà utilisé toutes tes actions IA d'aujourd'hui. Elles repartent de zéro cette nuit : reviens demain.", finished: true, possible, noSource });
     }
 
     let ok = 0, estimated = 0, fails = 0;
@@ -76,7 +77,7 @@ export function AnalyzeAll({ count }: { count: number }) {
       }
     }
     setBusy(false);
-    setRun({ total: items.length, done: ok + skipped.length, ok, estimated, current: "", skipped, stopped, finished: true, possible });
+    setRun({ total: items.length, done: ok + skipped.length, ok, estimated, current: "", skipped, stopped, finished: true, possible, noSource });
     refreshBadges();
     router.refresh();
   }
@@ -106,6 +107,7 @@ export function AnalyzeAll({ count }: { count: number }) {
                 <strong>{run.ok} offre{run.ok > 1 ? "s" : ""} analysée{run.ok > 1 ? "s" : ""}</strong>
                 {run.estimated > 0 && <> dont {run.estimated} avec un pourcentage <em>estimé</em> (extrait seulement)</>}.
               </p>
+              {run.noSource > 0 && <p className="mt-1 text-muted">{run.noSource} autre{run.noSource > 1 ? "s" : ""} ligne{run.noSource > 1 ? "s n'ont" : " n'a"} ni lien ni texte : ouvre-{run.noSource > 1 ? "les" : "la"} une à une pour coller l'annonce.</p>}
               {run.stopped && <p className="mt-1 text-muted">{run.stopped} Clique à nouveau sur « Tout analyser » plus tard : je reprends là où j'en suis.</p>}
               {run.skipped.length > 0 && (
                 <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted">

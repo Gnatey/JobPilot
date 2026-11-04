@@ -54,7 +54,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
     .sort((a, b) => (tab === "todo" ? b.score - a.score : (b.received_at ?? "").localeCompare(a.received_at ?? "")));
   const hiddenSenior = inTab.filter((r) => r.senior).length;
   const belowMin = tab === "todo" && minScore > 0 ? base.filter((r) => r.score < minScore) : [];
-  const todoCount = items.filter((r) => TABS[0].match(r.status)).length;
+  const todoCount = items.filter((r) => TABS[0].match(r.status) && (!fitOnly || !r.senior)).length;
 
   async function act(r: Reco, d: "accept" | "reject" | "restore", reason?: string) {
     const res = await decide(r, d, reason);
@@ -117,7 +117,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-full border border-line bg-surface p-1" role="tablist">
           {TABS.map((x) => {
-            const n = items.filter((r) => x.match(r.status)).length;
+            const n = items.filter((r) => x.match(r.status) && (x.id !== "todo" || !fitOnly || !r.senior)).length; // même chiffre que le menu et Tri rapide : sans les offres masquées
             return (
               <button key={x.id} role="tab" aria-selected={tab === x.id} onClick={() => setTab(x.id)}
                 className={`rounded-full px-4 py-1.5 text-sm transition-colors ${tab === x.id ? "bg-ink font-semibold text-paper" : "text-muted hover:text-ink"}`}>

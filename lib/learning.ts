@@ -1,3 +1,4 @@
+import { fetchAll } from "./paged";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { words } from "./quick-score";
 import { NEUTRAL_REASONS, reasonKey } from "./types";
@@ -18,7 +19,7 @@ const STOP = new Set(["h/f", "f/h", "les", "des", "and", "the", "pour", "avec", 
 
 export async function computeLearning(supabase: SupabaseClient, userId: string): Promise<Learning> {
   const [{ data: recos }, { data: offers }] = await Promise.all([
-    supabase.from("recommendations").select("title, company, status, reject_reason").eq("user_id", userId).in("status", ["accepted", "rejected"]),
+    fetchAll<{ title: string | null; company: string | null; status: string; reject_reason: string | null }>((a, b) => supabase.from("recommendations").select("title, company, status, reject_reason").eq("user_id", userId).in("status", ["accepted", "rejected"]).order("id").range(a, b)),
     supabase.from("offers").select("title, company, decision, reject_reason").eq("user_id", userId).not("decision", "is", null),
   ]);
   const items = [

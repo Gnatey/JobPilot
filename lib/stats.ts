@@ -1,3 +1,4 @@
+import { fetchAll } from "./paged";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { STATUSES, variantLabel, isNeverSent, reasonKey, type Application } from "./types";
 
@@ -23,11 +24,12 @@ function group(apps: Application[], reached: Map<string, Set<string>>, by: (a: A
 }
 
 export async function computeStats(supabase: SupabaseClient) {
+  // Lecture page après page : une seule requête serait coupée à 1 000 lignes (les recommandations les dépassent vite)
   const [{ data: appsRaw }, { data: hist }, { data: emails }, { data: recosAll }] = await Promise.all([
-    supabase.from("applications").select("*"),
-    supabase.from("status_history").select("application_id, to_status, changed_at").order("changed_at"),
-    supabase.from("emails").select("category, received_at, application_id"),
-    supabase.from("recommendations").select("status, reject_reason, source, quick_score, senior"),
+    fetchAll((a, b) => supabase.from("applications").select("*").order("id").range(a, b)),
+    fetchAll<{ application_id: string; to_status: string; changed_at: string }>((a, b) => supabase.from("status_history").select("application_id, to_status, changed_at").order("changed_at").order("id").range(a, b)),
+    fetchAll<{ category: string; received_at: string; application_id: string | null }>((a, b) => supabase.from("emails").select("category, received_at, application_id").order("id").range(a, b)),
+    fetchAll<{ status: string; reject_reason: string | null; source: string | null; quick_score: number | null; senior: boolean | null }>((a, b) => supabase.from("recommendations").select("status, reject_reason, source, quick_score, senior").order("id").range(a, b)),
   ]);
   // Les offres masquées par le filtre « adapté à mon profil » n'ont jamais été proposées : elles ne comptent pas dans le tri
   const recos = (recosAll ?? []).filter((r) => r.status !== "filtered");
