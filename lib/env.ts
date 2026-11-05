@@ -8,6 +8,7 @@ export const ENV_VARS: { name: string; required: boolean; role: string; alt?: st
   { name: "NEXT_PUBLIC_APP_URL", required: true, role: "Ton adresse Vercel, pour les redirections Gmail" },
   { name: "OWNER_EMAILS", required: false, role: "Ton adresse (plusieurs possibles, séparées par des virgules) : seule à voir l'installation, sans plafond d'IA" },
   { name: "SUPABASE_SERVICE_ROLE_KEY", required: false, role: "Tâche automatique du matin" },
+  { name: "TOKEN_ENCRYPTION_KEY", required: false, role: "Clé qui chiffre les accès Gmail en base (facultative : sinon dérivée de SUPABASE_SERVICE_ROLE_KEY)" },
   { name: "CRON_SECRET", required: false, role: "Protège la tâche automatique du matin" },
   { name: "GOOGLE_CLIENT_ID", required: false, role: "Connexion Gmail" },
   { name: "GOOGLE_CLIENT_SECRET", required: false, role: "Connexion Gmail" },

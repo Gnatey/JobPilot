@@ -28,6 +28,12 @@ export function lastAuthAt(amr: unknown): number | null {
   return times.length ? Math.max(...times) * 1000 : null;
 }
 
+/** La personne s'est-elle authentifiée (mot de passe, lien ou code) il y a moins de `maxMs` ? Sans date dans le jeton : non (action sans retour, on préfère redemander). */
+export function recentlyAuthenticated(amr: unknown, nowMs: number, maxMs = 10 * 60_000): boolean {
+  const at = lastAuthAt(amr);
+  return at != null && at <= nowMs + 60_000 && nowMs - at <= maxMs;
+}
+
 /** La session est-elle plus vieille que la durée permise ? Sans date d'authentification dans le jeton, on ne coupe pas. */
 export function sessionExpired(amr: unknown, email: string | null | undefined, nowMs: number, env: Env = process.env): boolean {
   const at = lastAuthAt(amr);

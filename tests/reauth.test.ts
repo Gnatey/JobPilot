@@ -1,5 +1,5 @@
 // Reconnexion espacée : durée de session par rôle, appareil de confiance signé pour le code à 6 chiffres.
-import { ADMIN_DAYS, USER_DAYS, justVerifiedCode, lastAuthAt, reauthDays, sessionExpired, signTrust, verifyTrust } from "../lib/reauth";
+import { ADMIN_DAYS, USER_DAYS, justVerifiedCode, recentlyAuthenticated, lastAuthAt, reauthDays, sessionExpired, signTrust, verifyTrust } from "../lib/reauth";
 import { ok, done } from "./helpers";
 
 const DAY = 86_400_000;
@@ -52,4 +52,14 @@ ok("code saisi il y a 5 minutes : non", !justVerifiedCode({ aal: "aal2", amr: [{
 ok("sans méthode totp : non", !justVerifiedCode({ aal: "aal2", amr: [{ method: "password", timestamp: secs(now) }] }, now));
 ok("jeton vide ou sans amr : non", !justVerifiedCode(null, now) && !justVerifiedCode({ aal: "aal2" }, now) && !justVerifiedCode({ aal: "aal2", amr: ["totp"] }, now));
 ok("horodatage dans le futur : non", !justVerifiedCode({ aal: "aal2", amr: [{ method: "totp", timestamp: secs(now + 10 * 60_000) }] }, now));
+
+// ---------- Connexion récente (suppression de compte) ----------
+const at = (msAgo: number) => [{ method: "password", timestamp: secs(now - msAgo) }];
+ok("connexion il y a 2 minutes : récente", recentlyAuthenticated(at(2 * 60_000), now));
+ok("connexion il y a 9 minutes : récente ; 11 minutes : non", recentlyAuthenticated(at(9 * 60_000), now) && !recentlyAuthenticated(at(11 * 60_000), now));
+ok("vieille session (30 jours) : non", !recentlyAuthenticated(at(30 * DAY), now));
+ok("le code saisi à l'instant compte aussi (c'est la dernière authentification)", recentlyAuthenticated([...at(40 * DAY), { method: "totp", timestamp: secs(now - 60_000) }], now));
+ok("jeton sans date d'authentification : non (action sans retour, on redemande)", !recentlyAuthenticated(undefined, now) && !recentlyAuthenticated([], now) && !recentlyAuthenticated(["pwd"], now) && !recentlyAuthenticated(null, now));
+ok("date dans le futur lointain : non", !recentlyAuthenticated([{ method: "password", timestamp: secs(now + 10 * 60_000) }], now));
+ok("durée personnalisée respectée", recentlyAuthenticated(at(3 * 60_000), now, 5 * 60_000) && !recentlyAuthenticated(at(6 * 60_000), now, 5 * 60_000));
 done();

@@ -63,6 +63,7 @@ export default function Confidentialite() {
         <H2>Tes droits</H2>
         <p>Tu peux à tout moment, depuis <strong>Réglages</strong> : télécharger toutes tes données (export) et supprimer ton compte, ce qui efface définitivement ton profil, tes offres, tes candidatures et tes documents. Pour toute autre demande (accès, rectification, opposition) : <ContactLine />. Tu peux aussi saisir la CNIL (cnil.fr).</p>
         <p className="mt-2">Les données sont conservées tant que ton compte existe. Si tu retires l'accès de JobPilot depuis ton compte Google, les emails ne sont plus lus.</p>
+        <p className="mt-2">L'accès à ton Gmail (le « jeton » remis par Google) est stocké chiffré dans la base, avec une clé qui n'existe que chez l'hébergeur. Supprimer ton compte exige de t'être connecté·e dans les 10 dernières minutes.</p>
       </section>
     </LegalShell>
   );

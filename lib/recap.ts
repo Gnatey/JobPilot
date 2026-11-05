@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accessToken, appUrl, sendMail } from "./gmail";
+import { readRefreshToken } from "./gmail-token";
 import { getProfileById, patchPreferences } from "./profile";
 import { addDays, dayDiff, fmtDate, fmtDateTime, plural, today, until, weekStart } from "./format";
 import { HttpError } from "./supabase/server";
@@ -99,7 +100,7 @@ export async function sendDailyRecap(supabase: SupabaseClient, userId: string, o
   try {
     const recap = await buildRecap(supabase, userId);
     if (recap.empty && !opts.force) return { skipped: "rien à signaler" };
-    const token = await accessToken(acc.refresh_token);
+    const token = await accessToken(await readRefreshToken(supabase, userId, acc.refresh_token));
     await sendMail(token, { to: acc.email, subject: recap.subject, text: recap.text, html: recap.html });
     await patchPreferences(supabase, userId, { recap_last: { at: new Date().toISOString(), ok: true } });
     return { sent: true, to: acc.email };

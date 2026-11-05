@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { today } from "./format";
 import * as cheerio from "cheerio";
 import { accessToken, fetchMeta, gmailEmail, listJobEmails } from "./gmail";
+import { readRefreshToken } from "./gmail-token";
 import { isOwnMail, matchApplication, nextStatus } from "./email-match";
 import { analyzeOffer, classifyEmails, extractAlertOffers, extractOffer, generateCv } from "./ai";
 import { quickScore } from "./quick-score";
@@ -59,7 +60,7 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
   const { data: acc } = await supabase.from("gmail_accounts").select("*").eq("user_id", userId).maybeSingle();
   if (!acc) return { skipped: "gmail non connecté" };
   const [profile, learning] = await Promise.all([getProfileById(supabase, userId), computeLearning(supabase, userId)]);
-  const token = await accessToken(acc.refresh_token);
+  const token = await accessToken(await readRefreshToken(supabase, userId, acc.refresh_token));
   const since = acc.last_sync_at ? Math.max(2, Math.ceil((Date.now() - new Date(acc.last_sync_at).getTime()) / 864e5) + 1) : 30;
   const listed = await listJobEmails(token, Math.min(since, 180));
 

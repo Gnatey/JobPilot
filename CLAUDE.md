@@ -26,6 +26,7 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - `lib/quota.ts` : budget d'actions IA par jour (60 par défaut, une analyse d'offre = 2).
 - `app/admin/page.tsx`, `lib/admin.ts` (logique pure, testée), `lib/admin-guard.ts` (porte), `lib/admin-data.ts` (comptes par la clé de service) : partie admin, réservée aux adresses de `OWNER_EMAILS`. Tout nouvel écran technique (clés, installation, comptes, usage) va là, jamais dans les pages des utilisateurs. `handle()` (`lib/http.ts`) masque aux non-admins les messages d'erreur qui nomment une variable, Vercel, Supabase ou du SQL : écrire ces messages sans crainte, mais garder un message clair pour l'utilisateur quand il peut agir.
 - `lib/paged.ts` : `fetchAll` lit une table page après page. Toute requête qui lit TOUTE une table (statistiques, apprentissage…) doit l'utiliser avec un `.order("id")` : Supabase coupe sinon à 1 000 lignes sans le dire.
+- `lib/token-crypto.ts` (logique pure, testée), `lib/gmail-token.ts` : jetons Gmail chiffrés en base (AES-GCM, `enc:v1:`, clé = `TOKEN_ENCRYPTION_KEY` sinon dérivée de `SUPABASE_SERVICE_ROLE_KEY`, liée à la personne). Ne jamais lire `gmail_accounts.refresh_token` sans `readRefreshToken` / `openToken`, ni l'écrire sans `sealToken`. Les anciens jetons en clair sont lus puis chiffrés au passage.
 - `lib/reauth.ts` (logique pure, testée), `middleware.ts`, `app/api/auth/trust/route.ts`, `components/two-factor.tsx` : reconnexion espacée. Session fermée après 90 jours (30 pour l'admin) depuis la dernière authentification ; code à 6 chiffres non redemandé sur un appareil de confiance (cookie `jp_trust` signé avec `SUPABASE_SERVICE_ROLE_KEY`, même durée).
 - `lib/bookmarklet.ts`, `app/importer/page.tsx`, `lib/offer-header.ts` : favori « Envoyer à JobPilot ».
 - `components/fit-page.tsx`, `lib/print-layout.ts`, `components/document-view.tsx`, `app/globals.css` (bloc `@media print`) : CV et lettres tiennent sur une page A4. FitPage mesure sur 184 × 271 mm ; la feuille imprimée a une largeur minimale de 184 mm (sinon l'iPhone, qui met la page en forme plus étroite, déborde sur 2 pages) ; le titre de la page = nom du fichier PDF tant que le document est affiché (l'impression de l'iPhone est asynchrone). Ne pas remettre le titre à `afterprint`, ne pas utiliser `@media (width)` en impression.
@@ -38,8 +39,12 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - Ce que l'annonce ne dit pas n'est jamais un point négatif. La séniorité non écrite est « Non précisé ».
 - Nulle part (accueil, Recommandées, Tri rapide, Recherche) d'étiquette « Peu probable » : une étoile ou un pourcentage de pré-tri seulement sur les offres vraiment proches du profil (≥ 70).
 - Une offre analysée mais pas décidée reste dans Recommandées › À trier, avec son score. « Je candidate » (À postuler) → Offres & CV ; postulée → Suivi. Offres & CV ne liste pas les offres encore à trier dans Recommandées (`lib/offers-todo.ts`) ; seules les analyses faites à la main y sont « À décider ».
+- Supprimer son compte exige une connexion de moins de 10 minutes (`recentlyAuthenticated`, `app/api/account/delete`) : marche avec mot de passe ou lien par e-mail. L'export de données ne contient jamais le jeton Gmail.
 - Le tableau des comptes de `/admin` est anonyme (code court, jamais d'adresse) : le détail d'un compte se consulte dans Supabase. Ne pas y remettre d'emails.
 - La balise `google-site-verification` de `app/layout.tsx` prouve à Google que le site est à Juliana (validation du branding de l'écran d'autorisation Gmail) : ne pas la retirer.
+
+## Refonte en cours
+Juliana a demandé (5 novembre 2026) une refonte complète, par paquets, dans l'ordre de `docs/plan-refonte.md`, avec sa validation entre chaque paquet. Ne pas la lancer d'un coup : un paquet à la fois.
 
 ## Pas encore fait (à ne pas faire sans demande)
 - Photo sur le CV (cadre photo dans le profil maître).

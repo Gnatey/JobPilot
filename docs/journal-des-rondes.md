@@ -81,3 +81,17 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
   4. Suivi sur téléphone : 200 cartes « À postuler » à la suite → 12 premières + « Voir les N autres » (page de ~20 000 px à ~5 000 px).
 - **Laissé ouvert** : (a) `npm audit` : postcss dans Next, correctif = Next 16 (montée de version, pas faite sans accord). (b) Jeton Gmail en clair en base et suppression de compte sans mot de passe : à durcir avant d'ouvrir aux amis. (c) Titre « Recherche (En cours de développement 😶‍🌫️) » : à confirmer avant d'ouvrir aux amis. (d) Les requêtes sur `applications` (Offres & CV, synchro Gmail) ne sont pas paginées : sans effet tant qu'il y a moins de 1 000 candidatures. (e) Réglage Supabase « Max rows » non vérifié (le lecteur page par page fonctionne avec n'importe quel plafond). (f) Boutons de ligne de 30 px sur téléphone, champs de saisie sans étiquette dans Profil et Bienvenue : non revérifiés cette fois.
 - **Non testé** : vrai compte, vraie IA, vrai Gmail, vrai iPhone (voir l'entrée CV iPhone), mode sombre.
+
+## Correctif : accueil lisible par Google (mise en ligne le 5 novembre 2026, 13 h 50)
+- **Constat** (Search Console, Inspection d'URL de l'accueil) : « Exploration autorisée ? Non : bloquée par le fichier robots.txt ». `app/robots.ts` fermait tout (`Disallow: /`) : Google ne pouvait pas lire la page d'accueil, ce qui bloquait la validation de la marque de l'écran d'autorisation Gmail (cause probable ; la page d'aide de Google ne parle pas du `robots.txt`, à confirmer par le résultat de la validation).
+- **Corrigé** : `robots.txt` ouvre l'accueil (`/$`), `/mentions-legales` et `/confidentialite` ; le reste reste fermé. L'accueil visiteur est indexable (`app/page.tsx`, sinon la demande d'indexation aurait été refusée) ; le tableau de bord connecté et toutes les autres pages restent en `noindex`. Test : `tests/robots.test.ts` (11 vérifications).
+- **Vérifié en ligne** : `/robots.txt` conforme ; accueil en « index, follow » avec la balise `google-site-verification` et les liens vers les deux pages légales ; aucune erreur d'exécution.
+- **Décision de Juliana** : livré tout de suite, hors paquet (elle a dit que ça bloquait la mise en production).
+
+## Refonte, paquet 1 : sécurité et comptes, partie A (5 novembre 2026)
+- Demande de Juliana : refonte complète du site pour l'ouvrir à plus de monde, par paquets, dans l'ordre proposé (`docs/plan-refonte.md`).
+- **Jetons Gmail chiffrés en base** (`lib/token-crypto.ts`, `lib/gmail-token.ts`) : AES-256-GCM, clé dérivée de `SUPABASE_SERVICE_ROLE_KEY` (déjà dans Vercel : rien à ajouter) ou `TOKEN_ENCRYPTION_KEY` si elle existe, jeton lié à la personne. Les anciens jetons en clair sont lus puis chiffrés à la première synchronisation. Le récap du matin, la déconnexion et la suppression de compte lisent le jeton déchiffré. L'export de données ne contenait déjà pas le jeton (vérifié).
+- **Suppression de compte** : demandée seulement après une connexion de moins de 10 minutes (mot de passe, lien par e-mail ou code). Message clair sinon.
+- **Page confidentialité** : dit que le jeton est chiffré et que la suppression exige une connexion récente.
+- **À savoir** : si la clé de service change un jour, les jetons chiffrés deviennent illisibles : la personne reconnecte Gmail (message clair). Pas de migration SQL dans cette partie.
+- **Reste dans le paquet 1** (partie B) : limitation du nombre de requêtes par personne (demande une migration SQL à lancer par Juliana), en-têtes CSP, test automatique « chaque table a sa politique RLS ».
