@@ -15,6 +15,7 @@ import type { Profile } from "./types";
 import type { Learning } from "./learning";
 import { HttpError } from "./supabase/server";
 import { timeLeft } from "./budget";
+import { fetchAll } from "./paged";
 import { readOffer, detectSource, normalizeJobUrl, httpUrlOrNull } from "./fetch-offer";
 import { recoText } from "./reco-text";
 import { markRecoGone } from "./offer-ops";
@@ -80,7 +81,7 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
     );
   }
 
-  const { data: apps } = await supabase.from("applications").select("id, company, title, status, applied_at").eq("user_id", userId);
+  const { data: apps } = await fetchAll((a, b) => supabase.from("applications").select("id, company, title, status, applied_at").eq("user_id", userId).order("id").range(a, b));
   const companies = (apps ?? []).map((a) => a.company);
 
   // Étapes courtes et reprenables : si le temps ou l'IA manque, on garde ce qui est lu, on le dit (`partial`) et la synchro suivante reprend là

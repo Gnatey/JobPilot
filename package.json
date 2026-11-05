@@ -32,5 +32,10 @@
     "esbuild": "^0.28.2",
     "tailwindcss": "latest",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.23"
+    }
   }
 }

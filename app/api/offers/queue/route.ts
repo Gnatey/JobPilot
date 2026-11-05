@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { buildQueue } from "@/lib/analyze-queue";
 import { AI_COST, dailyBudget, isOwner, usedToday } from "@/lib/quota";
+import { fetchAll } from "@/lib/paged";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,8 @@ export async function GET() {
     const { supabase, user } = await requireUser();
     const [{ data: apps }, { data: recos }, used] = await Promise.all([
       supabase.from("applications").select("id, title, company, url, created_at").eq("status", "a_postuler").is("offer_id", null).limit(300),
-      supabase.from("recommendations").select("id, title, company, url, quick_score, source, origin, snippet").eq("status", "accepted").is("offer_id", null).limit(1500),
+      // toutes les offres acceptées et pas encore analysées : le tri par meilleur pré-score se fait ensuite, il doit voir TOUTES les lignes (Supabase coupe sinon à 1 000)
+      fetchAll((a, b) => supabase.from("recommendations").select("id, title, company, url, quick_score, source, origin, snippet").eq("status", "accepted").is("offer_id", null).order("id").range(a, b)),
       usedToday(supabase, user.id),
     ]);
     const { items, skipped } = buildQueue(apps ?? [], recos ?? []);

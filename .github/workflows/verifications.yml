@@ -1,0 +1,42 @@
+# Vérifications automatiques à chaque envoi sur GitHub : types, tests, construction du site, failles connues des dépendances.
+# Sans réseau vers de vrais services : les tests utilisent des faux (aucune clé ici), la construction reçoit de fausses valeurs.
+# Vercel déploie de son côté dès qu'un envoi arrive sur main : un échec ici ne l'arrête pas, mais le dit tout de suite (croix rouge sur le commit, e-mail de GitHub).
+name: Vérifications
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://exemple.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: valeur-de-test
+          SUPABASE_SERVICE_ROLE_KEY: valeur-de-test
+
+  failles:
+    # À part : une nouvelle faille publiée chez un fournisseur ne doit pas faire croire que le dernier changement est cassé.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm audit --audit-level=high

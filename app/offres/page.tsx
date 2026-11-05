@@ -9,6 +9,7 @@ import { OfferRowDelete } from "@/components/offer-row-delete";
 import { pickApplication } from "@/lib/app-pick";
 import { AnalyzeAll } from "@/components/analyze-all";
 import { partitionOffers } from "@/lib/offers-todo";
+import { fetchAll } from "@/lib/paged";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Offres & CV" };
@@ -17,7 +18,8 @@ export default async function Offres() {
   const { supabase } = await requireUser();
   const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }, { data: waitingRecos }] = await Promise.all([
     supabase.from("offers").select("id, title, company, location, score, decision, created_at, analysis->company_type, analysis->estimated").order("created_at", { ascending: false }).limit(300),
-    supabase.from("applications").select("offer_id, status").not("offer_id", "is", null),
+    // toutes les lignes, page après page : Supabase coupe sinon à 1 000 sans le dire
+    fetchAll((a, b) => supabase.from("applications").select("offer_id, status").not("offer_id", "is", null).order("id").range(a, b)),
     supabase.from("documents").select("offer_id").eq("kind", "cv"),
     // « Je candidate » sans analyse : la candidature est déjà « À postuler », l'offre n'a simplement pas encore été analysée
     supabase.from("applications").select("id, title, company, location, url, created_at").eq("status", "a_postuler").is("offer_id", null),

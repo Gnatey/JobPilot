@@ -4,6 +4,7 @@ import { getProfile } from "./profile";
 import { addDays, today } from "./format";
 import { spendAi, AI_COST } from "./quota";
 import { pickApplication, UNSENT } from "./app-pick";
+import { fetchAll } from "./paged";
 
 type User = { id: string; email?: string | null };
 
@@ -147,13 +148,17 @@ export async function undoGivenUp(supabase: SupabaseClient, src: AppSrc, backTo?
  * Renvoie le nombre de lignes retirées.
  */
 export async function mergeDuplicateApplications(supabase: SupabaseClient, userId: string): Promise<number> {
-  const { data } = await supabase
-    .from("applications")
-    .select("id, offer_id, status, applied_at, notes, contact, salary")
-    .eq("user_id", userId)
-    .not("offer_id", "is", null)
-    .order("created_at", { ascending: true })
-    .limit(3000);
+  // toutes les lignes (un `limit(3000)` serait coupé à 1 000 par Supabase sans rien dire : les doublons au-delà ne seraient jamais vus)
+  const { data } = await fetchAll((a, b) =>
+    supabase
+      .from("applications")
+      .select("id, offer_id, status, applied_at, notes, contact, salary")
+      .eq("user_id", userId)
+      .not("offer_id", "is", null)
+      .order("created_at", { ascending: true })
+      .order("id")
+      .range(a, b)
+  );
   type Row = { id: string; offer_id: string; status: string; applied_at: string | null; notes: string | null; contact: string | null; salary: string | null };
   const groups = new Map<string, Row[]>();
   for (const r of (data ?? []) as Row[]) groups.set(r.offer_id, [...(groups.get(r.offer_id) ?? []), r]);

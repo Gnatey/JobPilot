@@ -20,7 +20,7 @@ let rows: R[] = [
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb: any = {
   from: () => ({
-    select: () => { const q = { eq: () => q, not: () => q, order: () => q, limit: () => Promise.resolve({ data: rows.filter((r) => r.offer_id !== null) }) }; return q; },
+    select: () => { const q = { eq: () => q, not: () => q, order: () => q, range: (a: number, b: number) => Promise.resolve({ data: rows.filter((r) => r.offer_id !== null).slice(a, b + 1), error: null }) }; return q; },
     delete: () => { const q = { eq: () => q, in: (_c: string, ids: string[]) => { rows = rows.filter((r) => !ids.includes(r.id)); return Promise.resolve({}); } }; return q; },
   }),
 };
