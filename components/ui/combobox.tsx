@@ -140,7 +140,7 @@ export function Combobox({ label, value, onChange, options, load, minChars = 2, 
         {value.map((v) => (
           <span key={v.id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink py-1 pl-3 pr-1.5 text-sm text-paper">
             <span className="truncate">{v.label}</span>
-            <button type="button" aria-label={`Retirer ${v.label}`} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-white/20"
+            <button type="button" aria-label={`Retirer ${v.label}`} className="relative grid h-5 w-5 shrink-0 place-items-center rounded-full after:absolute after:-inset-2 hover:bg-white/20"
               onClick={(e) => { e.stopPropagation(); onChange(value.filter((x) => x.id !== v.id)); setNote(null); }}><X size={13} /></button>
           </span>
         ))}

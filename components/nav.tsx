@@ -55,7 +55,7 @@ export const refreshBadges = () => window.dispatchEvent(new Event("jp:badges"));
 function Badge({ n, tone }: { n: number; tone: BadgeKey }) {
   if (!n) return null;
   return (
-    <span className={`ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[0.72rem] font-bold leading-5 ${tone === "due" ? "bg-bad text-white" : "bg-marigold text-chrome"}`}>
+    <span className={`ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[0.72rem] font-bold leading-5 ${tone === "due" ? "bg-bad text-on-solid" : "bg-marigold text-chrome"}`}>
       {n > 99 ? "99+" : n}
     </span>
   );
@@ -148,7 +148,7 @@ export function Nav({ admin = false }: { admin?: boolean }) {
         </Link>
         <Link href="/suivi" aria-current={active(path, "/suivi") ? "page" : undefined}
           className={`flex flex-col items-center gap-0.5 py-2.5 text-[0.7rem] ${active(path, "/suivi") ? "font-semibold text-white" : "text-chrome-ink"}`}>
-          <span className="relative"><Columns3 size={21} />{badges.due > 0 && <span className="absolute -right-2 -top-1 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[0.62rem] font-bold leading-4 text-white">{badges.due}</span>}</span>
+          <span className="relative"><Columns3 size={21} />{badges.due > 0 && <span className="absolute -right-2 -top-1 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[0.62rem] font-bold leading-4 text-on-solid">{badges.due}</span>}</span>
           Suivi
         </Link>
         <button onClick={() => setMore(true)} aria-expanded={more} className="flex flex-col items-center gap-0.5 py-2.5 text-[0.7rem] text-chrome-ink"><Menu size={21} /> Plus</button>

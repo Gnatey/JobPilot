@@ -256,10 +256,10 @@ async function Today() {
 
           <section aria-label="Pipeline">
             <h2 className="heading mb-3 text-xl">Où tu en es</h2>
-            <ul className="space-y-2.5">
+            <ul className="space-y-0.5">
               {pipeline.map((p) => (
                 <li key={p.label}>
-                  <Link href="/suivi" className="group block">
+                  <Link href="/suivi" className="group block py-1.5">
                     <div className="flex justify-between text-sm"><span>{p.label}</span><span className="font-semibold tabular-nums">{p.n}</span></div>
                     <div className="mt-1 h-1.5 rounded-full bg-line"><div className="h-1.5 rounded-full bg-chart-1 transition-[width]" style={{ width: `${p.n ? Math.max(6, (p.n / maxPipe) * 100) : 0}%` }} /></div>
                   </Link>

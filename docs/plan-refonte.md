@@ -35,7 +35,8 @@ Plan du site, `robots.txt` qui laisse Google charger les styles et scripts, adre
 **Pas fait, dépend de toi** : suivi des erreurs (Sentry ou équivalent : demande un compte et une clé, une ligne dans la politique de sécurité du navigateur et dans la page Confidentialité).
 
 ### Paquet 5 : refonte visuelle et parcours (en trois tranches)
-5a accueil, bienvenue (arrivée d'une personne qui n'est pas toi) et navigation ; 5b Offres & CV, Suivi, Recommandées ; 5c CV et lettres. Avec le reste de l'audit (boutons sur téléphone, champs sans étiquette, titres de pages), le mode sombre, un test sur iPhone.
+**5a livré le 5 novembre (accessibilité et finitions).** Constat : pas besoin de tout repeindre, l'identité est solide ; ce qui était faux se mesurait. axe-core sur 83 vues : 37 violations → 0 (contraste des pastilles en mode sombre) ; petites cibles tactiles sur téléphone 523 → 103 ; onglets de Recommandées sur une grille de quatre colonnes ; titre propre à chaque page ; deux nouveaux tests (`contrast`, `titles`). Un changement de style (couleurs, typographie) reste ton choix si tu en veux un autre. **À venir** : 5b, 5c ci-dessous.
+5a accueil, bienvenue (arrivée d'une personne qui n'est pas toi) et navigation (contrôlés : aucune repeinte nécessaire, seulement les finitions listées plus haut) ; 5b Offres & CV, Suivi, Recommandées ; 5c CV et lettres. Avec le reste de l'audit (boutons sur téléphone, champs sans étiquette, titres de pages), le mode sombre, un test sur iPhone.
 **Garde-fous** : les comportements du fichier `CLAUDE.md` (« à ne pas casser ») restent, chaque tranche passe tous les tests et un rendu sur ordinateur et téléphone avant mise en ligne.
 
 ## Décisions à prendre par Juliana

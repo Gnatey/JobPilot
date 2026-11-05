@@ -72,7 +72,7 @@ export function CvUpload({ kind, answers, submitLabel, onDone, onSkip, skipLabel
             <li key={i} className="flex items-center gap-2 px-3 py-2 text-sm">
               <FileText size={16} className="shrink-0 text-muted" /><span className="min-w-0 flex-1 truncate">{f.name}</span>
               <span className="text-muted">{Math.round(f.size / 1024)} Ko</span>
-              <button type="button" aria-label={`Retirer ${f.name}`} className="p-1 text-muted hover:text-bad" onClick={() => setFiles((xs) => xs.filter((_, j) => j !== i))}><X size={16} /></button>
+              <button type="button" aria-label={`Retirer ${f.name}`} className="hit p-1 text-muted hover:text-bad" onClick={() => setFiles((xs) => xs.filter((_, j) => j !== i))}><X size={16} /></button>
             </li>
           ))}
         </ul>

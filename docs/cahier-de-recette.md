@@ -114,3 +114,10 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 75 | GitHub › onglet Actions, après un envoi sur main | Les deux tâches « verifier » et « failles » passent (coche verte) ; une croix rouge dit laquelle a échoué | Auto (`tests/ci.test.ts` : le fichier fait bien ce qu'on attend) ; première exécution réelle : À toi (à regarder une fois) | 2026-11-05 |
 | 76 | `npm audit` dans le dossier du projet | « found 0 vulnerabilities » | Auto (vérifié le 5 novembre) ; à refaire de temps en temps (nouvelles failles publiées) | 2026-11-05 |
 
+
+## Accessibilité et confort d'usage
+| # | Parcours | Résultat attendu | Contrôle | Dernière vérif. |
+|---|----------|------------------|----------|-----------------|
+| 77 | Changer une couleur du thème (`app/globals.css`) | Chaque paire texte / fond reste lisible (contraste ≥ 4,5), en clair et en sombre ; les deux blocs sombres restent identiques | Auto (`tests/contrast.test.ts`) ; axe-core sur 83 vues : 0 violation | 2026-11-05 |
+| 78 | Utiliser l'appli au doigt sur téléphone (boutons, pastilles, petits liens) | Les boutons font au moins 40 px de haut et les petits liens ont une zone de toucher élargie ; rien ne déborde | Auto (axe + captures avant / après, 390 px) ; vrai iPhone et vrais doigts : À toi | 2026-11-05 |
+| 79 | Ouvrir chaque page et regarder l'onglet du navigateur (ou l'historique) | Un titre propre à la page (fiche d'offre : poste et entreprise), jamais deux pages avec le même | Auto (`tests/titles.test.ts`) | 2026-11-05 |

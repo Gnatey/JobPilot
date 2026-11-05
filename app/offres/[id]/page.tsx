@@ -12,7 +12,18 @@ import { statusLabel, templateLabel, TEMPLATES, type OfferAnalysis, type OfferEx
 import { pickApplication } from "@/lib/app-pick";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Offre" };
+/** Onglet : « Intitulé, entreprise » (une seule petite lecture, en parallèle de la page) ; « Offre » si elle est introuvable. */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const { supabase } = await requireUser();
+    const { data } = await supabase.from("offers").select("title, company").eq("id", id).maybeSingle();
+    const name = [data?.title, data?.company].filter(Boolean).join(", ");
+    return { title: name || "Offre" };
+  } catch {
+    return { title: "Offre" };
+  }
+}
 
 const BLOCKS = [
   ["hard_skills", "Compétences techniques"],

@@ -115,13 +115,13 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
   return (
     <>
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-full border border-line bg-surface p-1" role="tablist">
+        <div className="grid w-full grid-cols-4 gap-1 rounded-full border border-line bg-surface p-1 sm:flex sm:w-auto" role="tablist">
           {TABS.map((x) => {
             const n = items.filter((r) => x.match(r.status) && (x.id !== "todo" || !fitOnly || !r.senior)).length; // même chiffre que le menu et Tri rapide : sans les offres masquées
             return (
               <button key={x.id} role="tab" aria-selected={tab === x.id} onClick={() => setTab(x.id)}
-                className={`rounded-full px-4 py-1.5 text-sm transition-colors ${tab === x.id ? "bg-ink font-semibold text-paper" : "text-muted hover:text-ink"}`}>
-                {x.label} <span className={tab === x.id ? "opacity-70" : ""}>{n}</span>
+                className={`rounded-full px-1 py-1.5 text-sm transition-colors sm:px-4 ${tab === x.id ? "bg-ink font-semibold text-paper" : "text-muted hover:text-ink"}`}>
+                {x.label} <span className={`block sm:ml-0.5 sm:inline ${tab === x.id ? "opacity-70" : ""}`}>{n}</span>
               </button>
             );
           })}

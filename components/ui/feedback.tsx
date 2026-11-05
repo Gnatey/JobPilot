@@ -95,7 +95,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
             )}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" className="btn btn-ghost" onClick={() => close(dialog.kind === "confirm" ? false : null)}>Annuler</button>
-              <button className={`btn ${dialog.kind === "confirm" && dialog.danger ? "border-bad bg-bad text-white" : "btn-primary"}`} autoFocus={dialog.kind === "confirm"}>
+              <button className={`btn ${dialog.kind === "confirm" && dialog.danger ? "border-bad bg-bad text-on-solid" : "btn-primary"}`} autoFocus={dialog.kind === "confirm"}>
                 {dialog.confirmLabel ?? (dialog.kind === "confirm" ? "Confirmer" : "Valider")}
               </button>
             </div>

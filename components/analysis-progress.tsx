@@ -35,7 +35,7 @@ export function AnalysisProgress({ startedAt }: { startedAt: string }) {
       <ol className="mt-5 space-y-2.5">
         {STEPS.map((st, i) => (
           <li key={st.text} className={`flex items-center gap-3 ${i > current ? "text-muted/60" : i < current ? "text-muted" : "font-semibold"}`}>
-            <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${i < current ? "bg-good text-white" : i === current ? "bg-marigold text-ink" : "border border-line"}`}>
+            <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full ${i < current ? "bg-good text-on-solid" : i === current ? "bg-marigold text-ink" : "border border-line"}`}>
               {i < current ? <Check size={13} /> : i === current ? <Loader2 size={12} className="animate-spin" /> : null}
             </span>
             {st.text}

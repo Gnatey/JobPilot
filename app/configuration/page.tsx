@@ -3,6 +3,7 @@ import { Logo } from "@/components/nav";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Installation" };
 
 /**
  * Page affichée tant que l'app n'a pas ses variables (personne ne peut encore se connecter). N'affiche jamais les valeurs, seulement leur présence.

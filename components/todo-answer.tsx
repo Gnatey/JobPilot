@@ -71,8 +71,8 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
               <div className="flex items-start justify-between gap-3">
                 <span>{t}</span>
                 <span className="flex shrink-0 gap-3">
-                  <button className="text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft({ answer: "", busy: false, ops: null, empty: null })))}>{isOpen ? "Fermer" : "Répondre"}</button>
-                  <button className="text-muted underline" onClick={() => { onChange(removeTodo(t)); if (isOpen) reset(); }}>Fait</button>
+                  <button className="hit text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft({ answer: "", busy: false, ops: null, empty: null })))}>{isOpen ? "Fermer" : "Répondre"}</button>
+                  <button className="hit text-muted underline" onClick={() => { onChange(removeTodo(t)); if (isOpen) reset(); }}>Fait</button>
                 </span>
               </div>
 
