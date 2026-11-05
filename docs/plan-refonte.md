@@ -6,6 +6,7 @@
 ## Ce que je peux promettre, et ce que je ne peux pas
 - **« 100 % sûr » n'existe pour aucun site.** Ce qu'on peut tenir : fermer chaque risque connu, le couvrir par un test, garder la base protégée ligne par ligne (RLS), n'avoir aucun secret dans le dépôt, et dire franchement ce qui reste. Avant une vraie ouverture au public, un regard extérieur (un·e développeur·se sécurité, même une heure) vaut mieux qu'une promesse de ma part.
 - **« Compatible avec plusieurs services d'offres »** : seulement par les portes officielles et gratuites (API publiques, alertes e-mail, favori, copier-coller). Indeed, LinkedIn et Welcome to the Jungle n'ont pas d'API publique pour cet usage et leurs conditions interdisent de lire leurs pages automatiquement : on ne le fera pas, le favori « Envoyer à JobPilot » et les alertes Gmail restent la voie.
+- **Gmail en lecture est une permission « restreinte » chez Google.** D'après les sources consultées, une application de moins de 100 utilisateurs peut rester non vérifiée ; au-delà, la vérification exige un audit de sécurité externe payant (ordres de grandeur très variables selon les sources : à demander à Google). Le cercle d'amis tient dans la limite ; une vraie ouverture au public demande ce budget, ou de renoncer à la lecture de Gmail (le favori et le copier-coller suffisent).
 - **L'IA gratuite est partagée.** Gemini, Groq et Mistral ont des plafonds : avec une dizaine de personnes actives, ils seront atteints. Pistes gratuites pour toi (à choisir avant le paquet 5) : plafond par personne (déjà là, 60 actions par jour), clé gratuite personnelle pour chaque ami (stockée chiffrée), file d'attente aux heures chargées.
 
 ## État de départ (constaté le 5 novembre)
@@ -21,8 +22,8 @@
 - **1B, livré le 5 novembre** : limitation du nombre de requêtes par personne (mot de passe, export, suppression ; **demande la mise à jour de la base, additive, que tu lances** depuis Administration › Installation) ; en-têtes de sécurité (CSP) testés sur 26 pages ; test automatique sur une vraie base PostgreSQL locale « chaque table n'est accessible qu'à sa propriétaire ». Limite assumée : la CSP garde `'unsafe-inline'` pour les scripts (Next.js), la version à jeton viendra avec la montée de Next (paquet 4).
 - **À toi** : adresse e-mail professionnelle pour les pages légales (elle est déjà dans « pas encore fait »).
 
-### Paquet 2 : page publique et Google
-Accueil pensé pour être trouvé et compris (titre, description, image de partage), plan du site, pages légales relues, vérification dans Search Console. Petit, et c'est ce qui sert la validation Gmail.
+### Paquet 2 : page publique et Google, livré le 5 novembre
+Plan du site, `robots.txt` qui laisse Google charger les styles et scripts, adresse canonique, image et aperçus de partage, données structurées, section « Données reçues de Google (Gmail) » avec l'usage limité, et les e-mails ne partent plus jamais chez Mistral (son offre gratuite peut entraîner ses modèles). **Reste à toi** : `PUBLISHER_NAME` et `PUBLISHER_EMAIL` dans Vercel, soumettre le plan du site dans Search Console, relancer la validation de la marque.
 
 ### Paquet 3 : sources d'offres
 Brancher **France Travail** (identifiants déjà là, rien à ajouter), faire repartir Adzuna et Jooble si tu en ouvres les clés (gratuites), dédoublonnage entre sources, état de chaque source dans `/admin`.

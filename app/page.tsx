@@ -22,11 +22,17 @@ export const dynamic = "force-dynamic";
 
 const signedIn = async () => (supabaseConfigured() ? await getUser() : null);
 
+const HOME_TITLE = "JobPilot, ton copilote de recherche d'emploi";
+const HOME_DESCRIPTION = "Colle une offre : JobPilot note ta compatibilité, écrit le CV et la lettre adaptés, range les réponses des recruteurs et suit tes candidatures.";
+
 export async function generateMetadata(): Promise<Metadata> {
   if (await signedIn()) return { title: "Aujourd'hui" };
   return {
-    title: { absolute: "JobPilot, ton copilote de recherche d'emploi" },
-    description: "Colle une offre : JobPilot note ta compatibilité, écrit le CV et la lettre adaptés, range les réponses des recruteurs et suit tes candidatures.",
+    title: { absolute: HOME_TITLE },
+    description: HOME_DESCRIPTION,
+    alternates: { canonical: "/" },
+    openGraph: { type: "website", siteName: "JobPilot", locale: "fr_FR", url: "/", title: HOME_TITLE, description: HOME_DESCRIPTION },
+    twitter: { card: "summary_large_image", title: HOME_TITLE, description: HOME_DESCRIPTION },
     // Seule page du site que Google a le droit d'afficher (le reste de l'appli est en « noindex », voir app/layout.tsx)
     robots: { index: true, follow: true },
   };

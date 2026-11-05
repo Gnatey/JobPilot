@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Gauge, ScorePill } from "@/components/ui/score";
+import { siteUrl } from "@/lib/site";
 
 const SIGNUP = "/login?mode=signup";
 const LOGIN = "/login";
@@ -208,14 +209,28 @@ const FAQ = [
   { q: "C'est vraiment gratuit ?", a: "Oui. L'app s'appuie sur des services gratuits : tes alertes emploi reçues par Gmail, l'IA de Google en formule gratuite et la base Supabase. En contrepartie, l'IA a un quota par jour qui se remet à zéro chaque matin. Si elle est saturée, l'app réessaie toute seule, puis te prévient." },
   { q: "L'app postule-t-elle à ma place ?", a: "Non, jamais. Elle prépare le CV, la lettre et les relances. Tu envoies toi-même, puis tu marques la candidature comme envoyée pour que le suivi reste juste." },
   { q: "Que deviennent mes données ?", a: "Chaque compte n'accède qu'à ses propres données, et tu peux tout exporter ou supprimer dans Réglages. Pour analyser ton CV et les offres, l'app envoie leur texte à l'IA de Google : avec la formule gratuite, Google peut réutiliser ces textes pour améliorer ses produits. Évite d'y mettre ce que tu ne veux pas partager (numéro de sécurité sociale, par exemple)." },
-  { q: "Faut-il connecter Gmail ?", a: "Non, c'est facultatif. Connecté en lecture seule, Gmail permet de ranger les réponses de recruteurs et les alertes emploi. La permission d'envoyer n'est demandée que si tu actives le récap du matin (un email à toi-même). Tu peux déconnecter Gmail à tout moment dans Réglages." },
+  { q: "Faut-il connecter Gmail ?", a: "Non, c'est facultatif. Connecté en lecture seule, Gmail permet de ranger les réponses de recruteurs et les alertes emploi. La permission d'envoyer n'est demandée que si tu actives le récap du matin (un email à toi-même). Tu peux déconnecter Gmail à tout moment dans Réglages. Les données de Gmail ne servent qu'à ça : jamais de publicité, jamais vendues, jamais utilisées pour entraîner une IA (détails dans la page Confidentialité)." },
   { q: "Ça marche pour quel métier ?", a: "Tous. Le questionnaire propose des familles de métiers, comme sur les sites d'emploi. Les alertes de tes sites d'emploi arrivent notées dans l'app, et la page Recherche ouvre chaque site avec ta recherche déjà remplie ; pour une offre trouvée ailleurs, colle son lien ou son texte." },
   { q: "Faut-il un CV prêt pour commencer ?", a: "Non. Tu peux déposer un ou plusieurs CV (PDF, Word, texte) : l'app les fusionne en un profil maître, la base de tous tes CV sur mesure. Tu peux aussi passer cette étape et le faire plus tard." },
 ];
 
+/** Données structurées pour Google : ce qu'est le service, en quelques champs (nom, catégorie, gratuit). Texte fixe, pas de contenu d'utilisateur. */
+const structuredData = () => JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "JobPilot",
+  url: siteUrl(),
+  description: "Suivi de candidatures, analyse des offres d'emploi, CV et lettres de motivation sur mesure.",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  inLanguage: "fr",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+}).replace(/</g, "\\u003c");
+
 export function Landing() {
   return (
     <div className="bg-paper text-ink">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData() }} />
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 md:px-8">
         <Logo />
         <nav aria-label="Sections" className="hidden items-center gap-7 text-[0.95rem] md:flex">

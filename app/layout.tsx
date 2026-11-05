@@ -9,8 +9,13 @@ import { THEME_BOOT } from "@/components/theme";
 import { getUser } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/env";
 import { isAdminEmail } from "@/lib/admin";
+import { siteUrl } from "@/lib/site";
+
+/** Adresse publique : sert à écrire en entier les liens de l'image de partage et de l'adresse canonique (Next exige une adresse absolue). */
+const base = (() => { try { return new URL(siteUrl()); } catch { return undefined; } })();
 
 export const metadata: Metadata = {
+  metadataBase: base,
   title: { default: "JobPilot", template: "%s · JobPilot" },
   description: "Suivi de candidatures, CV sur mesure et analyse des offres",
   manifest: "/manifest.webmanifest",

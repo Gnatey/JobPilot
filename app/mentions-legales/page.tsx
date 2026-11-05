@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LegalShell, H2, ContactLine, publisher } from "@/components/legal";
 
 // Pages publiques lues par Google pour la validation de la marque de l'écran d'autorisation Gmail : indexables (le reste du site est en « noindex », voir app/layout.tsx)
-export const metadata: Metadata = { title: "Mentions légales", robots: { index: true, follow: true } };
+export const metadata: Metadata = { title: "Mentions légales", alternates: { canonical: "/mentions-legales" }, robots: { index: true, follow: true } };
 export const dynamic = "force-dynamic";
 
 export default function MentionsLegales() {

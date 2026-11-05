@@ -43,8 +43,9 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - Ce que l'annonce ne dit pas n'est jamais un point négatif. La séniorité non écrite est « Non précisé ».
 - Nulle part (accueil, Recommandées, Tri rapide, Recherche) d'étiquette « Peu probable » : une étoile ou un pourcentage de pré-tri seulement sur les offres vraiment proches du profil (≥ 70).
 - Une offre analysée mais pas décidée reste dans Recommandées › À trier, avec son score. « Je candidate » (À postuler) → Offres & CV ; postulée → Suivi. Offres & CV ne liste pas les offres encore à trier dans Recommandées (`lib/offers-todo.ts`) ; seules les analyses faites à la main y sont « À décider ».
-- Pages indexables par Google : l'accueil visiteur et les deux pages légales (`robots.txt` les ouvre, `tests/robots.test.ts` vérifie qu'aucune autre ne l'est). Tout le reste est fermé et en « noindex ».
+- Pages indexables par Google : l'accueil visiteur et les deux pages légales (`lib/site.ts` en tient la liste ; `robots.txt` les ouvre avec les fichiers qu'il faut pour les afficher, `sitemap.xml` les annonce ; `tests/robots.test.ts` vérifie qu'aucune autre ne l'est). Tout le reste est fermé et en « noindex ».
 - Supprimer son compte exige une connexion de moins de 10 minutes (`recentlyAuthenticated`, `app/api/account/delete`) : marche avec mot de passe ou lien par e-mail. L'export de données ne contient jamais le jeton Gmail.
+- Contenu venu de Gmail (tri des emails, alertes) : jamais envoyé à Mistral, dont l'offre gratuite peut entraîner ses modèles (règle « Limited Use » de Google) : option `noTraining` de `structured()` (`lib/llm.ts`). Toute nouvelle fonction d'IA qui lit des emails doit la poser ; la page Confidentialité (section Gmail) le promet.
 - Le tableau des comptes de `/admin` est anonyme (code court, jamais d'adresse) : le détail d'un compte se consulte dans Supabase. Ne pas y remettre d'emails.
 - La balise `google-site-verification` de `app/layout.tsx` prouve à Google que le site est à Juliana (validation du branding de l'écran d'autorisation Gmail) : ne pas la retirer.
 

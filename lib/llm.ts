@@ -92,7 +92,15 @@ type Opts = {
   patient?: boolean;
   /** Interne : un autre fournisseur peut prendre le relais, donc inutile d'insister sur celui-ci quand il est saturé */
   failover?: boolean;
+  /**
+   * Contenu venu de Gmail (permission « restreinte » de Google) : jamais envoyé à un fournisseur dont l'offre gratuite peut entraîner
+   * ses modèles avec les requêtes (règle « Limited Use » de Google : pas d'entraînement de modèles d'IA avec les données Gmail).
+   */
+  noTraining?: boolean;
 };
+
+/** Fournisseurs qui disent pouvoir entraîner leurs modèles avec les requêtes de l'offre gratuite (voir app/confidentialite/page.tsx). À relire si leurs conditions changent. */
+export const TRAINS_ON_FREE: ProviderId[] = ["mistral"];
 
 /** Erreur « saturé / limite atteinte » d'un fournisseur, avec le délai d'attente qu'il indique (en secondes). */
 class Busy extends HttpError {
@@ -126,7 +134,9 @@ const cooling = (id: ProviderId) => (cooldown.get(id) ?? 0) > Date.now();
 
 /** Appelle l'IA et renvoie un objet JSON conforme au schéma, en essayant les fournisseurs de la chaîne dans l'ordre. */
 export async function structured<T>(opts: Opts): Promise<T> {
-  const all = chainFor(Boolean(opts.fast));
+  const configuredChain = chainFor(Boolean(opts.fast));
+  const all = opts.noTraining ? configuredChain.filter((id) => !TRAINS_ON_FREE.includes(id)) : configuredChain;
+  if (configuredChain.length && !all.length) throw new HttpError(500, "Les emails ne sont lus que par une IA qui n'entraîne pas ses modèles avec tes messages (règle de Google pour Gmail). Ajoute GROQ_API_KEY ou GEMINI_API_KEY (gratuites) dans Vercel : Mistral seul ne convient pas pour les emails.");
   if (!all.length) throw new HttpError(500, "Aucune clé IA : ajoute GEMINI_API_KEY (gratuit) dans Vercel. GROQ_API_KEY et MISTRAL_API_KEY (gratuits aussi) répartissent la charge.");
   const chain = [...all.filter((id) => !cooling(id)), ...all.filter(cooling)];
   let busy = 0;

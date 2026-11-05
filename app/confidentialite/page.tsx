@@ -3,7 +3,7 @@ import { LegalShell, H2, ContactLine } from "@/components/legal";
 import { activeProviders, PROVIDER_NAMES, type ProviderId } from "@/lib/llm";
 
 // Pages publiques lues par Google pour la validation de la marque de l'écran d'autorisation Gmail : indexables (le reste du site est en « noindex », voir app/layout.tsx)
-export const metadata: Metadata = { title: "Confidentialité", robots: { index: true, follow: true } };
+export const metadata: Metadata = { title: "Confidentialité", alternates: { canonical: "/confidentialite" }, robots: { index: true, follow: true } };
 export const dynamic = "force-dynamic";
 
 /** Ce que chaque fournisseur d'IA indique faire des contenus envoyés (offres gratuites). À relire si leurs conditions changent. */
@@ -42,6 +42,22 @@ export default function Confidentialite() {
           {providers.map((id) => <li key={id}><strong>{PROVIDER_NAMES[id]}</strong> : {RULES[id]}</li>)}
         </ul>
         <p className="mt-2"><strong>N'envoie donc rien que tu ne voudrais pas partager</strong> : évite les numéros d'identité, de sécurité sociale, les informations de santé ou celles d'autres personnes dans ton profil et les textes que tu colles.</p>
+      </section>
+
+      <section id="gmail">
+        <H2>Données reçues de Google (Gmail)</H2>
+        <p>
+          JobPilot n'utilise et ne transmet les informations reçues des API de Google que dans le respect de la{" "}
+          <a className="link" href="https://developers.google.com/terms/api-services-user-data-policy" rel="noreferrer noopener">politique de Google sur les données utilisateur des services API</a>,
+          y compris ses exigences d'usage limité (« Limited Use »).
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Gmail sert uniquement à ranger les réponses de recruteurs et à lire tes alertes emploi, pour toi. La permission d'envoi, si tu l'actives, sert uniquement au récap du matin envoyé à ta propre adresse.</li>
+          <li>Ces données ne sont ni vendues, ni utilisées pour de la publicité.</li>
+          <li>Personne ne lit tes emails : ils sont traités par programme. L'éditeur n'y accède, avec ton accord, que pour résoudre un problème que tu lui signales, ou si la loi l'exige.</li>
+          <li>Elles ne servent pas à entraîner des modèles d'IA généralistes. Les extraits d'emails ne sont envoyés qu'à des fournisseurs d'IA qui indiquent ne pas entraîner leurs modèles avec ces contenus dans les conditions où JobPilot les utilise ; ils ne sont jamais envoyés à Mistral, dont l'offre gratuite peut servir à l'entraînement.</li>
+          <li>Tu peux retirer l'accès à tout moment, depuis Réglages ou depuis ton compte Google : les emails ne sont plus lus.</li>
+        </ul>
       </section>
 
       <section>

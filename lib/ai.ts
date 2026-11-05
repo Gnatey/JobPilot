@@ -226,6 +226,7 @@ export async function classifyEmails(emails: EmailInput[], companies: string[]):
   if (!emails.length) return [];
   const r = await structured<{ items: EmailClass[] }>({
     fast: true,
+    noTraining: true, // contenu Gmail : jamais chez un fournisseur qui entraîne ses modèles avec l'offre gratuite
     maxTokens: 8000,
     system: `Tu tries des emails de recherche d'emploi.
 Catégories : accuse_reception, refus, entretien (invitation ou planification), test (cas pratique, test technique), offre (proposition d'embauche), relance_recruteur (un recruteur/cabinet qui la contacte), alerte_offres (newsletters, alertes d'offres), autre.
@@ -322,6 +323,7 @@ export type AlertOffer = { title: string; company: string; location: string; url
 export async function extractAlertOffers(from: string, subject: string, body: string): Promise<AlertOffer[]> {
   const r = await structured<{ offers: AlertOffer[] }>({
     fast: true,
+    noTraining: true, // contenu Gmail : jamais chez un fournisseur qui entraîne ses modèles avec l'offre gratuite
     maxTokens: 4000,
     system: `Tu lis un email d'alerte emploi (LinkedIn, Indeed, APEC, Welcome to the Jungle, HelloWork, France Travail, cabinets...) et tu listes chaque offre qu'il contient.
 url : le lien qui mène à l'offre (parmi les liens fournis entre [crochets]), sinon vide. Ignore les liens de désinscription, profil, paramètres.

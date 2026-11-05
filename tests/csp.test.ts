@@ -62,7 +62,7 @@ ok("aucun appel du navigateur vers un service que la politique ne connaît pas",
 // L'adresse de l'API des communes est bien celle que le code utilise
 ok("l'API des communes appelée par le code est dans la liste", /fetch\(`https:\/\/geo\.api\.gouv\.fr\//.test(readFileSync("components/zone-picker.tsx", "utf8")) && EXTERNAL_CONNECT.includes("https://geo.api.gouv.fr"));
 
-// Le seul script écrit à la main dans les pages est le petit script fixe du thème
-const inline = files.filter((f) => /dangerouslySetInnerHTML=\{\{/.test(readFileSync(f, "utf8")));
-ok("un seul `dangerouslySetInnerHTML`, celui du script de thème (texte fixe)", JSON.stringify(inline) === JSON.stringify([join("app", "layout.tsx")]) && /__html:\s*THEME_BOOT/.test(readFileSync("app/layout.tsx", "utf8")));
+// Les seuls scripts écrits à la main dans les pages : le petit script fixe du thème, et les données structurées de l'accueil (JSON, jamais exécutées)
+const inline = files.filter((f) => /dangerouslySetInnerHTML=\{\{/.test(readFileSync(f, "utf8"))).sort();
+ok("deux `dangerouslySetInnerHTML` seulement : script de thème (texte fixe) et données structurées de l'accueil", JSON.stringify(inline) === JSON.stringify([join("app", "layout.tsx"), join("components", "landing.tsx")].sort()) && /__html:\s*THEME_BOOT/.test(readFileSync("app/layout.tsx", "utf8")) && /type="application\/ld\+json" dangerouslySetInnerHTML=\{\{ __html: structuredData\(\) \}\}/.test(readFileSync("components/landing.tsx", "utf8")));
 done();
