@@ -13,6 +13,9 @@ export type RecoRow = {
   offers: { score: number | null } | null;
 };
 
+/** Combien d'offres existent au-delà de celles chargées (liste récente + total exact). Un comptage en échec (null) n'ajoute rien : on n'invente pas de chiffre. */
+export const olderThanLoaded = (total: number | null | undefined, loaded: number) => Math.max(0, (total ?? 0) - loaded);
+
 const clean = (s: string) => s.replace(/\[https?:\/\/[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
 
 /** Le pré-score est recalculé avec ce que l'app a appris depuis l'arrivée de l'offre. */

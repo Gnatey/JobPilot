@@ -28,7 +28,11 @@ const TABS = [
   { id: "hidden", label: "Masquées", match: (s: string) => s === "filtered" },
 ] as const;
 
-export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; rules: string[]; decided: number; reasons: Record<string, number> }) {
+/** Offres plus anciennes que celles chargées dans chaque onglet : comptées, mais pas affichées. */
+export type RecoRest = { todo: number; todoFit: number; accepted: number; rejected: number; hidden: number };
+const NO_REST: RecoRest = { todo: 0, todoFit: 0, accepted: 0, rejected: 0, hidden: 0 };
+
+export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { recos: Reco[]; rest?: RecoRest; rules: string[]; decided: number; reasons: Record<string, number> }) {
   const { toast, confirm } = useFeedback();
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("todo");
   const [fitOnly, setFitOnly] = useState(true);
@@ -55,6 +59,9 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
   const hiddenSenior = inTab.filter((r) => r.senior).length;
   const belowMin = tab === "todo" && minScore > 0 ? base.filter((r) => r.score < minScore) : [];
   const todoCount = items.filter((r) => TABS[0].match(r.status) && (!fitOnly || !r.senior)).length;
+  /** Offres de cet onglet plus anciennes que la liste chargée (comptées dans le chiffre de l'onglet, non affichées). */
+  const older = (id: (typeof TABS)[number]["id"]) => (id === "todo" ? (fitOnly ? rest.todoFit : rest.todo) : rest[id]);
+  const olderHere = older(tab);
 
   async function act(r: Reco, d: "accept" | "reject" | "restore", reason?: string) {
     const res = await decide(r, d, reason);
@@ -117,7 +124,7 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="grid w-full grid-cols-4 gap-1 rounded-full border border-line bg-surface p-1 sm:flex sm:w-auto" role="tablist">
           {TABS.map((x) => {
-            const n = items.filter((r) => x.match(r.status) && (x.id !== "todo" || !fitOnly || !r.senior)).length; // même chiffre que le menu et Tri rapide : sans les offres masquées
+            const n = items.filter((r) => x.match(r.status) && (x.id !== "todo" || !fitOnly || !r.senior)).length + older(x.id); // même chiffre que le menu et Tri rapide : sans les offres masquées, anciennes comprises
             return (
               <button key={x.id} role="tab" aria-selected={tab === x.id} onClick={() => setTab(x.id)}
                 className={`rounded-full px-1 py-1.5 text-sm transition-colors sm:px-4 ${tab === x.id ? "bg-ink font-semibold text-paper" : "text-muted hover:text-ink"}`}>
@@ -128,6 +135,13 @@ export function RecoList({ recos, rules, decided, reasons }: { recos: Reco[]; ru
         </div>
         {todoCount > 0 && <Link href="/recommandees/tri" className="btn btn-primary btn-sm ml-auto"><Zap size={16} /> Tri rapide</Link>}
       </div>
+
+      {olderHere > 0 && (
+        <p className="mb-4 max-w-[70ch] text-sm text-muted">
+          Les plus récentes sont affichées. {olderHere} offre{olderHere > 1 ? "s" : ""} plus ancienne{olderHere > 1 ? "s" : ""} {olderHere > 1 ? "sont gardées" : "est gardée"} mais pas listée{olderHere > 1 ? "s" : ""} ici
+          {tab === "todo" ? " : Tri rapide te propose d'abord les meilleures." : "."}
+        </p>
+      )}
 
       {tab === "todo" && (
         <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">

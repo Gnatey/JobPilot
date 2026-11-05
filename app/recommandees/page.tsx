@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { computeLearning } from "@/lib/learning";
 import { ensureFit } from "@/lib/fit-stock";
-import { RECO_COLS, toReco, type RecoRow } from "@/lib/reco-query";
+import { RECO_COLS, toReco, olderThanLoaded, type RecoRow } from "@/lib/reco-query";
 import { PageTitle } from "@/components/ui/page-title";
 import { SyncButton } from "@/components/sync-button";
 import { RecoList } from "@/components/reco-list";
@@ -15,13 +15,30 @@ export default async function Recommandees() {
   const sel = () => supabase.from("recommendations").select(RECO_COLS);
   const profile = await getProfile(supabase, user);
   await ensureFit(supabase, user.id, profile).catch(() => null); // profil ou recherche modifiés : les offres déjà reçues sont revues une fois
-  const [todo, accepted, rejected, hidden, learning] = await Promise.all([
+  // Chaque onglet affiche les offres les plus récentes (la page reste légère) ; les totaux exacts viennent de requêtes de comptage,
+  // pour que le chiffre de l'onglet ne s'arrête jamais en silence à la taille de la liste
+  const total = () => supabase.from("recommendations").select("id", { count: "exact", head: true });
+  const [todo, accepted, rejected, hidden, learning, nTodo, nTodoFit, nAccepted, nRejected, nHidden] = await Promise.all([
     sel().in("status", ["new", "analyzed"]).order("received_at", { ascending: false }).limit(300),
     sel().eq("status", "accepted").order("decided_at", { ascending: false }).limit(60),
     sel().eq("status", "rejected").order("decided_at", { ascending: false }).limit(100),
     sel().eq("status", "filtered").order("received_at", { ascending: false }).limit(150),
     computeLearning(supabase, user.id),
+    total().in("status", ["new", "analyzed"]),
+    total().in("status", ["new", "analyzed"]).eq("senior", false),
+    total().eq("status", "accepted"),
+    total().eq("status", "rejected"),
+    total().eq("status", "filtered"),
   ]);
+  const more = olderThanLoaded;
+  const todoRows = (todo.data ?? []) as unknown as RecoRow[];
+  const rest = {
+    todo: more(nTodo.count, todoRows.length),
+    todoFit: more(nTodoFit.count, todoRows.filter((r) => !r.senior).length),
+    accepted: more(nAccepted.count, accepted.data?.length ?? 0),
+    rejected: more(nRejected.count, rejected.data?.length ?? 0),
+    hidden: more(nHidden.count, hidden.data?.length ?? 0),
+  };
 
   const rows = [...(todo.data ?? []), ...(accepted.data ?? []), ...(rejected.data ?? []), ...(hidden.data ?? [])] as unknown as RecoRow[];
   const recos = rows.map((r) => toReco(r, profile, learning));
@@ -39,7 +56,7 @@ export default async function Recommandees() {
       <PageTitle title="Recommandées" sub="Les offres trouvées dans tes alertes emploi et tes recherches, triées par compatibilité. Chaque choix affine les suivantes.">
         <SyncButton label="Chercher maintenant" />
       </PageTitle>
-      <RecoList recos={recos} rules={rules} decided={learning.decided} reasons={learning.reasons} />
+      <RecoList recos={recos} rest={rest} rules={rules} decided={learning.decided} reasons={learning.reasons} />
     </>
   );
 }

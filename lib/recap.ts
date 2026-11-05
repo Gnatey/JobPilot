@@ -5,6 +5,7 @@ import { getProfileById, patchPreferences } from "./profile";
 import { addDays, dayDiff, fmtDate, fmtDateTime, plural, today, until, weekStart } from "./format";
 import { HttpError } from "./supabase/server";
 import { preBand } from "./quick-score";
+import { fetchAll } from "./paged";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -16,7 +17,8 @@ export async function buildRecap(supabase: SupabaseClient, userId: string): Prom
   const base = appUrl();
   const t = today();
   const [{ data: apps }, { data: recos, count }, profile] = await Promise.all([
-    supabase.from("applications").select("company, title, status, applied_at, next_action_at, interview_at").eq("user_id", userId).limit(500),
+    // toutes les candidatures, dans un ordre stable : un `limit(500)` sans tri pouvait laisser de côté une relance ou un entretien
+    fetchAll((a, b) => supabase.from("applications").select("company, title, status, applied_at, next_action_at, interview_at").eq("user_id", userId).order("id").range(a, b)),
     supabase.from("recommendations").select("title, company, location, quick_score, url", { count: "exact" }).eq("user_id", userId).eq("status", "new").order("quick_score", { ascending: false }).limit(5),
     getProfileById(supabase, userId),
   ]);

@@ -20,7 +20,7 @@ const STOP = new Set(["h/f", "f/h", "les", "des", "and", "the", "pour", "avec", 
 export async function computeLearning(supabase: SupabaseClient, userId: string): Promise<Learning> {
   const [{ data: recos }, { data: offers }] = await Promise.all([
     fetchAll<{ title: string | null; company: string | null; status: string; reject_reason: string | null }>((a, b) => supabase.from("recommendations").select("title, company, status, reject_reason").eq("user_id", userId).in("status", ["accepted", "rejected"]).order("id").range(a, b)),
-    supabase.from("offers").select("title, company, decision, reject_reason").eq("user_id", userId).not("decision", "is", null),
+    fetchAll<{ title: string | null; company: string | null; decision: string | null; reject_reason: string | null }>((a, b) => supabase.from("offers").select("title, company, decision, reject_reason").eq("user_id", userId).not("decision", "is", null).order("id").range(a, b)),
   ]);
   const items = [
     // Annonce retirée ou écartée en lot : ça ne dit rien de ce qui te plaît, on n'en apprend rien

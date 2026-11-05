@@ -6,6 +6,8 @@ import { getUser, requireUser } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/env";
 import { Landing } from "@/components/landing";
 import { getProfile } from "@/lib/profile";
+import { loadApplications } from "@/lib/applications";
+import { fetchAll } from "@/lib/paged";
 import { modelInfo } from "@/lib/llm";
 import { isAdminEmail } from "@/lib/admin";
 import { Section } from "@/components/ui/page-title";
@@ -63,10 +65,10 @@ async function Today() {
   const t = today();
   const [profile, appsRes, recosRes, cvRes, gmailRes, emailsRes, searchesRes] = await Promise.all([
     getProfile(supabase, user),
-    supabase.from("applications").select("*").order("updated_at", { ascending: false }).limit(300),
+    loadApplications(supabase), // toutes : une relance due sur une vieille candidature doit apparaître
     supabase.from("recommendations").select("id, title, company, location, source, url, quick_score, matched, offers(score)", { count: "exact" })
       .in("status", ["new", "analyzed"]).eq("senior", false).order("quick_score", { ascending: false }).limit(40),
-    supabase.from("documents").select("application_id, offer_id").eq("kind", "cv"),
+    fetchAll<{ application_id: string | null; offer_id: string | null }>((a, b) => supabase.from("documents").select("application_id, offer_id").eq("kind", "cv").order("id").range(a, b)),
     supabase.from("gmail_accounts").select("email, last_sync_at").maybeSingle(),
     supabase.from("emails").select("id, subject, from_addr, category, received_at").neq("category", "alerte_offres").neq("category", "autre").order("received_at", { ascending: false }).limit(4),
     supabase.from("searches").select("id", { count: "exact", head: true }),
@@ -77,8 +79,8 @@ async function Today() {
     if (!count) redirect("/bienvenue");
   }
 
-  const apps = (appsRes.data ?? []) as Application[];
-  const cvApps = new Set((cvRes.data ?? []).flatMap((d) => [d.application_id, d.offer_id]).filter(Boolean));
+  const apps = appsRes.data;
+  const cvApps = new Set(cvRes.data.flatMap((d) => [d.application_id, d.offer_id]).filter(Boolean));
   const hasCv = (a: Application) => cvApps.has(a.id) || (a.offer_id ? cvApps.has(a.offer_id) : false);
 
   const interviews = apps.filter((a) => ["entretien", "test"].includes(a.status))

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Download, LayoutGrid, List, CalendarDays, X, Trash2, ExternalLink, FileText, Search, Archive, History, Sparkles, Pencil, Ban } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { loadApplications } from "@/lib/applications";
 import { PageTitle, Empty } from "@/components/ui/page-title";
 import { ScorePill } from "@/components/ui/score";
 import { FollowupButton } from "@/components/followup-button";
@@ -61,8 +62,8 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
   useEffect(() => { setApps(initial); }, [initial]);
 
   const reload = useCallback(async () => {
-    const { data } = await sb.from("applications").select("*").order("updated_at", { ascending: false }).limit(500);
-    if (data) setApps(data as Application[]);
+    const { data, error } = await loadApplications(sb);
+    if (!error) setApps(data); // une lecture interrompue ne remplace pas la liste complète déjà affichée
     refreshBadges();
   }, [sb]);
 

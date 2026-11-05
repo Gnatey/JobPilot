@@ -17,14 +17,15 @@ export const metadata = { title: "Offres & CV" };
 export default async function Offres() {
   const { supabase } = await requireUser();
   const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }, { data: waitingRecos }] = await Promise.all([
-    supabase.from("offers").select("id, title, company, location, score, decision, created_at, analysis->company_type, analysis->estimated").order("created_at", { ascending: false }).limit(300),
+    // toutes les offres : avec `limit(300)`, une vieille offre « À postuler » disparaissait de cette liste dès que 300 offres plus récentes existaient
+    fetchAll((a, b) => supabase.from("offers").select("id, title, company, location, score, decision, created_at, analysis->company_type, analysis->estimated").order("created_at", { ascending: false }).order("id").range(a, b)),
     // toutes les lignes, page après page : Supabase coupe sinon à 1 000 sans le dire
     fetchAll((a, b) => supabase.from("applications").select("offer_id, status").not("offer_id", "is", null).order("id").range(a, b)),
-    supabase.from("documents").select("offer_id").eq("kind", "cv"),
+    fetchAll((a, b) => supabase.from("documents").select("offer_id").eq("kind", "cv").order("id").range(a, b)),
     // « Je candidate » sans analyse : la candidature est déjà « À postuler », l'offre n'a simplement pas encore été analysée
-    supabase.from("applications").select("id, title, company, location, url, created_at").eq("status", "a_postuler").is("offer_id", null),
+    fetchAll((a, b) => supabase.from("applications").select("id, title, company, location, url, created_at").eq("status", "a_postuler").is("offer_id", null).order("id").range(a, b)),
     // Offres déjà analysées mais pas encore tranchées dans Recommandées : elles y restent (avec leur score) tant que tu n'as rien décidé
-    supabase.from("recommendations").select("offer_id").in("status", ["new", "analyzed"]).not("offer_id", "is", null),
+    fetchAll((a, b) => supabase.from("recommendations").select("offer_id").in("status", ["new", "analyzed"]).not("offer_id", "is", null).order("id").range(a, b)),
   ]);
   // Une offre peut avoir plusieurs lignes dans Suivi (doublons) : on retient celle qui est la plus avancée
   const byOffer = new Map<string, { status: string }[]>();
