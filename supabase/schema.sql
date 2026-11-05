@@ -272,3 +272,32 @@ grant execute on function spend_ai(int, int) to authenticated;
 
 -- Tâche du matin : qui a été traité en dernier (équité quand il y a plusieurs personnes)
 alter table profiles add column if not exists cron_at timestamptz;
+
+-- ===== Limitation des requêtes par personne (mise à jour 5) =====
+-- Fenêtre fixe par personne et par « seau » : au-delà de p_max demandes dans p_window secondes, la fonction répond false.
+-- La personne ne peut ni lire ni modifier le compteur : la table n'a aucune politique, seule la fonction (security definer) y écrit.
+-- Tant que ce bloc n'est pas lancé, l'appli fonctionne comme avant (aucune limite).
+create table if not exists rate_hits (
+  user_id uuid not null references auth.users on delete cascade,
+  bucket text not null,
+  window_start timestamptz not null default now(),
+  n int not null default 0,
+  primary key (user_id, bucket)
+);
+alter table rate_hits enable row level security;
+
+create or replace function rate_limit(p_bucket text, p_max int, p_window int) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare used int;
+begin
+  if auth.uid() is null then raise exception 'non connecté'; end if;
+  if p_max < 1 or p_window < 1 or p_window > 86400 or length(p_bucket) > 40 then raise exception 'paramètres invalides'; end if;
+  insert into rate_hits(user_id, bucket, window_start, n) values (auth.uid(), p_bucket, now(), 1)
+  on conflict (user_id, bucket) do update set
+    n = case when rate_hits.window_start < now() - make_interval(secs => p_window) then 1 else rate_hits.n + 1 end,
+    window_start = case when rate_hits.window_start < now() - make_interval(secs => p_window) then now() else rate_hits.window_start end
+  returning n into used;
+  return used <= p_max;
+end $$;
+revoke all on function rate_limit(text, int, int) from public;
+grant execute on function rate_limit(text, int, int) to authenticated;

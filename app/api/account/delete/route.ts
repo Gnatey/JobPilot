@@ -3,11 +3,13 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { recentlyAuthenticated } from "@/lib/reauth";
 import { openToken } from "@/lib/token-crypto";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** Supprime le compte et toutes ses données (les tables sont reliées en cascade à l'utilisateur). */
 export async function POST(req: Request) {
   return handle(async () => {
     const { supabase, user } = await requireUser();
+    await rateLimit(supabase, "deleteAccount");
     const { confirm } = (await req.json()) as { confirm?: string };
     if (confirm !== "SUPPRIMER") throw new HttpError(400, "Tape SUPPRIMER pour confirmer.");
     // Action sans retour : seulement juste après une connexion (mot de passe, lien ou code), pas avec une vieille session restée ouverte

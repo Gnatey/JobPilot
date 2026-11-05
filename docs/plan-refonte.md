@@ -1,7 +1,7 @@
 # Plan de refonte (5 novembre 2026)
 
 **Demande de Juliana** : une refonte complète du site, parce que JobPilot pourrait un jour être ouvert à plus qu'elle et ses amis. Elle veut que ce soit « 100 % safe » et « compatible » avec plusieurs services pour récupérer et proposer des offres, des CV et des lettres.
-**Ses choix** : tout le périmètre (sécurité et comptes, refonte visuelle et parcours, socle technique, page publique et Google), livré **par paquets, dans l'ordre ci-dessous, avec sa validation entre chaque paquet**. L'IA reste 100 % gratuite.
+**Ses choix** : tout le périmètre (sécurité et comptes, refonte visuelle et parcours, socle technique, page publique et Google), livré **par paquets, dans l'ordre ci-dessous**. Elle avait d'abord voulu valider chaque paquet, puis a dit « non lance tout » (5 novembre) : les paquets s'enchaînent, chacun testé et suivi d'un court bilan. On s'arrête seulement pour ce qui dépend d'elle. L'IA reste 100 % gratuite.
 
 ## Ce que je peux promettre, et ce que je ne peux pas
 - **« 100 % sûr » n'existe pour aucun site.** Ce qu'on peut tenir : fermer chaque risque connu, le couvrir par un test, garder la base protégée ligne par ligne (RLS), n'avoir aucun secret dans le dépôt, et dire franchement ce qui reste. Avant une vraie ouverture au public, un regard extérieur (un·e développeur·se sécurité, même une heure) vaut mieux qu'une promesse de ma part.
@@ -18,7 +18,7 @@
 
 ### Paquet 1 : sécurité et comptes
 - **1A, livré le 5 novembre** : jetons Gmail chiffrés ; suppression de compte seulement après une connexion récente ; page confidentialité fidèle.
-- **1B** : limitation du nombre de requêtes par personne sur les routes coûteuses ou sensibles (**demande une migration SQL, additive, que tu lances**) ; en-têtes de sécurité (CSP) testés sur toutes les pages ; test automatique « chaque table a sa politique RLS » ; vérification que les messages d'erreur ne révèlent rien aux non-admins.
+- **1B, livré le 5 novembre** : limitation du nombre de requêtes par personne (mot de passe, export, suppression ; **demande la mise à jour de la base, additive, que tu lances** depuis Administration › Installation) ; en-têtes de sécurité (CSP) testés sur 26 pages ; test automatique sur une vraie base PostgreSQL locale « chaque table n'est accessible qu'à sa propriétaire ». Limite assumée : la CSP garde `'unsafe-inline'` pour les scripts (Next.js), la version à jeton viendra avec la montée de Next (paquet 4).
 - **À toi** : adresse e-mail professionnelle pour les pages légales (elle est déjà dans « pas encore fait »).
 
 ### Paquet 2 : page publique et Google
