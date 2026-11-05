@@ -18,4 +18,13 @@ const mw = readFileSync("middleware.ts", "utf8");
 ok("middleware : les pages légales sont publiques", mw.includes('"/mentions-legales"') && mw.includes('"/confidentialite"'));
 ok("middleware : robots.txt n'est pas derrière la connexion", /matcher:[^\n]*robots\.txt/.test(mw));
 ok("pages légales présentes", readFileSync("app/mentions-legales/page.tsx", "utf8").length > 0 && readFileSync("app/confidentialite/page.tsx", "utf8").length > 0);
+
+// « noindex » partout, sauf l'accueil visiteur (sinon la demande d'indexation faite dans Search Console serait refusée)
+const layout = readFileSync("app/layout.tsx", "utf8");
+const home = readFileSync("app/page.tsx", "utf8");
+const visitor = home.slice(home.indexOf("absolute:"), home.indexOf("/** Visiteur"));
+ok("layout : tout le site reste en noindex par défaut", /robots:\s*\{\s*index:\s*false/.test(layout));
+ok("accueil visiteur : indexable", /robots:\s*\{\s*index:\s*true/.test(visitor));
+ok("accueil connecté (tableau de bord) : pas indexable", !/index:\s*true/.test(home.slice(home.indexOf("signedIn()) return"), home.indexOf("absolute:"))));
+ok("pages légales : toujours noindex (héritent du layout)", !/index:\s*true/.test(readFileSync("app/mentions-legales/page.tsx", "utf8") + readFileSync("app/confidentialite/page.tsx", "utf8")));
 done();

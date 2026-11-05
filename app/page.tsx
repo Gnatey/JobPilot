@@ -27,6 +27,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { absolute: "JobPilot, ton copilote de recherche d'emploi" },
     description: "Colle une offre : JobPilot note ta compatibilité, écrit le CV et la lettre adaptés, range les réponses des recruteurs et suit tes candidatures.",
+    // Seule page du site que Google a le droit d'afficher (le reste de l'appli est en « noindex », voir app/layout.tsx)
+    robots: { index: true, follow: true },
   };
 }
 
