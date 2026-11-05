@@ -25,8 +25,9 @@
 ### Paquet 2 : page publique et Google, livré le 5 novembre
 Plan du site, `robots.txt` qui laisse Google charger les styles et scripts, adresse canonique, image et aperçus de partage, données structurées, section « Données reçues de Google (Gmail) » avec l'usage limité, et les e-mails ne partent plus jamais chez Mistral (son offre gratuite peut entraîner ses modèles). **Reste à toi** : `PUBLISHER_NAME` et `PUBLISHER_EMAIL` dans Vercel, soumettre le plan du site dans Search Console, relancer la validation de la marque.
 
-### Paquet 3 : sources d'offres
-Brancher **France Travail** (identifiants déjà là, rien à ajouter), faire repartir Adzuna et Jooble si tu en ouvres les clés (gratuites), dédoublonnage entre sources, état de chaque source dans `/admin`.
+### Paquet 3 : sources d'offres, livré le 5 novembre
+**France Travail n'est pas branché, volontairement** : son API « Offres d'emploi » est réservée aux organismes qui en font la demande (fiche officielle sur data.gouv.fr : accès restreint, non exposé pour l'instant) et le dépôt n'en garde aucune trace de code qui marchait. Écrire un branchement à l'aveugle, sans pouvoir le tester ni avec les identifiants (qui sont dans Vercel, hors de portée), serait de la fausse sécurité. Ses offres passent par le favori, les alertes Gmail et le copier-coller. Les variables `FRANCE_TRAVAIL_CLIENT_ID` / `FRANCE_TRAVAIL_CLIENT_SECRET` dans Vercel ne servent à rien : à retirer si tu veux (moins de secrets stockés).
+**Fait** : tests de la recherche multi-sources (offre vue par deux sources comptée une fois, une source en panne n'arrête pas l'autre, aucune clé dans les messages d'erreur, filtres communs), bouton administrateur « Tester les sources » (une vraie requête par source, plafonné), message d'erreur qui renvoie à Administration (et non plus à Réglages). **Reste à toi** : créer les clés gratuites Adzuna et/ou Jooble et les mettre dans Vercel (jamais dans un chat) pour que la recherche automatique reparte.
 
 ### Paquet 4 : socle technique
 Next 16 et correctif `postcss` (montée de version : testée à part, jamais de nuit), lectures de `applications` paginées, vérification automatique (typecheck, tests, build) à chaque envoi sur GitHub (gratuit), suivi des erreurs.

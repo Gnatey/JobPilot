@@ -12,6 +12,8 @@ export const LIMITS = {
   deleteAccount: { max: 3, windowSec: 3600 },
   /** Export : une dizaine de lectures complètes de tables à chaque appel. */
   exportData: { max: 6, windowSec: 3600 },
+  /** Test des sources d'offres (administration) : chaque appel consomme une requête du quota gratuit d'Adzuna et de Jooble. */
+  testSources: { max: 10, windowSec: 3600 },
 } as const;
 
 export type Bucket = keyof typeof LIMITS;

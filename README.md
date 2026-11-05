@@ -157,7 +157,7 @@ JobPilot récupère les offres de quatre façons, de la plus simple à la plus a
 4. **Adzuna et Jooble (facultatif, automatique chaque matin)** :
    - Adzuna : crée un compte sur [developer.adzuna.com](https://developer.adzuna.com), la clé arrive tout de suite. Mets `ADZUNA_APP_ID` et `ADZUNA_APP_KEY` dans Vercel.
    - Jooble : demande une clé sur [jooble.org/api/about](https://jooble.org/api/about). Mets `JOOBLE_API_KEY` dans Vercel.
-   - Puis **Redeploy**. Réglages → Sources d'offres affiche ce qui est branché.
+   - Puis **Redeploy**. Administration → Sources d'offres affiche ce qui est branché, et le bouton « Tester les sources » vérifie chaque clé avec une vraie requête.
 
 > France Travail n'est plus branché : son API « Offres d'emploi » est réservée aux organismes qui en font la demande. Ses offres passent par le favori ou le copier-coller.
 

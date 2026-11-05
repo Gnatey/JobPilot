@@ -33,13 +33,16 @@ const routes: Record<string, Bucket> = {
   "app/api/account/check-password/route.ts": "password",
   "app/api/account/delete/route.ts": "deleteAccount",
   "app/api/account/export/route.ts": "exportData",
+  "app/api/admin/sources/route.ts": "testSources",
 };
 for (const [file, bucket] of Object.entries(routes)) {
   const src = readFileSync(file, "utf8");
   const call = src.indexOf(`rateLimit(supabase, "${bucket}")`);
   ok(`${file} limite le seau « ${bucket} »`, call > 0);
   const before = (marker: string) => !src.includes(marker) || call < src.indexOf(marker);
-  ok(`${file} : après requireUser, avant la lecture de la demande et des données`, src.indexOf("requireUser()") < call && before("req.json()") && before("supabase.from("));
+  // la porte : requireUser (routes des personnes) ou requireAdminApi (routes d'administration) ; elle doit exister et passer avant la limite
+  const guard = Math.max(src.indexOf("requireUser()"), src.indexOf("requireAdminApi()"));
+  ok(`${file} : après la porte d'entrée, avant la lecture de la demande et des données`, guard > -1 && guard < call && before("req.json()") && before("supabase.from("));
 }
 
 // Le script de mise à jour de la base contient la fonction appelée par le code et ne donne aucun droit direct sur la table

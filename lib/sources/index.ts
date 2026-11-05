@@ -45,6 +45,30 @@ export function filterOffers(list: JobOffer[], c: SearchCriteria): JobOffer[] {
 
 export type SourceReport = { id: string; label: string; ok: boolean; count: number; error?: string };
 
+/** Recherche minimale utilisée pour vérifier qu'une clé fonctionne : une seule requête par source, sans filtre. */
+const PROBE: SearchCriteria = { keywords: "data analyst", departments: [], contracts: ["CDI"], experience: "", publishedWithin: "31" };
+
+export type SourceStatus = SourceReport & { configured: boolean; ms: number };
+
+/**
+ * Vérifie chaque source (administration) : une vraie requête par source branchée, sans rien enregistrer.
+ * Contrairement à searchAll, une source en panne ne fait jamais échouer l'ensemble et les sources non branchées sont listées.
+ */
+export async function probeSources(): Promise<SourceStatus[]> {
+  return Promise.all(
+    SOURCES.map(async (s): Promise<SourceStatus> => {
+      if (!s.configured()) return { id: s.id, label: s.label, configured: false, ok: false, count: 0, ms: 0 };
+      const t0 = Date.now();
+      try {
+        const offers = await s.search(PROBE, { maxRequests: 1 });
+        return { id: s.id, label: s.label, configured: true, ok: true, count: offers.length, ms: Date.now() - t0 };
+      } catch (e) {
+        return { id: s.id, label: s.label, configured: true, ok: false, count: 0, ms: Date.now() - t0, error: e instanceof Error ? e.message : "Erreur inconnue" };
+      }
+    })
+  );
+}
+
 /** Interroge toutes les sources branchées en parallèle ; une source en panne n'empêche pas les autres. */
 export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{ offers: JobOffer[]; sources: SourceReport[] }> {
   const active = activeSources();

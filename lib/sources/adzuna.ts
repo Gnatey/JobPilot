@@ -54,7 +54,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
     if (where) params.set("where", where);
     for (const [k, v] of Object.entries(filter ?? {})) params.set(k, v);
     const res = await fetch(`${base}/v1/api/jobs/fr/search/1?${params}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
-    if (res.status === 401 || res.status === 403) throw new HttpError(502, "Adzuna : clé refusée. Détails dans Réglages, rubrique Sources d'offres.");
+    if (res.status === 401 || res.status === 403) throw new HttpError(502, "Adzuna : clé refusée (à vérifier dans Administration › Sources d'offres).");
     if (res.status === 429) throw new HttpError(502, "Adzuna : quota de requêtes atteint pour le moment.");
     if (!res.ok) throw new HttpError(502, `Adzuna : recherche refusée (${res.status})`);
     const j = (await res.json()) as { results?: Raw[] };

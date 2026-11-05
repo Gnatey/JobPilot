@@ -43,7 +43,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
       body: JSON.stringify({ keywords: `${role}${suffix}`.trim().slice(0, 120), location: where || "France", radius: "25", page: "1", datecreatedfrom: from }),
       signal: AbortSignal.timeout(15_000),
     });
-    if (res.status === 401 || res.status === 403) throw new HttpError(502, "Jooble : clé refusée. Détails dans Réglages, rubrique Sources d'offres.");
+    if (res.status === 401 || res.status === 403) throw new HttpError(502, "Jooble : clé refusée (à vérifier dans Administration › Sources d'offres).");
     if (res.status === 429) throw new HttpError(502, "Jooble : quota de requêtes atteint pour le moment.");
     if (!res.ok) throw new HttpError(502, `Jooble : recherche refusée (${res.status})`);
     const j = (await res.json()) as { jobs?: Raw[] };

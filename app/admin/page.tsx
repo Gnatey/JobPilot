@@ -5,7 +5,7 @@ import { supabaseDashboardUrl } from "@/lib/admin";
 import { modelInfo } from "@/lib/llm";
 import { MIGRATION_SQL } from "@/lib/migration-sql";
 import { PageTitle, Section } from "@/components/ui/page-title";
-import { AiTest, CopySql } from "@/components/settings-controls";
+import { AiTest, CopySql, SourcesTest } from "@/components/settings-controls";
 import { CopyId } from "@/components/copy-id";
 import { fmtDate, plural } from "@/lib/format";
 import { activeSources } from "@/lib/sources";
@@ -195,6 +195,15 @@ export default async function Admin() {
             </ol>
           </li>
         </ul>
+        {sources.length > 0 && (
+          <div className="mt-4">
+            <SourcesTest />
+            <p className="mt-2 max-w-[62ch] text-sm text-muted">Envoie une vraie requête à chaque source branchée (elle compte sur le quota gratuit partagé) : une clé refusée ou un quota atteint s'affiche ici, avant que les comptes ne le remarquent.</p>
+          </div>
+        )}
+        <p className="mt-4 max-w-[65ch] text-sm text-muted">
+          France Travail n'est pas branché : son API « Offres d'emploi » est réservée aux organismes qui en font la demande. Ses offres passent par le favori, les alertes Gmail ou le copier-coller.
+        </p>
       </Section>
 
       {links.length > 0 && (

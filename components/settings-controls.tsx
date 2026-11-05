@@ -171,6 +171,35 @@ export function AiTest() {
   );
 }
 
+/** Test réel des sources d'offres : une requête par source branchée (clé valable, quota, réponse). */
+export function SourcesTest() {
+  const [busy, setBusy] = useState(false);
+  type Line = { id: string; label: string; configured: boolean; ok: boolean; count: number; ms: number; error?: string };
+  const [res, setRes] = useState<{ error?: string; lines?: Line[] } | null>(null);
+  async function run() {
+    setBusy(true);
+    setRes(null);
+    const r = await fetch("/api/admin/sources", { method: "POST" }).then((r) => r.json()).catch(() => ({ error: "Connexion interrompue." }));
+    setBusy(false);
+    setRes(r.error ? { error: r.error } : { lines: r.sources as Line[] });
+  }
+  return (
+    <div>
+      <button className="btn btn-sm" onClick={run} disabled={busy}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />} Tester les sources</button>
+      {res?.error && <p className="mt-2 text-sm text-bad" role="status">{res.error}</p>}
+      {res?.lines && (
+        <ul className="mt-2 space-y-1 text-sm" role="status">
+          {res.lines.map((l) => (
+            <li key={l.id} className={!l.configured ? "text-muted" : l.ok ? "text-good" : "text-bad"}>
+              {!l.configured ? `${l.label} : non branchée` : l.ok ? `${l.label} : répond en ${(l.ms / 1000).toFixed(1)} s (${l.count} offre${l.count > 1 ? "s" : ""} sur la requête de test)` : l.error?.startsWith(l.label) ? l.error : `${l.label} : ${l.error}`}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function CopySql({ sql }: { sql: string }) {
   const { toast } = useFeedback();
   return (
