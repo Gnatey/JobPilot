@@ -42,6 +42,7 @@ ok("le message public ne contient rien de technique", !looksTechnical(PUBLIC_ERR
 
 // Le vrai message de limite du jour (celui que voit un ami) ne doit jamais être masqué
 {
+  process.env.AI_DAILY_BUDGET = "60"; // le message n'existe que si un plafond a été remis (par défaut : aucun, voir tests/quota.test.ts)
   const fake = { rpc: async () => ({ data: -1, error: null }) } as never;
   let msg = "";
   try { await spendAi(fake, { email: "ami@example.fr" }, 2); } catch (e) { msg = (e as Error).message; }
@@ -52,6 +53,7 @@ ok("le message public ne contient rien de technique", !looksTechnical(PUBLIC_ERR
   await spendAi(spy, { email: "Juliana@example.fr" }, 2);
   ok("l'admin n'a pas de plafond (aucun compteur touché)", !called && isOwner("juliana@example.fr"));
   delete process.env.OWNER_EMAILS;
+  delete process.env.AI_DAILY_BUDGET;
 }
 
 // ---------- Vue « comptes et usage » ----------

@@ -13,7 +13,7 @@
 - Sources d'offres : le code sait interroger **Adzuna** et **Jooble**, mais **aucune de leurs clés n'est dans Vercel** : la recherche automatique est donc éteinte aujourd'hui. Les identifiants **France Travail** sont dans Vercel mais **le code ne les utilise pas encore**.
 - Aucune limitation du nombre de requêtes par personne (hors budget d'IA).
 - Jeton Gmail en clair en base : **réglé par le paquet 1A**. Suppression de compte sans reconnexion : **réglé par le paquet 1A**.
-- `npm audit` : faille dans `postcss` (livré avec Next) ; le correctif demande Next 16.
+- `npm audit` : faille dans `postcss` (livré avec Next) ; le correctif demandait Next 16 (**réglé par le paquet 6**).
 
 ## Les paquets, dans l'ordre
 
@@ -29,9 +29,9 @@ Plan du site, `robots.txt` qui laisse Google charger les styles et scripts, adre
 **France Travail n'est pas branché, volontairement** : son API « Offres d'emploi » est réservée aux organismes qui en font la demande (fiche officielle sur data.gouv.fr : accès restreint, non exposé pour l'instant) et le dépôt n'en garde aucune trace de code qui marchait. Écrire un branchement à l'aveugle, sans pouvoir le tester ni avec les identifiants (qui sont dans Vercel, hors de portée), serait de la fausse sécurité. Ses offres passent par le favori, les alertes Gmail et le copier-coller. Les variables `FRANCE_TRAVAIL_CLIENT_ID` / `FRANCE_TRAVAIL_CLIENT_SECRET` dans Vercel ne servent à rien : à retirer si tu veux (moins de secrets stockés).
 **Fait** : tests de la recherche multi-sources (offre vue par deux sources comptée une fois, une source en panne n'arrête pas l'autre, aucune clé dans les messages d'erreur, filtres communs), bouton administrateur « Tester les sources » (une vraie requête par source, plafonné), message d'erreur qui renvoie à Administration (et non plus à Réglages). **Reste à toi** : créer les clés gratuites Adzuna et/ou Jooble et les mettre dans Vercel (jamais dans un chat) pour que la recherche automatique reparte.
 
-### Paquet 4 : socle technique, livré le 5 novembre (Next 16 : prêt, pas mis en ligne)
+### Paquet 4 : socle technique, livré le 5 novembre (Next 16 : mis en ligne avec le paquet 6)
 **Fait** : faille `postcss` réglée sans changer de version majeure (`overrides` dans `package.json` : `npm audit` passe de 2 failles à 0, le CSS produit est identique octet pour octet) ; lectures complètes de `applications` et de la file « Tout analyser » passées par `fetchAll` (un `limit(3000)` était coupé à 1 000 en silence : au-delà, les doublons de Suivi n'étaient jamais retrouvés) avec un test qui interdit tout `limit(N)` au-dessus de 1 000 ; vérification automatique à chaque envoi sur GitHub (`.github/workflows/verifications.yml` : types, tests, construction, failles).
-**Next 16 : essai fait dans une copie, rien changé en ligne.** Avec Next 16.4.5 : types, 17 fichiers de tests, construction, parcours dans Chromium (26 pages, CSP), rig Googlebot et rig de reconnexion espacée passent tous. Seul avertissement : le fichier `middleware.ts` s'appelle désormais `proxy.ts` (l'ancien nom marche encore). **Décision à toi** : mettre en ligne la montée de version ou attendre (voir « Décisions »).
+**Next 16 : essai fait dans une copie, rien changé en ligne.** Avec Next 16.4.5 : types, 17 fichiers de tests, construction, parcours dans Chromium (26 pages, CSP), rig Googlebot et rig de reconnexion espacée passent tous. Seul avertissement : le fichier `middleware.ts` s'appelle désormais `proxy.ts` (l'ancien nom marche encore). **Décision de Juliana (5 novembre) : go, « personne ne verra une grosse diff »** : livré avec le paquet 6.
 **Pas fait, dépend de toi** : suivi des erreurs (Sentry ou équivalent : demande un compte et une clé, une ligne dans la politique de sécurité du navigateur et dans la page Confidentialité).
 
 ### Paquet 5 : refonte visuelle et parcours (en trois tranches)
@@ -39,9 +39,15 @@ Plan du site, `robots.txt` qui laisse Google charger les styles et scripts, adre
 5a accueil, bienvenue (arrivée d'une personne qui n'est pas toi) et navigation (contrôlés : aucune repeinte nécessaire, seulement les finitions listées plus haut) ; 5b Offres & CV, Suivi, Recommandées ; 5c CV et lettres. Avec le reste de l'audit (boutons sur téléphone, champs sans étiquette, titres de pages), le mode sombre, un test sur iPhone.
 **Garde-fous** : les comportements du fichier `CLAUDE.md` (« à ne pas casser ») restent, chaque tranche passe tous les tests et un rendu sur ordinateur et téléphone avant mise en ligne.
 
+### Paquet 6 : Next 16, Jooble, fin du plafond d'IA (livré le 5 novembre)
+Un seul paquet, comme elle le veut, demandé après le bilan du paquet 5 (« go » pour Next 16, clé Jooble refusée, IA illimitée).
+- **Next 16.4.5** (Turbopack) : `middleware.ts` devient `proxy.ts` (fonction `proxy`), le correctif `overrides.next.postcss` disparaît (`npm audit` = 0 sans lui), `tsconfig.json` réécrit par Next 16 (`jsx: react-jsx`). Aucune autre modification de code.
+- **Jooble** : la doc de Jooble dit que chaque pays a son site et sa propre clé. Une clé « France » est donc refusée par `jooble.org` (403) : le code essaie maintenant `fr.jooble.org` puis `jooble.org` et retient celui qui répond ; les guillemets, espaces ou « JOOBLE_API_KEY= » collés avec la clé sont retirés ; un blocage par page de protection n'est plus annoncé comme « clé refusée » ; le message dit quels sites ont répondu quoi, jamais la clé. **Non testé contre le vrai Jooble** (le réseau de l'atelier ne le joint pas) : c'est Juliana qui le verra avec « Tester les sources ».
+- **Plafond d'IA** : plus de limite par personne par défaut ; le compteur continue de compter ; `AI_DAILY_BUDGET` remet un plafond.
+
 ## Décisions à prendre par Juliana
-0. **Next 16** : mise en ligne de la montée de version (essai concluant, annulable en un clic dans Vercel › Deployments › Promote l'ancienne version) : oui / après la refonte visuelle / non.
-1. **IA partagée** : quelle piste (plafond seul, clé personnelle par ami, file d'attente) avant d'ouvrir à plus de monde ?
+0. ~~Next 16~~ : **oui** (Juliana, 5 novembre), livré avec le paquet 6. Annulable en un clic dans Vercel › Deployments › Promote l'ancienne version.
+1. ~~IA partagée~~ : **aucun plafond par personne** (Juliana, 5 novembre : « illimité, et s'il n'y en a plus, tant pis »), livré avec le paquet 6. Reste vrai : un compte peut épuiser le quota gratuit partagé pour les autres ; `AI_DAILY_BUDGET` dans Vercel remet un plafond en une minute. Clé personnelle par ami et file d'attente restent des pistes si ça arrive.
 2. **Adresse e-mail pro** pour les pages légales (avant le paquet 2).
 3. ~~Titre « Recherche (En cours de développement) »~~ : **retiré** (Juliana, 5 novembre).
 4. ~~Pages légales dans Google~~ : **rendues indexables** (Juliana, 5 novembre : la validation de la marque ne passait pas).

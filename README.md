@@ -156,7 +156,7 @@ JobPilot récupère les offres de quatre façons, de la plus simple à la plus a
 3. **Copier-coller** : un lien ou le texte d'une annonce dans « Analyser une offre ».
 4. **Adzuna et Jooble (facultatif, automatique chaque matin)** :
    - Adzuna : crée un compte sur [developer.adzuna.com](https://developer.adzuna.com), la clé arrive tout de suite. Mets `ADZUNA_APP_ID` et `ADZUNA_APP_KEY` dans Vercel.
-   - Jooble : demande une clé sur [jooble.org/api/about](https://jooble.org/api/about). Mets `JOOBLE_API_KEY` dans Vercel.
+   - Jooble : demande une clé sur [jooble.org/api/about](https://jooble.org/api/about) (chaque pays a son site et sa clé : choisis la France). Mets `JOOBLE_API_KEY` dans Vercel, la clé seule, sans guillemets. JobPilot essaie `fr.jooble.org` puis `jooble.org`.
    - Puis **Redeploy**. Administration → Sources d'offres affiche ce qui est branché, et le bouton « Tester les sources » vérifie chaque clé avec une vraie requête.
 
 > France Travail n'est plus branché : son API « Offres d'emploi » est réservée aux organismes qui en font la demande. Ses offres passent par le favori ou le copier-coller.
@@ -168,7 +168,7 @@ Avant d'inviter des amis :
 3. **Anti-robots** : Supabase → Authentication → Attack Protection → active la protection CAPTCHA (Cloudflare Turnstile est gratuit).
 4. **Gmail** : tant que l'écran de consentement Google est en mode « Testing », seules les adresses ajoutées dans **Test users** (100 maximum) peuvent connecter Gmail, et la connexion expire au bout de 7 jours. Tes amis peuvent utiliser JobPilot sans Gmail (favori, copier-coller).
 5. **Pages légales** : ajoute `PUBLISHER_NAME` et `PUBLISHER_EMAIL` dans Vercel (ils s'affichent dans `/mentions-legales` et `/confidentialite`). Ces pages sont des modèles honnêtes, pas un avis juridique.
-6. **IA partagée** : la clé Gemini gratuite est partagée entre tous les comptes. Chaque personne a un plafond quotidien d'actions IA (`AI_DAILY_BUDGET`, 60 par défaut). Ton adresse (dans `OWNER_EMAILS`) n'a pas de plafond. Côté Gemini, les conditions de Google prévoient que, pour une application exploitée depuis l'Espace économique européen, la Suisse ou le Royaume-Uni, les règles des services payants s'appliquent aussi au quota gratuit (contenus non utilisés pour améliorer ses produits) ; ailleurs, Google peut les utiliser et les faire relire. C'est dit dans la page Confidentialité. À revérifier sur [ai.google.dev/gemini-api/terms](https://ai.google.dev/gemini-api/terms) avant d'ouvrir l'app à des inconnus.
+6. **IA partagée** : la clé Gemini gratuite est partagée entre tous les comptes. Par défaut, il n'y a pas de plafond par personne : quand les IA gratuites sont à leur limite, l'app le dit et on réessaie plus tard. Pour en remettre un, mets `AI_DAILY_BUDGET` (5 ou plus) dans Vercel. Ton adresse (dans `OWNER_EMAILS`) n'a jamais de plafond. Côté Gemini, les conditions de Google prévoient que, pour une application exploitée depuis l'Espace économique européen, la Suisse ou le Royaume-Uni, les règles des services payants s'appliquent aussi au quota gratuit (contenus non utilisés pour améliorer ses produits) ; ailleurs, Google peut les utiliser et les faire relire. C'est dit dans la page Confidentialité. À revérifier sur [ai.google.dev/gemini-api/terms](https://ai.google.dev/gemini-api/terms) avant d'ouvrir l'app à des inconnus.
 
 ### Variables optionnelles
 
@@ -176,7 +176,7 @@ Avant d'inviter des amis :
 |---|---|---|
 | `AUTO_DAILY_LIMIT` | 3 | Offres analysées par l'IA chaque matin (contrôle le coût) |
 | `AUTO_MIN_QUICK_SCORE` | 55 | Pré-score minimum pour mériter une analyse automatique |
-| `AI_DAILY_BUDGET` | 60 | Actions IA par personne et par jour |
+| `AI_DAILY_BUDGET` | vide (aucun plafond) | Plafond d'actions IA par personne et par jour, à remplir seulement si un compte épuise l'IA gratuite des autres |
 | `OWNER_EMAILS` | vide | Adresses sans plafond d'IA, seules à voir l'installation |
 | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | vides | Sources d'offres automatiques (étape 6) |
 | `PUBLISHER_NAME`, `PUBLISHER_EMAIL` | vides | Éditeur et contact affichés dans les pages légales |
@@ -198,7 +198,7 @@ Avant d'inviter des amis :
 - **Inscriptions ouvertes** : la page d'accueil invite n'importe qui à créer un compte. Pour garder l'app pour toi seule, désactive les nouvelles inscriptions dans Supabase (Authentication, réglages d'inscription) une fois ton compte créé.
 - **Ouvrir l'app à d'autres** : le code est déjà multi-utilisateur, chacun ne voit que ses données. Deux choses changent :
   - **Gmail** : au-delà de 100 utilisateurs test, Google exige une vérification de l'app. Pour le scope `gmail.readonly`, cela inclut un audit de sécurité payant. Sans Gmail, tout le reste fonctionne.
-  - **IA** : le quota gratuit est partagé entre tous les comptes (plafond par personne, `AI_DAILY_BUDGET`). Gemini, Groq et Mistral se relaient pour absorber plus de monde, mais restent des offres gratuites aux limites réelles. Côté données, voir la page Confidentialité : dans l'Espace économique européen, Google applique au quota gratuit les règles des services payants ; Mistral demande de désactiver l'usage des appels API pour l'entraînement.
+  - **IA** : le quota gratuit est partagé entre tous les comptes (pas de plafond par personne par défaut ; `AI_DAILY_BUDGET` en remet un). Gemini, Groq et Mistral se relaient pour absorber plus de monde, mais restent des offres gratuites aux limites réelles. Côté données, voir la page Confidentialité : dans l'Espace économique européen, Google applique au quota gratuit les règles des services payants ; Mistral demande de désactiver l'usage des appels API pour l'entraînement.
 - La durée max d'exécution (5 min) du cron demande **Fluid compute**, activé par défaut sur les nouveaux projets Vercel.
 
 ## En cas de problème

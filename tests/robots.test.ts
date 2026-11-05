@@ -20,10 +20,10 @@ ok("Google reçoit l'adresse du plan du site", r.sitemap === `${siteUrl()}/sitem
 const map = sitemap().map((e) => e.url);
 ok("plan du site : les trois pages publiques, et elles seules", JSON.stringify(map) === JSON.stringify([siteUrl(), `${siteUrl()}/mentions-legales`, `${siteUrl()}/confidentialite`]), map.join(" "));
 
-// Les pages ouvertes existent bien, et la porte (middleware) les laisse passer sans connexion
-const mw = readFileSync("middleware.ts", "utf8");
-ok("middleware : les pages légales sont publiques", mw.includes('"/mentions-legales"') && mw.includes('"/confidentialite"'));
-ok("middleware : robots.txt, plan du site et image de partage ne sont pas derrière la connexion", /matcher:[^\n]*robots\.txt/.test(mw) && /matcher:[^\n]*sitemap\.xml/.test(mw) && /matcher:[^\n]*opengraph-image/.test(mw));
+// Les pages ouvertes existent bien, et la porte (proxy.ts, ex-middleware.ts avant Next 16) les laisse passer sans connexion
+const mw = readFileSync("proxy.ts", "utf8");
+ok("proxy : les pages légales sont publiques", mw.includes('"/mentions-legales"') && mw.includes('"/confidentialite"'));
+ok("proxy : robots.txt, plan du site et image de partage ne sont pas derrière la connexion", /matcher:[^\n]*robots\.txt/.test(mw) && /matcher:[^\n]*sitemap\.xml/.test(mw) && /matcher:[^\n]*opengraph-image/.test(mw));
 ok("pages légales présentes", readFileSync("app/mentions-legales/page.tsx", "utf8").length > 0 && readFileSync("app/confidentialite/page.tsx", "utf8").length > 0);
 
 // « noindex » partout, sauf l'accueil visiteur (sinon la demande d'indexation faite dans Search Console serait refusée)

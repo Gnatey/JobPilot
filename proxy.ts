@@ -6,7 +6,7 @@ import { TRUST_COOKIE, sessionExpired, trustSecret, verifyTrust } from "@/lib/re
 // La page d'accueil (/) est publique : elle présente le site aux visiteurs et mène à la connexion
 const PUBLIC = ["/login", "/auth", "/api/gmail/callback", "/configuration", "/mentions-legales", "/confidentialite"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Variables Supabase absentes : on affiche la page de configuration au lieu de planter

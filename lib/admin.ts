@@ -79,13 +79,13 @@ export function aiPerDay(usage: UsageRow[], now: Date): { day: string; n: number
   return lastDays(now).map((day) => ({ day, n: usage.filter((x) => x.day === day).reduce((s, x) => s + x.n, 0) }));
 }
 
-export function summarize(rows: AccountRow[], cap: number, now: Date) {
+export function summarize(rows: AccountRow[], cap: number | null, now: Date) {
   const weekAgo = now.getTime() - 7 * 86_400_000;
   return {
     accounts: rows.length,
     active7: rows.filter((r) => r.lastSignInAt && Date.parse(r.lastSignInAt) >= weekAgo).length,
     aiToday: rows.reduce((s, r) => s + r.aiToday, 0),
-    atCap: rows.filter((r) => r.aiToday >= cap).length,
+    atCap: cap == null ? 0 : rows.filter((r) => r.aiToday >= cap).length,
   };
 }
 

@@ -20,7 +20,7 @@ export type AdminOverview = {
   truncated: boolean;
   summary: ReturnType<typeof summarize>;
   perDay: { day: string; n: number }[];
-  cap: number;
+  cap: number | null;
   countedFor: number;
 };
 

@@ -7,7 +7,7 @@ import { SyncButton } from "@/components/sync-button";
 import { ThemePicker } from "@/components/theme";
 import { AccountCard, Bookmarklet, DataControls, GmailControls, Prefs, RecapControls } from "@/components/settings-controls";
 import { fmtDate } from "@/lib/format";
-import { isOwner, usedToday, dailyBudget } from "@/lib/quota";
+import { isOwner, usedToday, dailyBudget, describeUsage } from "@/lib/quota";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Réglages" };
@@ -72,7 +72,7 @@ export default async function Parametres({ searchParams }: { searchParams: Promi
 
       {used !== null && !isOwner(user.email) && (
         <p className="mb-6 text-sm text-muted" role="note">
-          Actions IA utilisées aujourd'hui : <strong className="text-ink">{used} sur {dailyBudget()}</strong>. L'IA gratuite est partagée entre tous les comptes ; le compteur repart de zéro chaque nuit.
+          Actions IA utilisées aujourd'hui : <strong className="text-ink">{describeUsage(used, dailyBudget()).figure}</strong>. {describeUsage(used, dailyBudget()).note}
         </p>
       )}
 

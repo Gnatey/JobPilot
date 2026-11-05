@@ -15,7 +15,7 @@ export const ENV_VARS: { name: string; required: boolean; role: string; alt?: st
   { name: "ADZUNA_APP_ID", required: false, role: "Recherche automatique d'offres Adzuna (gratuit, clé immédiate)" },
   { name: "ADZUNA_APP_KEY", required: false, role: "Recherche automatique d'offres Adzuna" },
   { name: "JOOBLE_API_KEY", required: false, role: "Recherche automatique d'offres Jooble (gratuit, sur demande)" },
-  { name: "AI_DAILY_BUDGET", required: false, role: "Actions IA par personne et par jour (60 par défaut)" },
+  { name: "AI_DAILY_BUDGET", required: false, role: "Plafond d'actions IA par personne et par jour (aucun plafond si absent)" },
 ];
 
 // Les NEXT_PUBLIC_* sont figées au moment du build : il faut redéployer après les avoir ajoutées.

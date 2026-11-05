@@ -81,7 +81,7 @@ export default async function Admin() {
                 ["Comptes", overview.summary.accounts],
                 ["Connectés cette semaine", overview.summary.active7],
                 [`Actions IA aujourd'hui`, overview.summary.aiToday],
-                [`Au plafond du jour (${overview.cap})`, overview.summary.atCap],
+                [overview.cap == null ? "Plafond par personne" : `Au plafond du jour (${overview.cap})`, overview.cap == null ? "aucun" : overview.summary.atCap],
               ].map(([label, n]) => (
                 <div key={label} className="rounded-2xl border border-line bg-surface p-4">
                   <dd className="heading text-2xl">{n}</dd>
@@ -115,7 +115,7 @@ export default async function Admin() {
                       </th>
                       <td className="px-3 py-2">{fmtDate(r.createdAt) || "—"}</td>
                       <td className="px-3 py-2">{fmtDate(r.lastSignInAt) || "jamais"}</td>
-                      <td className={`px-3 py-2 text-right ${r.aiToday >= overview.cap ? "font-semibold text-bad" : ""}`}>{r.aiToday}</td>
+                      <td className={`px-3 py-2 text-right ${overview.cap != null && r.aiToday >= overview.cap ? "font-semibold text-bad" : ""}`}>{r.aiToday}</td>
                       <td className="px-3 py-2 text-right">{r.ai7}</td>
                       <td className="px-4 py-2 text-right">{r.applications ?? "—"}</td>
                     </tr>
@@ -190,8 +190,9 @@ export default async function Admin() {
           <li className="px-4 py-3">
             <p className="font-semibold">Jooble {sources.some((s) => s.id === "jooble") ? <span className="tag tag-good ml-2">Branché</span> : <span className="tag ml-2">Non branché</span>}</p>
             <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-muted">
-              <li>Demande une clé gratuite sur <a className="link" href="https://jooble.org/api/about" target="_blank" rel="noreferrer">jooble.org/api/about</a> (elle arrive par email).</li>
-              <li>Dans Vercel, ajoute <code>JOOBLE_API_KEY</code>, puis fais Redeploy.</li>
+              <li>Demande une clé gratuite sur <a className="link" href="https://jooble.org/api/about" target="_blank" rel="noreferrer">jooble.org/api/about</a> (elle arrive par email). Chaque pays a son site Jooble et sa propre clé : pour la France, choisis la France (fr.jooble.org) si le site te le propose.</li>
+              <li>Dans Vercel, ajoute <code>JOOBLE_API_KEY</code> avec la clé seule (sans guillemets ni espace), puis fais Redeploy. JobPilot essaie fr.jooble.org puis jooble.org.</li>
+              <li>Clique sur « Tester les sources » : le message dit quels sites ont répondu, et jamais la clé.</li>
             </ol>
           </li>
         </ul>

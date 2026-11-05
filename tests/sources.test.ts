@@ -13,7 +13,7 @@ const which = (url: string) => (url.includes("adz.test") ? "adz" : "jb");
   const next = q[which(url)].shift();
   if (!next) throw new Error("plus de réponse scriptée pour " + which(url));
   const body = next.body ?? {};
-  return { ok: next.status < 300, status: next.status, json: async () => body, text: async () => JSON.stringify(body) };
+  return { ok: next.status < 300, status: next.status, json: async () => body, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) };
 };
 const reset = () => { q.adz = []; q.jb = []; urls.length = 0; };
 
@@ -131,6 +131,76 @@ reset();
   ok("filtre : télétravail seulement", keys({ remoteOnly: true }) === "az:4", keys({ remoteOnly: true }));
   ok("filtre : mots exclus", !keys({ exclude: "senior, télétravail" }).includes("az:2") && !keys({ exclude: "senior, télétravail" }).includes("az:4"));
   ok("filtre : un stage n'apparaît que s'il est demandé", !keys({}).includes("az:5") && keys({ contracts: ["STG"] }).includes("az:5"));
+}
+
+// ---------- Jooble : clé nettoyée, un site par pays ----------
+const { cleanKey, forgetJoobleHost } = await import("../lib/sources/jooble");
+{
+  const k = "abc-123-def";
+  ok("clé collée avec des espaces et un retour à la ligne : nettoyée", cleanKey(`  ${k} \n`) === k);
+  ok("clé collée entre guillemets (droits ou typographiques) : nettoyée", cleanKey(`"${k}"`) === k && cleanKey(`'${k}'`) === k && cleanKey(`“${k}”`) === k);
+  ok("« JOOBLE_API_KEY=… » recopié en entier : on garde la clé", cleanKey(`JOOBLE_API_KEY=${k}`) === k && cleanKey(`JOOBLE_API_KEY = "${k}"`) === k);
+  ok("adresse complète collée à la place de la clé : on garde la clé", cleanKey(`https://jooble.org/api/${k}`) === k && cleanKey(`https://fr.jooble.org/api/${k}/`) === k);
+  ok("clé vide ou réduite à des guillemets : considérée absente", cleanKey(undefined) === "" && cleanKey("") === "" && cleanKey('""') === "" && cleanKey("  ") === "");
+  ok("une clé normale n'est pas modifiée", cleanKey(SECRET_JB) === SECRET_JB);
+
+  unplug(); env.JOOBLE_API_KEY = '""';
+  ok("une clé réduite à des guillemets ne compte pas comme une source branchée", !hasSource());
+
+  reset(); unplug(); env.JOOBLE_API_KEY = ` "${SECRET_JB}"\n`;
+  q.jb.push(joo(jb(69, "Data Analyst", "Kappa")));
+  await searchAll(crit);
+  ok("la requête envoyée contient la clé nettoyée (ni guillemets ni espaces)", urls.length === 1 && urls[0].endsWith(`/api/${SECRET_JB}`), urls[0]);
+}
+
+// Sans JOOBLE_API_BASE : fr.jooble.org puis jooble.org (une clé est propre à un pays), et on retient celui qui répond
+{
+  const forced = env.JOOBLE_API_BASE; delete env.JOOBLE_API_BASE;
+  const hide = (m: string) => !m.includes(SECRET_JB);
+  reset(); forgetJoobleHost(); unplug(); plugJooble();
+  q.jb.push({ status: 403 }, joo(jb(70, "Data Analyst", "Iota")));
+  let r = await searchAll(crit);
+  ok("clé refusée par fr.jooble.org : jooble.org est essayé ensuite et répond", r.offers.map((o) => o.key).join() === "jb:70" && urls.length === 2 && urls[0].startsWith("https://fr.jooble.org/api/") && urls[1].startsWith("https://jooble.org/api/"), urls.join(" | ").replaceAll(SECRET_JB, "…"));
+  reset();
+  q.jb.push(joo(jb(71, "Data Analyst", "Lambda")));
+  r = await searchAll(crit);
+  ok("le site qui a répondu est retenu : plus de refus inutile ensuite", r.offers.length === 1 && urls.length === 1 && urls[0].startsWith("https://jooble.org/api/"));
+
+  reset(); forgetJoobleHost();
+  q.jb.push({ status: 403 }, { status: 403 });
+  let e = await attempt(searchAll(crit));
+  const m1 = "e" in e ? e.e.message ?? "" : "";
+  ok("clé refusée partout : 502 qui dit quels sites ont refusé et pourquoi", "e" in e && e.e.status === 502 && /clé refusée/.test(m1) && m1.includes("403 sur fr.jooble.org") && m1.includes("403 sur jooble.org") && /fr\.jooble\.org/.test(m1), m1);
+  ok("clé refusée partout : la clé n'apparaît jamais dans le message", hide(m1));
+
+  reset(); forgetJoobleHost();
+  q.jb.push({ status: 403, body: "<html><title>Just a moment...</title></html>" }, { status: 403, body: "<!DOCTYPE html><html>Attention Required! | Cloudflare" });
+  e = await attempt(searchAll(crit));
+  const m2 = "e" in e ? e.e.message ?? "" : "";
+  ok("page de protection (HTML) : annoncé comme un blocage, pas comme une clé refusée", /accès bloqué/.test(m2) && !/clé refusée/.test(m2) && hide(m2), m2);
+
+  reset(); forgetJoobleHost();
+  q.jb.push({ status: 404 }, { status: 404 });
+  e = await attempt(searchAll(crit));
+  ok("adresse introuvable partout : message distinct de la clé refusée", "e" in e && /adresse introuvable/.test(e.e.message ?? "") && !/clé refusée/.test(e.e.message ?? ""));
+
+  reset(); forgetJoobleHost();
+  q.jb.push({ status: 429 });
+  e = await attempt(searchAll(crit));
+  ok("quota atteint : on n'essaie pas l'autre site (la clé n'est pas en cause)", "e" in e && /quota/.test(e.e.message ?? "") && urls.length === 1);
+
+  reset(); forgetJoobleHost();
+  q.jb.push({ status: 500 });
+  e = await attempt(searchAll(crit));
+  ok("erreur du site (500) : pas de deuxième essai non plus", "e" in e && /refusée \(500\)/.test(e.e.message ?? "") && urls.length === 1);
+
+  // Adresse imposée : un seul site
+  env.JOOBLE_API_BASE = "http://jooble.test";
+  reset(); forgetJoobleHost();
+  q.jb.push({ status: 403 });
+  e = await attempt(searchAll(crit));
+  ok("JOOBLE_API_BASE imposée : un seul site essayé", "e" in e && /clé refusée/.test(e.e.message ?? "") && urls.length === 1 && urls[0].startsWith("http://jooble.test/api/"));
+  if (forced) env.JOOBLE_API_BASE = forced;
 }
 
 // ---------- Test de l'administration ----------
