@@ -52,8 +52,8 @@ Appli perso de suivi de candidatures de Juliana (data analyst / BI, France). Ell
 - Le tableau des comptes de `/admin` est anonyme (code court, jamais d'adresse) : le détail d'un compte se consulte dans Supabase. Ne pas y remettre d'emails.
 - La balise `google-site-verification` de `app/layout.tsx` prouve à Google que le site est à Juliana (validation du branding de l'écran d'autorisation Gmail) : ne pas la retirer.
 
-## Refonte en cours
-Juliana a demandé (5 novembre 2026) une refonte complète, dans l'ordre de `docs/plan-refonte.md` (paquets 1 à 5). Elle a d'abord voulu valider chaque paquet, puis a dit « non lance tout » : les paquets s'enchaînent, chacun testé, livré, suivi d'un court bilan. S'arrêter seulement pour ce qui dépend d'elle (SQL à lancer, adresse e-mail pour les pages légales, choix de la stratégie d'IA partagée) et prévenir avant de mettre en ligne une montée de version majeure (Next 16). Avancement : voir `docs/plan-refonte.md` et `docs/journal-des-rondes.md`.
+## Refonte (paquets 1 à 5 terminés le 5 novembre 2026)
+Juliana a demandé (5 novembre 2026) une refonte complète, dans l'ordre de `docs/plan-refonte.md` (paquets 1 à 5). Elle a d'abord voulu valider chaque paquet, puis a dit « non lance tout » : les paquets s'enchaînent, chacun testé, livré, suivi d'un court bilan. S'arrêter seulement pour ce qui dépend d'elle (SQL à lancer, adresse e-mail pour les pages légales, choix de la stratégie d'IA partagée) et prévenir avant de mettre en ligne une montée de version majeure (Next 16). Avancement : voir `docs/plan-refonte.md` et `docs/journal-des-rondes.md`. **Tout est livré ; ne restent que les décisions de Juliana** : montée vers Next 16 (essai concluant, pas mis en ligne), adresse e-mail pour les pages légales (`PUBLISHER_NAME` / `PUBLISHER_EMAIL`), stratégie d'IA partagée, clés Adzuna / Jooble dans Vercel, suivi des erreurs (compte chez un fournisseur). Ne pas les lancer sans son accord.
 
 ## Pas encore fait (à ne pas faire sans demande)
 - Photo sur le CV (cadre photo dans le profil maître).
