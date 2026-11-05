@@ -5,6 +5,7 @@ import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Palette } from "@/components/palette";
 import { FeedbackProvider } from "@/components/ui/feedback";
+import { ConfirmedBanner } from "@/components/confirmed-banner";
 import { THEME_BOOT } from "@/components/theme";
 import { getUser } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/env";
@@ -44,7 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {user ? (
             <div className="md:flex">
               <Nav admin={isAdminEmail(user.email)} />
-              <main id="contenu" className="mx-auto w-full min-w-0 max-w-[90rem] px-4 pb-32 pt-6 md:px-8 md:pb-16 md:pt-8 xl:px-12">{children}</main>
+              <main id="contenu" className="mx-auto w-full min-w-0 max-w-[90rem] px-4 pb-32 pt-6 md:px-8 md:pb-16 md:pt-8 xl:px-12"><ConfirmedBanner />{children}</main>
               <Palette />
             </div>
           ) : (

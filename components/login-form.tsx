@@ -28,13 +28,14 @@ const POINTS = [
   { icon: Inbox, text: "Tes emails de recruteurs rangés et ton suivi à jour, tout seuls." },
 ];
 
-export function LoginForm({ initialMode, linkExpired, sessionExpired = false }: { initialMode: "login" | "signup"; linkExpired: boolean; sessionExpired?: boolean }) {
+export function LoginForm({ initialMode, linkExpired, sessionExpired = false, confirmed = false }: { initialMode: "login" | "signup"; linkExpired: boolean; sessionExpired?: boolean; confirmed?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean; done?: boolean } | null>(
-    linkExpired ? { text: "Ce lien a expiré ou a déjà servi. Demande-en un nouveau ci-dessous.", bad: true }
+    confirmed ? { text: "Ton adresse est confirmée. Connecte-toi avec ton email et ton mot de passe.", done: true }
+      : linkExpired ? { text: "Ce lien a expiré ou a déjà servi. Si tu avais déjà cliqué dessus, ton adresse est peut-être déjà confirmée : essaie de te connecter. Sinon, demande un nouveau lien ci-dessous.", bad: true }
       : sessionExpired ? { text: "Pour protéger ton compte, JobPilot te redemande de te connecter de temps en temps. Reconnecte-toi ci-dessous." }
       : null,
   );
@@ -50,14 +51,14 @@ export function LoginForm({ initialMode, linkExpired, sessionExpired = false }: 
     const { data, error } =
       mode === "login"
         ? await sb.auth.signInWithPassword({ email, password })
-        : await sb.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/auth/callback` } });
+        : await sb.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/auth/confirme` } });
     setBusy(false);
     if (error) return setMsg({ text: friendly(error.message, mode), bad: true });
     if (mode === "signup" && !data.session) {
       // Supabase exige la confirmation de l'adresse : on le dit clairement, et on prépare la connexion
       setPassword("");
       setMode("login");
-      return setMsg({ text: `Compte créé ! Un email de confirmation vient d'être envoyé à ${email}. Clique sur le lien qu'il contient (regarde aussi dans les courriers indésirables), puis reviens te connecter ici.`, done: true });
+      return setMsg({ text: `Compte créé ! Un email de confirmation vient d'être envoyé à ${email}. Clique sur le lien qu'il contient (regarde aussi dans les courriers indésirables). Si tu n'arrives pas directement dans JobPilot, reviens te connecter ici.`, done: true });
     }
     router.replace("/");
     router.refresh();

@@ -205,7 +205,7 @@ Avant d'inviter des amis :
 
 - **Vérification en deux étapes** (Réglages > Compte) : il faut que « TOTP » soit activé dans Supabase (Authentication > Sign In / Providers > Multi-Factor). Une fois activée, JobPilot demande le code à 6 chiffres après chaque connexion. Note bien le code secret affiché sous le QR code : il permet de reconfigurer l'application si tu perds ton téléphone. En dernier recours, Supabase permet normalement de retirer le second facteur d'un compte depuis Authentication > Users.
 
-- **Le lien du mail de confirmation mène vers une page inaccessible** : voir l'étape 3 de Supabase (Site URL et Redirect URLs). Les comptes créés se voient dans **Authentication → Users**, pas dans les tables.
+- **Le lien du mail de confirmation mène vers une page inaccessible** : voir l'étape 3 de Supabase (Site URL et Redirect URLs). Une fois l'adresse confirmée, le lien ramène sur JobPilot avec un message vert ; ouvert dans un autre navigateur que celui de l'inscription, il mène à la page de connexion avec « Ton adresse est confirmée » (il n'y a rien d'autre à faire que se connecter). L'adresse `supabase.co` visible dans le mail avant la redirection vient de l'offre gratuite de Supabase. Les comptes créés se voient dans **Authentication → Users**, pas dans les tables.
 - **« Ton CV n'a pas pu être analysé »** : ouvre « Détail technique » sur cette page : le message exact de l'IA y est écrit. Le bouton « Relancer l'analyse » réessaie avec des réglages plus simples ; rien n'est perdu.
 
 - **« 500 MIDDLEWARE_INVOCATION_FAILED »** (anciennes versions) ou **redirection vers /configuration** : une variable manque ou est mal saisie. La page `/configuration` liste ce qui est présent ou absent, sans jamais afficher les valeurs.
