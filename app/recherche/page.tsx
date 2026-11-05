@@ -218,7 +218,7 @@ export default function Recherche() {
 
   return (
     <>
-      <PageTitle title="Recherche (En cours de développement 😶‍🌫️)" sub="Dis ce que tu cherches aujourd'hui. Valide tes critères (ils remplacent les précédents), puis prépare ta journée : l'app choisit tes meilleures offres et ouvre le Tri rapide." />
+      <PageTitle title="Recherche" sub="Dis ce que tu cherches aujourd'hui. Valide tes critères (ils remplacent les précédents), puis prépare ta journée : l'app choisit tes meilleures offres et ouvre le Tri rapide." />
 
       {day && (
         <section className="mb-6 rounded-2xl border border-line bg-surface p-4 md:p-5" aria-label="Ma journée">

@@ -95,3 +95,9 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Page confidentialité** : dit que le jeton est chiffré et que la suppression exige une connexion récente.
 - **À savoir** : si la clé de service change un jour, les jetons chiffrés deviennent illisibles : la personne reconnecte Gmail (message clair). Pas de migration SQL dans cette partie.
 - **Reste dans le paquet 1** (partie B) : limitation du nombre de requêtes par personne (demande une migration SQL à lancer par Juliana), en-têtes CSP, test automatique « chaque table a sa politique RLS ».
+
+## Correctif : pages légales indexables, titre de Recherche (5 novembre 2026, 14 h)
+- Réponses de Juliana aux décisions du plan : titre « En cours de développement » à retirer ; pages légales indexables « car impossible de passer le branding » ; pas de regard extérieur sur la sécurité pour l'instant (elle testera avec ses différents comptes).
+- **Fait** : `/mentions-legales` et `/confidentialite` passent en « index, follow » (avec l'accueil visiteur, les trois seules pages indexables) ; titre de Recherche : « Recherche ». Test : `tests/robots.test.ts` vérifie qu'aucune autre page n'est indexable.
+- **Livré tout de suite, hors paquet** : demandé comme bloquant par Juliana (validation de la marque Gmail).
+- **À surveiller** : si la validation échoue encore, regarder (a) l'adresse de contact des pages légales (« adresse de contact non renseignée » : `PUBLISHER_EMAIL` absent de Vercel), (b) le fait que `vercel.app` est un domaine de plateforme (des témoignages de forum montrent Google refuser ce type de domaine pour la page d'accueil ; un nom de domaine à elle serait alors la voie, décision à elle).

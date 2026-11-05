@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { LegalShell, H2, ContactLine } from "@/components/legal";
 import { activeProviders, PROVIDER_NAMES, type ProviderId } from "@/lib/llm";
 
-export const metadata: Metadata = { title: "Confidentialité" };
+// Pages publiques lues par Google pour la validation de la marque de l'écran d'autorisation Gmail : indexables (le reste du site est en « noindex », voir app/layout.tsx)
+export const metadata: Metadata = { title: "Confidentialité", robots: { index: true, follow: true } };
 export const dynamic = "force-dynamic";
 
 /** Ce que chaque fournisseur d'IA indique faire des contenus envoyés (offres gratuites). À relire si leurs conditions changent. */

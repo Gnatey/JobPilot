@@ -37,6 +37,6 @@ Next 16 et correctif `postcss` (montée de version : testée à part, jamais de 
 ## Décisions à prendre par Juliana
 1. **IA partagée** : quelle piste (plafond seul, clé personnelle par ami, file d'attente) avant d'ouvrir à plus de monde ?
 2. **Adresse e-mail pro** pour les pages légales (avant le paquet 2).
-3. **Titre « Recherche (En cours de développement) »** : à retirer ou garder.
-4. **Pages légales dans Google** : elles sont lisibles par Google mais en « noindex ». Les rendre aussi indexables ?
-5. **Un regard extérieur sur la sécurité** avant l'ouverture au public ?
+3. ~~Titre « Recherche (En cours de développement) »~~ : **retiré** (Juliana, 5 novembre).
+4. ~~Pages légales dans Google~~ : **rendues indexables** (Juliana, 5 novembre : la validation de la marque ne passait pas).
+5. ~~Regard extérieur sur la sécurité~~ : **non** pour l'instant, Juliana testera avec ses différents comptes (5 novembre). Reste vrai : ce n'est pas un audit indépendant.
