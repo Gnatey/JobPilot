@@ -10,7 +10,7 @@ export async function POST() {
     const plain = data?.refresh_token ? await openToken(data.refresh_token, user.id).catch(() => null) : null; // illisible : on déconnecte quand même
     if (plain) await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(plain)}`, { method: "POST" }).catch(() => {});
     await supabase.from("gmail_accounts").delete().eq("user_id", user.id);
-    await patchPreferences(supabase, user.id, { daily_recap: false, recap_send_ok: false });
+    await patchPreferences(supabase, user.id, { daily_recap: false, recap_send_ok: false, gmail_issue: undefined });
     return { ok: true };
   });
 }

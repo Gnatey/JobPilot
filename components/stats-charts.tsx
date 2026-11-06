@@ -29,7 +29,7 @@ export function WeeklyChart({ weeks }: { weeks: Week[] }) {
 
 /** Couleurs des statuts (mêmes teintes que les pastilles du Suivi). */
 const STATUS_HEX: Record<string, string> = {
-  a_postuler: "#94a3b8", postule: "#0ea5e9", relance: "#6366f1", entretien: "#f59e0b",
+  a_postuler: "#94a3b8", postule: "#0ea5e9", entretien: "#f59e0b",
   test: "#f97316", offre: "#10b981", refuse: "#f43f5e", abandonne: "#a1a1aa", expiree: "#c4bfb5",
 };
 

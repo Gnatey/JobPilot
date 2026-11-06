@@ -1,4 +1,5 @@
 import { HttpError } from "./supabase/server";
+import { classifyTokenFailure, TOKEN_MESSAGE, TOKEN_STATUS } from "./gmail-errors";
 
 const SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
@@ -46,7 +47,12 @@ export async function accessToken(refresh: string) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ refresh_token: refresh, client_id: id, client_secret: secret, grant_type: "refresh_token" }),
   });
-  if (!res.ok) throw new HttpError(401, "Accès Gmail expiré : reconnecte ton compte Gmail.");
+  if (!res.ok) {
+    // Le code d'erreur de Google (jamais le jeton) dit s'il faut reconnecter, attendre ou corriger la clé de l'application
+    const body = (await res.json().catch(() => ({}))) as { error?: unknown };
+    const issue = classifyTokenFailure(res.status, typeof body.error === "string" ? body.error : null);
+    throw new HttpError(TOKEN_STATUS[issue], TOKEN_MESSAGE[issue]);
+  }
   return ((await res.json()) as { access_token: string }).access_token;
 }
 

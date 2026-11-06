@@ -352,11 +352,15 @@ Ignore les menus, filtres, publicités, offres « sponsorisées » sans intitul�
 
 /* ---------- 10. Relance ---------- */
 
-export async function generateFollowup(profile: Profile, app: { company: string; title: string; applied_at: string | null; contact: string | null; status: string }): Promise<{ subject: string; body: string }> {
+/** Relance APRÈS un entretien ou une épreuve (jamais pour une candidature sans entretien : voir lib/followup.ts). */
+export async function generateFollowup(profile: Profile, app: { company: string; title: string; applied_at: string | null; interview_at?: string | null; contact: string | null; status: string }): Promise<{ subject: string; body: string }> {
+  const test = app.status === "test";
   return structured<{ subject: string; body: string }>({
     fast: true,
-    system: `Tu rédiges un email de relance de candidature en français : 80-110 mots, poli, direct, sans insistance ni formule creuse. Rappelle le poste, une valeur ajoutée concrète tirée du profil, et propose un échange. Signe avec le nom et le téléphone du profil. ${HONESTY}`,
-    prompt: `Profil : ${JSON.stringify({ identity: profile.identity, targets: profile.targets, experiences: profile.experiences.map((e) => ({ company: e.company, role: e.role })) })}\nCandidature : ${JSON.stringify(app)}`,
+    system: `Tu rédiges un email de relance en français, envoyé APRÈS ${test ? "une épreuve (test ou cas pratique)" : "un entretien"} pour ce poste : 80-110 mots, poli, direct, sans insistance ni formule creuse.
+Remercie pour l'échange, rappelle le poste et ton intérêt, ajoute UNE valeur concrète tirée du profil, et demande où en est le processus et les prochaines étapes. Signe avec le nom et le téléphone du profil.
+Tu ne sais pas ce qui s'est dit pendant ${test ? "l'épreuve" : "l'entretien"} : n'invente aucun sujet abordé, aucun nom d'interlocuteur, aucune remarque de l'entreprise. ${HONESTY}`,
+    prompt: `Profil : ${JSON.stringify({ identity: profile.identity, targets: profile.targets, experiences: profile.experiences.map((e) => ({ company: e.company, role: e.role })) })}\nCandidature : ${JSON.stringify({ company: app.company, title: app.title, contact: app.contact, interview_at: app.interview_at ?? null, kind: test ? "test" : "entretien" })}`,
     schema: { properties: { subject: S, body: S }, required: ["subject", "body"] },
   });
 }

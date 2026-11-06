@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { Mail, Copy, Check, Loader2 } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
+import { refreshBadges } from "@/components/nav";
 
-/** Rédige l'email de relance, prêt à copier ou à ouvrir dans la messagerie. */
+/** Rédige l'email de relance (après un entretien), prêt à copier ou à ouvrir dans la messagerie. */
 export function FollowupButton({ id, contact, compact = false }: { id: string; contact?: string | null; compact?: boolean }) {
   const { toast } = useFeedback();
   const [draft, setDraft] = useState<{ subject: string; body: string } | null>(null);
@@ -17,6 +18,7 @@ export function FollowupButton({ id, contact, compact = false }: { id: string; c
     setBusy(false);
     if (r.error) return toast(r.error, { tone: "err" });
     setDraft(r);
+    refreshBadges(); // la relance est faite : le compteur du menu baisse (la prochaine est proposée dans 7 jours)
   }
 
   if (!draft)

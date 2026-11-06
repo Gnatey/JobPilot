@@ -39,6 +39,7 @@ export type Profile = {
     contracts: string[]; remote?: string; salary?: string; sectors?: string[]; max_years?: number | null; weekly_goal?: number; ics_token?: string;
     daily_recap?: boolean; recap_send_ok?: boolean;   // récap du matin par Gmail : activé / permission d'envoi accordée
     recap_last?: { at: string; ok: boolean; note?: string };
+    gmail_issue?: { at: string };  // Google a coupé l'accès à Gmail : Réglages et l'accueil proposent « Reconnecter » (effacé à la reconnexion)
     search_zone?: SearchZone;   // où chercher (questionnaire d'accueil), reprise par défaut dans Recherche
     onboarded?: boolean;        // questionnaire d'accueil terminé (avec ou sans diagnostic)
     dismissed_skills?: string[]; // suggestions de compétences refusées : on ne les repropose pas
@@ -68,7 +69,6 @@ export type DayList = { date: string; ids: string[]; batches: number };
 export const STATUSES = [
   { id: "a_postuler", label: "À postuler", color: "bg-slate-400" },
   { id: "postule", label: "Postulé", color: "bg-sky-500" },
-  { id: "relance", label: "Relancé", color: "bg-indigo-500" },
   { id: "entretien", label: "Entretien", color: "bg-amber-500" },
   { id: "test", label: "Test / Cas", color: "bg-orange-500" },
   { id: "offre", label: "Offre", color: "bg-emerald-500" },
@@ -77,10 +77,13 @@ export const STATUSES = [
   { id: "expiree", label: "Offre plus disponible", color: "bg-stone-400" },
 ] as const;
 export type StatusId = (typeof STATUSES)[number]["id"];
-// Anciennes saisies : « expire » (sans e final) est lu comme « Offre plus disponible »
-const STATUS_ALIAS: Record<string, string> = { expire: "expiree", expiré: "expiree", expiree: "expiree" };
+// Anciennes saisies : « expire » (sans e final) est lu comme « Offre plus disponible » ;
+// l'ancienne étape « Relancé » n'existe plus (parcours : À postuler, Postulé, Entretien, Test / Cas, Offre) et se lit « Postulé »
+const STATUS_ALIAS: Record<string, string> = { expire: "expiree", expiré: "expiree", expiree: "expiree", relance: "postule" };
+/** Statut tel que l'app le connaît aujourd'hui : à appliquer à toute ligne lue dans la base qui peut dater d'avant le changement. */
+export const canonicalStatus = (id: string) => STATUS_ALIAS[id] ?? id;
 export const statusLabel = (id: string) => {
-  const k = STATUS_ALIAS[id] ?? id;
+  const k = canonicalStatus(id);
   return STATUSES.find((s) => s.id === k)?.label ?? id;
 };
 /** Offre écartée ou plus disponible sans jamais avoir postulé : ce n'est pas une candidature, elle n'entre dans aucune statistique. */

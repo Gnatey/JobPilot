@@ -30,6 +30,9 @@ export default async function Parametres({ searchParams }: { searchParams: Promi
     usedToday(supabase, user.id),
   ]);
 
+  const gmailIssue = profile.preferences.gmail_issue ?? null;
+  const recapOn = !!profile.preferences.daily_recap && !!profile.preferences.recap_send_ok;
+
   return (
     <>
       <PageTitle title="Réglages" />
@@ -45,13 +48,18 @@ export default async function Parametres({ searchParams }: { searchParams: Promi
       <Section title="Gmail" id="gmail">
         {gmail ? (
           <>
-            <p>Connecté : <strong>{gmail.email}</strong></p>
+            <p>{gmailIssue ? "Compte" : "Connecté"} : <strong>{gmail.email}</strong></p>
             <p className="mt-1 text-sm text-muted">
               Dernière lecture : {gmail.last_sync_at ? fmtDate(gmail.last_sync_at) : "jamais"}, {count ?? 0} emails de recrutement rangés.
             </p>
+            {gmailIssue && (
+              <p className="mt-3 max-w-[62ch] rounded-xl border border-bad/40 bg-bad/10 p-3 text-sm" role="alert">
+                <strong>Google a coupé l'accès à ta boîte mail</strong> (constaté le {fmtDate(gmailIssue.at)}) : tes emails ne sont plus lus. Clique « Reconnecter Gmail » : quelques secondes, et tout ce qui est déjà rangé reste là.
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap items-start gap-2">
               <SyncButton label="Lire mes emails maintenant" />
-              <GmailControls connected />
+              <GmailControls connected issue={!!gmailIssue} recap={recapOn} />
             </div>
             <RecapControls email={gmail.email} enabled={!!profile.preferences.daily_recap} sendOk={!!profile.preferences.recap_send_ok} last={profile.preferences.recap_last} />
           </>

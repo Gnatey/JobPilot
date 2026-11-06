@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractOffer, analyzeOffer } from "./ai";
 import { getProfile } from "./profile";
-import { addDays, today } from "./format";
+import { today } from "./format";
 import { spendAi, AI_COST } from "./quota";
 import { pickApplication, UNSENT } from "./app-pick";
 import { fetchAll } from "./paged";
+import { REJECTABLE_RECO } from "./offer-delete";
 
 type User = { id: string; email?: string | null };
 
@@ -43,7 +44,7 @@ export async function ensureApplication(
     const existing = pickApplication(rows as { id: string; status: string; applied_at: string | null }[] | null);
     if (existing) {
       if (status !== existing.status && status === "postule") {
-        await supabase.from("applications").update({ status, ...(existing.applied_at ? {} : { applied_at: today(), next_action_at: addDays(7) }) }).eq("id", existing.id);
+        await supabase.from("applications").update({ status, ...(existing.applied_at ? {} : { applied_at: today() }) }).eq("id", existing.id);
       }
       return existing.id as string;
     }
@@ -55,7 +56,7 @@ export async function ensureApplication(
       url: src.url ?? null, location: src.location ?? null, contract: src.contract ?? null, channel: src.channel ?? null,
       score: src.score ?? null, cv_variant: src.cv_variant ?? null, status,
       applied_at: status === "postule" ? today() : null,
-      next_action_at: status === "postule" ? addDays(7) : null,
+      next_action_at: null, // pas de relance programmée à la candidature : on ne relance qu'après un entretien (lib/followup.ts)
     })
     .select("id")
     .single();
@@ -71,6 +72,19 @@ export async function markRecoGone(supabase: SupabaseClient, recoId: string) {
     .update({ status: "rejected", reject_reason: "expiree", decided_at: new Date().toISOString() })
     .eq("id", recoId)
     .in("status", ["new", "analyzed"]);
+}
+
+/**
+ * Suppression d'une ligne « À analyser » avec une raison : la recommandation d'où elle vient (même adresse, à défaut même poste et même entreprise)
+ * passe en « écartée » avec cette raison, pour que le tri apprenne. Les recommandations déjà écartées ne sont pas touchées.
+ */
+export async function rejectRecosOfApplication(supabase: SupabaseClient, app: { url?: string | null; title: string; company: string }, reason: string) {
+  let q = supabase
+    .from("recommendations")
+    .update({ status: "rejected", reject_reason: reason, decided_at: new Date().toISOString() })
+    .in("status", [...REJECTABLE_RECO]);
+  q = app.url ? q.eq("url", app.url) : q.eq("title", app.title).eq("company", app.company);
+  await q;
 }
 
 type AppSrc = { offer_id?: string | null; url?: string | null; title?: string | null; company?: string | null };

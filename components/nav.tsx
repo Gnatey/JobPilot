@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Sun, Inbox, Plus, Columns3, BarChart3, Search, UserRound, Settings, FileText, ScanSearch, Menu, X, Zap, LogOut, ShieldCheck } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { today } from "@/lib/format";
+import { followupDue } from "@/lib/followup";
 import { openPalette } from "./palette";
 import { ThemeToggle } from "./theme";
 
@@ -36,9 +36,10 @@ function useBadges(path: string) {
     const sb = supabaseBrowser();
     const [r, d] = await Promise.all([
       sb.from("recommendations").select("id", { count: "exact", head: true }).in("status", ["new", "analyzed"]).eq("senior", false),
-      sb.from("applications").select("id", { count: "exact", head: true }).in("status", ["postule", "relance"]).lte("next_action_at", today()),
+      // Relances à faire : seulement après un entretien ou une épreuve (lib/followup.ts), la date se déduit de l'entretien
+      sb.from("applications").select("status, interview_at, next_action_at, last_email_at").in("status", ["entretien", "test"]).not("interview_at", "is", null),
     ]);
-    setB({ recos: r.count ?? 0, due: d.count ?? 0 });
+    setB({ recos: r.count ?? 0, due: (d.data ?? []).filter((a) => followupDue(a)).length });
   }, []);
   useEffect(() => { load(); }, [path, load]);
   useEffect(() => {

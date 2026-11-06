@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarClock, Circle, Mail, Send, FileText, ArrowRight, Sparkles } from "lucide-react";
+import { CalendarClock, Circle, CircleAlert, Mail, Send, FileText, ArrowRight, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { getUser, requireUser } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/env";
@@ -19,6 +19,8 @@ import { TopRecos, SeeAll, type TopReco } from "@/components/top-recos";
 import { MarkSentButton } from "@/components/app-actions";
 import { today, fmtDate, fmtDateTime, daysAgo, ago, until, dateOf, greeting, weekday, weekStart, plural } from "@/lib/format";
 import { statusLabel, STATUSES, isNeverSent, type Application } from "@/lib/types";
+import { followupDue, followupOn, isUpcoming } from "@/lib/followup";
+import { reconnectHref } from "@/lib/gmail-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +87,10 @@ async function Today() {
 
   const interviews = apps.filter((a) => ["entretien", "test"].includes(a.status))
     .sort((a, b) => (a.interview_at ?? "9").localeCompare(b.interview_at ?? "9"));
-  const due = apps.filter((a) => ["postule", "relance"].includes(a.status) && a.next_action_at && a.next_action_at <= t);
+  // Entretien ou épreuve à venir (ou sans date) : à préparer. Passé : la réponse de l'entreprise est attendue, puis vient la relance.
+  const upcoming = interviews.filter((a) => isUpcoming(a, t));
+  // Relances : seulement après un entretien, jamais pour une candidature sans entretien (lib/followup.ts)
+  const due = apps.filter((a) => followupDue(a, t)).sort((a, b) => (followupOn(a) ?? "").localeCompare(followupOn(b) ?? ""));
   const toSend = apps.filter((a) => a.status === "a_postuler");
   const recos: TopReco[] = (recosRes.data ?? [])
     .map((r) => ({
@@ -104,7 +109,7 @@ async function Today() {
   const firstName = profile.identity.name.split(" ")[0] || "";
 
   // Le « cap » : la seule chose à faire en premier
-  const iv = interviews[0];
+  const iv = upcoming[0];
   type Cap = { headline: string; cta: string; href: string };
   const cap: Cap = iv
     ? {
@@ -112,7 +117,7 @@ async function Today() {
         cta: "Préparer l'entretien", href: iv.offer_id ? `/offres/${iv.offer_id}#prep` : `/suivi?open=${iv.id}`,
       }
     : due.length
-      ? { headline: `${plural(due.length, "relance", "relances")} ${due.length > 1 ? "sont prêtes à partir" : "est prête à partir"}.`, cta: "Rédiger les relances", href: "#relances" }
+      ? { headline: `${plural(due.length, "entretien sans nouvelles", "entretiens sans nouvelles")} : ${due.length > 1 ? "des relances sont prêtes à partir" : "une relance est prête à partir"}.`, cta: "Rédiger les relances", href: "#relances" }
       : toSend.length
         ? hasCv(toSend[0])
           ? { headline: `Ta candidature chez ${toSend[0].company} n'attend que son envoi.`, cta: "Ouvrir le CV", href: cvLink(toSend[0], true) }
@@ -138,7 +143,7 @@ async function Today() {
 
   const pipeline = [
     { label: "À postuler", n: toSend.length, ids: ["a_postuler"] },
-    { label: "Postulées", n: apps.filter((a) => ["postule", "relance"].includes(a.status)).length },
+    { label: "Postulées", n: apps.filter((a) => a.status === "postule").length },
     { label: "Entretiens", n: interviews.length },
     { label: "Offres", n: apps.filter((a) => a.status === "offre").length },
     { label: "Refus", n: apps.filter((a) => a.status === "refuse").length },
@@ -158,14 +163,22 @@ async function Today() {
         </div>
       </header>
 
+      {gmailRes.data && profile.preferences.gmail_issue && (
+        <div role="alert" className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm">
+          <CircleAlert size={18} className="shrink-0 text-bad" aria-hidden />
+          <p className="min-w-0 flex-1">Google a coupé l'accès à ta boîte mail : la lecture de tes emails est à l'arrêt tant que tu ne reconnectes pas Gmail.</p>
+          <a href={reconnectHref(Boolean(profile.preferences.daily_recap && profile.preferences.recap_send_ok))} className="btn btn-primary btn-sm shrink-0">Reconnecter Gmail</a>
+        </div>
+      )}
+
       <div className="mb-10"><QuickPaste /></div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-x-14 lg:grid-cols-[minmax(0,1fr)_17rem]">
         <div>
-          {interviews.length > 0 && (
+          {upcoming.length > 0 && (
             <Section title="Entretiens à préparer">
               <ul className="list">
-                {interviews.map((a) => (
+                {upcoming.map((a) => (
                   <li key={a.id} className="flex items-center gap-3 px-4 py-3.5">
                     <CalendarClock size={20} className="shrink-0 text-marigold-deep" />
                     <div className="min-w-0 flex-1 basis-44">
@@ -180,14 +193,14 @@ async function Today() {
           )}
 
           {due.length > 0 && (
-            <Section title="Relances du jour" id="relances" aside={<span className="text-sm text-muted">sans réponse depuis 7 jours</span>}>
+            <Section title="Relances après entretien" id="relances" aside={<span className="text-sm text-muted">sans nouvelles depuis l'entretien</span>}>
               <ul className="list">
                 {due.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5">
                     <Mail size={20} className="shrink-0 text-muted" />
                     <div className="min-w-0 flex-1 basis-44">
                       <p className="truncate font-semibold">{a.title}</p>
-                      <p className="truncate text-sm text-muted">{a.company}, postulé {ago(a.applied_at)}</p>
+                      <p className="truncate text-sm text-muted">{a.company}, {a.status === "test" ? "épreuve" : "entretien"} {ago(dateOf(a.interview_at!))}</p>
                     </div>
                     <FollowupButton id={a.id} contact={a.contact} compact />
                   </li>
@@ -236,7 +249,7 @@ async function Today() {
             </Section>
           )}
 
-          {!interviews.length && !due.length && !toSend.length && !recos.length && (
+          {!upcoming.length && !due.length && !toSend.length && !recos.length && (
             <div className="rounded-2xl border border-dashed border-line px-5 py-8 text-center text-muted">
               <Sparkles className="mx-auto mb-2" />
               Rien à faire pour l'instant. Colle une offre ci-dessus, ou <Link className="link font-semibold text-ink" href="/recherche">lance une recherche</Link>.

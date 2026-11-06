@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { accessToken, appUrl, sendMail } from "./gmail";
-import { readRefreshToken } from "./gmail-token";
+import { appUrl, sendMail } from "./gmail";
+import { gmailAccessToken } from "./gmail-token";
 import { getProfileById, patchPreferences } from "./profile";
-import { addDays, dayDiff, fmtDate, fmtDateTime, plural, today, until, weekStart } from "./format";
+import { addDays, dayDiff, fmtDate, fmtDateTime, plural, today, weekStart } from "./format";
 import { HttpError } from "./supabase/server";
 import { preBand } from "./quick-score";
 import { fetchAll } from "./paged";
+import { followupDue, followupOn } from "./followup";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -18,7 +19,7 @@ export async function buildRecap(supabase: SupabaseClient, userId: string): Prom
   const t = today();
   const [{ data: apps }, { data: recos, count }, profile] = await Promise.all([
     // toutes les candidatures, dans un ordre stable : un `limit(500)` sans tri pouvait laisser de côté une relance ou un entretien
-    fetchAll((a, b) => supabase.from("applications").select("company, title, status, applied_at, next_action_at, interview_at").eq("user_id", userId).order("id").range(a, b)),
+    fetchAll((a, b) => supabase.from("applications").select("company, title, status, applied_at, next_action_at, interview_at, last_email_at").eq("user_id", userId).order("id").range(a, b)),
     supabase.from("recommendations").select("title, company, location, quick_score, url", { count: "exact" }).eq("user_id", userId).eq("status", "new").order("quick_score", { ascending: false }).limit(5),
     getProfileById(supabase, userId),
   ]);
@@ -29,10 +30,11 @@ export async function buildRecap(supabase: SupabaseClient, userId: string): Prom
     .sort((a, b) => a.interview_at.localeCompare(b.interview_at))
     .map((a) => ({ title: `${a.company} : ${a.title}`, sub: fmtDateTime(a.interview_at) }));
 
+  // Relances : seulement après un entretien ou une épreuve (lib/followup.ts), jamais pour une candidature sans entretien
   const followups: Line[] = (apps ?? [])
-    .filter((a) => a.next_action_at && ["postule", "relance"].includes(a.status) && a.next_action_at.slice(0, 10) <= t)
-    .sort((a, b) => a.next_action_at.localeCompare(b.next_action_at))
-    .map((a) => ({ title: `${a.company} : ${a.title}`, sub: `relance ${until(a.next_action_at)}${a.applied_at ? `, postulé le ${fmtDate(a.applied_at)}` : ""}` }));
+    .filter((a) => followupDue(a, t))
+    .sort((a, b) => (followupOn(a) ?? "").localeCompare(followupOn(b) ?? ""))
+    .map((a) => ({ title: `${a.company} : ${a.title}`, sub: `${a.status === "test" ? "épreuve" : "entretien"} le ${fmtDate(a.interview_at)}, sans nouvelles` }));
 
   const offers: Line[] = (recos ?? []).map((r) => ({ title: `${r.title}${r.company ? `, ${r.company}` : ""}`, sub: `${r.location ?? ""}${r.quick_score != null && preBand(r.quick_score).id !== "far" ? ` · ${preBand(r.quick_score).label.toLowerCase()}` : ""}`.replace(/^ · /, ""), href: r.url ?? undefined }));
   const toSort = count ?? offers.length;
@@ -43,7 +45,7 @@ export async function buildRecap(supabase: SupabaseClient, userId: string): Prom
 
   const bits = [
     interviews.length ? plural(interviews.length, "entretien proche", "entretiens proches") : "",
-    followups.length ? plural(followups.length, "relance à faire", "relances à faire") : "",
+    followups.length ? plural(followups.length, "relance après entretien", "relances après entretien") : "",
     toSort ? plural(toSort, "offre à trier", "offres à trier") : "",
   ].filter(Boolean);
   const empty = bits.length === 0;
@@ -51,7 +53,7 @@ export async function buildRecap(supabase: SupabaseClient, userId: string): Prom
 
   const sections: { title: string; lines: Line[]; more?: string; link?: string }[] = [
     { title: "Entretiens et épreuves dans les 3 jours", lines: interviews },
-    { title: "Relances à faire", lines: followups.slice(0, 8), more: followups.length > 8 ? `et ${followups.length - 8} autres dans le Suivi` : undefined, link: `${base}/suivi` },
+    { title: "Relances après entretien", lines: followups.slice(0, 8), more: followups.length > 8 ? `et ${followups.length - 8} autres dans le Suivi` : undefined, link: `${base}/suivi` },
     { title: `Offres à trier (${toSort})`, lines: offers, more: toSort > offers.length ? `et ${toSort - offers.length} autres dans Recommandées` : undefined, link: `${base}/recommandees` },
   ].filter((s) => s.lines.length);
 
@@ -102,7 +104,7 @@ export async function sendDailyRecap(supabase: SupabaseClient, userId: string, o
   try {
     const recap = await buildRecap(supabase, userId);
     if (recap.empty && !opts.force) return { skipped: "rien à signaler" };
-    const token = await accessToken(await readRefreshToken(supabase, userId, acc.refresh_token));
+    const token = await gmailAccessToken(supabase, userId, acc.refresh_token);
     await sendMail(token, { to: acc.email, subject: recap.subject, text: recap.text, html: recap.html });
     await patchPreferences(supabase, userId, { recap_last: { at: new Date().toISOString(), ok: true } });
     return { sent: true, to: acc.email };

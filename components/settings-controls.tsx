@@ -2,7 +2,8 @@
 import { bookmarkletCode } from "@/lib/bookmarklet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Download, Loader2, Plug, Trash2, Zap, CalendarPlus, Bookmark, KeyRound, LogOut, MailCheck } from "lucide-react";
+import { Check, Copy, Download, Loader2, Plug, RefreshCw, Trash2, Zap, CalendarPlus, Bookmark, KeyRound, LogOut, MailCheck } from "lucide-react";
+import { reconnectHref } from "@/lib/gmail-errors";
 import { supabaseBrowser, myId } from "@/lib/supabase/client";
 import { useFeedback } from "@/components/ui/feedback";
 import { TwoFactorCard } from "@/components/two-factor";
@@ -12,17 +13,24 @@ const copy = async (text: string) => {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 };
 
-export function GmailControls({ connected }: { connected: boolean }) {
+/**
+ * Gmail connecté : « Reconnecter » est toujours là (un nouvel accès remplace l'ancien, sans rien perdre) ; il passe en bouton principal
+ * quand Google a coupé l'accès. `recap` : le récap du matin est actif, la reconnexion redemande alors aussi la permission d'envoi.
+ */
+export function GmailControls({ connected, issue = false, recap = false }: { connected: boolean; issue?: boolean; recap?: boolean }) {
   const router = useRouter();
   const { confirm, toast } = useFeedback();
   if (!connected) return <a href="/api/gmail/connect" className="btn btn-primary btn-xl"><Plug size={18} /> Connecter Gmail (lecture seule)</a>;
   return (
-    <button className="btn" onClick={async () => {
-      if (!(await confirm({ title: "Déconnecter Gmail ?", body: "Les emails déjà rangés restent dans l'app. Tu pourras reconnecter Gmail quand tu veux.", confirmLabel: "Déconnecter" }))) return;
-      await fetch("/api/gmail/disconnect", { method: "POST" });
-      toast("Gmail est déconnecté.");
-      router.refresh();
-    }}>Déconnecter</button>
+    <>
+      <a href={reconnectHref(recap)} className={`btn ${issue ? "btn-primary" : ""}`}><RefreshCw size={16} /> Reconnecter Gmail</a>
+      <button className="btn" onClick={async () => {
+        if (!(await confirm({ title: "Déconnecter Gmail ?", body: "Les emails déjà rangés restent dans l'app. Tu pourras reconnecter Gmail quand tu veux.", confirmLabel: "Déconnecter" }))) return;
+        await fetch("/api/gmail/disconnect", { method: "POST" });
+        toast("Gmail est déconnecté.");
+        router.refresh();
+      }}>Déconnecter</button>
+    </>
   );
 }
 
@@ -59,7 +67,7 @@ export function RecapControls({ email, enabled, sendOk, last }: { email: string;
     <div className="mt-6 border-t border-line pt-5" aria-label="Récap du matin par email">
       <h3 className="heading flex items-center gap-2">Récap du matin par email {on && <span className="tag text-good"><MailCheck size={13} /> Activé</span>}</h3>
       <p className="mt-1 max-w-[62ch] text-sm text-muted">
-        Chaque matin vers 7 h, un seul email à toi-même ({email}) : entretiens des 3 jours à venir, relances à faire, offres à trier et ton objectif de la semaine. Rien n'est envoyé s'il n'y a rien de neuf.
+        Chaque matin vers 7 h, un seul email à toi-même ({email}) : entretiens des 3 jours à venir, relances après entretien, offres à trier et ton objectif de la semaine. Rien n'est envoyé s'il n'y a rien de neuf.
       </p>
       {on ? (
         <>

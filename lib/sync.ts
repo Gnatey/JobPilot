@@ -1,15 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { today } from "./format";
 import * as cheerio from "cheerio";
-import { accessToken, fetchMeta, gmailEmail, listJobEmails } from "./gmail";
-import { readRefreshToken } from "./gmail-token";
+import { fetchMeta, gmailEmail, listJobEmails } from "./gmail";
+import { gmailAccessToken } from "./gmail-token";
 import { isOwnMail, matchApplication, nextStatus } from "./email-match";
 import { analyzeOffer, classifyEmails, extractAlertOffers, extractOffer, generateCv } from "./ai";
 import { quickScore } from "./quick-score";
 import { fitCheck } from "./fit";
 import { criteriaRoles, ensureFit } from "./fit-stock";
 import { computeLearning } from "./learning";
-import { getProfileById } from "./profile";
+import { getProfileById, patchPreferences } from "./profile";
 import { searchAll, hasSource, externalId, type SearchCriteria, type JobOffer } from "./sources";
 import type { Profile } from "./types";
 import type { Learning } from "./learning";
@@ -61,7 +60,9 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
   const { data: acc } = await supabase.from("gmail_accounts").select("*").eq("user_id", userId).maybeSingle();
   if (!acc) return { skipped: "gmail non connecté" };
   const [profile, learning] = await Promise.all([getProfileById(supabase, userId), computeLearning(supabase, userId)]);
-  const token = await accessToken(await readRefreshToken(supabase, userId, acc.refresh_token));
+  const token = await gmailAccessToken(supabase, userId, acc.refresh_token);
+  // L'accès fonctionne (de nouveau) : l'avertissement « Reconnecter Gmail » n'a plus lieu d'être
+  if (profile.preferences?.gmail_issue) await patchPreferences(supabase, userId, { gmail_issue: undefined }).catch(() => {});
   const since = acc.last_sync_at ? Math.max(2, Math.ceil((Date.now() - new Date(acc.last_sync_at).getTime()) / 864e5) + 1) : 30;
   const listed = await listJobEmails(token, Math.min(since, 180));
 
@@ -166,8 +167,8 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
       patch.status = target;
       app.status = target;
       if (target === "postule" && !app.applied_at) patch.applied_at = m.date.slice(0, 10);
-      if (target === "refuse" || target === "offre") patch.next_action_at = null;
-      if (target === "entretien" || target === "test") patch.next_action_at = today();
+      // Plus de date de relance : elle se déduit de la date de l'entretien (lib/followup.ts), pas de l'arrivée de l'email d'invitation
+      if (["refuse", "offre", "entretien", "test"].includes(target)) patch.next_action_at = null;
       updated++;
     }
     await supabase.from("applications").update(patch).eq("id", app.id);

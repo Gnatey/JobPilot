@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     await supabase.from("gmail_accounts").upsert({ user_id: user.id, email, refresh_token: await sealToken(tok.refresh_token, user.id) });
     // La permission d'envoi n'est accordée que si l'utilisateur a choisi d'activer le récap du matin
     const send = canSend(tok.scope);
-    await patchPreferences(supabase, user.id, send ? { recap_send_ok: true, daily_recap: true } : { recap_send_ok: false });
+    // gmail_issue est effacé : l'accès est rétabli, l'avertissement « Reconnecter » disparaît
+    await patchPreferences(supabase, user.id, { ...(send ? { recap_send_ok: true, daily_recap: true } : { recap_send_ok: false }), gmail_issue: undefined });
     const res = back(send ? "recap_ok" : "ok");
     res.cookies.delete("gmail_state");
     return res;

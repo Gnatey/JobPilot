@@ -4,6 +4,9 @@
  */
 export const UNSENT = ["a_postuler", "abandonne", "expiree"];
 
+/** Ligne du suivi jamais envoyée : rien n'est parti chez l'entreprise, la supprimer ne perd aucune candidature. */
+export const isUnsentApp = (a: { status: string; applied_at?: string | null }) => UNSENT.includes(a.status) && !a.applied_at;
+
 export function pickApplication<T extends { status: string }>(rows: T[] | null | undefined): T | null {
   if (!rows?.length) return null;
   const rank = (a: T) => (!UNSENT.includes(a.status) ? 0 : a.status === "a_postuler" ? 1 : 2);

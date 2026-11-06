@@ -215,7 +215,7 @@ export function DocumentView({ doc, identity, reusedFrom, recommended, sibling =
         )}
         {app?.status === "a_postuler" && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl bg-chrome px-4 py-3 text-white">
-            <p className="min-w-0 flex-1 text-sm">Une fois ta candidature envoyée, clique ici : je mets le suivi à jour et je programme la relance dans 7 jours.</p>
+            <p className="min-w-0 flex-1 text-sm">Une fois ta candidature envoyée, clique ici : je la passe à « Postulé » dans le suivi.</p>
             <MarkSentButton id={app.id} label="J'ai envoyé ma candidature" primary />
           </div>
         )}

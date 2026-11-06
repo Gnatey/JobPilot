@@ -14,7 +14,8 @@ import { useFeedback } from "@/components/ui/feedback";
 import { ReasonChips } from "@/components/reason-chips";
 import { refreshBadges } from "@/components/nav";
 import { STATUSES, CHANNELS, statusLabel, templateLabel, variantLabel, type Application, type StatusId } from "@/lib/types";
-import { fmtDate, today, addDays, ago, until, daysAgo, plural } from "@/lib/format";
+import { followupOn, followupDue, canDraftFollowup, isFollowupStatus } from "@/lib/followup";
+import { fmtDate, today, ago, until, daysAgo, plural } from "@/lib/format";
 
 type Doc = { id: string; kind: string; variant: string | null; template: string | null; created_at: string; reused_from: string | null };
 type Hist = { from_status: string | null; to_status: string; changed_at: string };
@@ -89,9 +90,9 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
 
   async function setStatus(a: Application, status: StatusId) {
     const patch: Partial<Application> = { status };
-    if (status === "postule" && !a.applied_at) { patch.applied_at = today(); patch.next_action_at = addDays(7); }
-    if (status === "relance") patch.next_action_at = addDays(7);
-    if (["refuse", "abandonne", "expiree", "offre"].includes(status)) patch.next_action_at = null;
+    if (status === "postule" && !a.applied_at) patch.applied_at = today();
+    // Pas de relance programmée à la candidature : on ne relance qu'après un entretien (la date se déduit de celui-ci, voir lib/followup.ts)
+    if (["refuse", "abandonne", "expiree", "offre", "entretien", "test"].includes(status)) patch.next_action_at = null;
     const before = { status: a.status, applied_at: a.applied_at, next_action_at: a.next_action_at };
     setApps((xs) => xs.map((x) => (x.id === a.id ? { ...x, ...patch } : x)));
     const { error } = await sb.from("applications").update(patch).eq("id", a.id);
@@ -100,14 +101,14 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
     toast(`${a.company} : ${statusLabel(status).toLowerCase()}`, { action: { label: "Annuler", run: async () => { await sb.from("applications").update(before).eq("id", a.id); reload(); } } });
   }
 
-  const ghosted = apps.filter((a) => ["postule", "relance"].includes(a.status) && (daysAgo(a.applied_at) ?? 0) > 21 && (daysAgo(a.last_email_at) ?? 99) > 21);
+  const ghosted = apps.filter((a) => a.status === "postule" && (daysAgo(a.applied_at) ?? 0) > 21 && (daysAgo(a.last_email_at) ?? 99) > 21);
   async function archiveGhosted() {
     const ok = await confirm({ title: `Classer ${plural(ghosted.length, "candidature", "candidatures")} sans suite ?`, body: "Elles passent en « Abandonné ». Aucune réponse depuis plus de trois semaines : tu pourras les rouvrir si l'entreprise répond.", confirmLabel: "Classer sans suite" });
     if (!ok) return;
     const ids = ghosted.map((a) => a.id);
     await sb.from("applications").update({ status: "abandonne", next_action_at: null }).in("id", ids);
     await reload();
-    toast(`${plural(ids.length, "candidature classée", "candidatures classées")} sans suite`, { action: { label: "Annuler", run: async () => { await sb.from("applications").update({ status: "relance" }).in("id", ids); reload(); } } });
+    toast(`${plural(ids.length, "candidature classée", "candidatures classées")} sans suite`, { action: { label: "Annuler", run: async () => { await sb.from("applications").update({ status: "postule" }).in("id", ids); reload(); } } });
   }
 
   const filtered = apps.filter((a) => (!q || `${a.company} ${a.title} ${a.notes ?? ""}`.toLowerCase().includes(q.toLowerCase())));
@@ -213,7 +214,8 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
                 </h2>
                 <div className={`min-h-28 max-h-[65vh] space-y-2 overflow-y-auto overscroll-contain rounded-2xl p-2 transition-colors ${over === s.id ? "bg-marigold/20 ring-2 ring-marigold" : "bg-line/45"}`}>
                   {rows.map((a) => {
-                    const late = a.next_action_at && a.next_action_at <= today() && ["postule", "relance"].includes(a.status);
+                    const late = followupDue(a);
+                    const on = followupOn(a);
                     return (
                       <button key={a.id} draggable onDragStart={() => setDragId(a.id)} onDragEnd={() => { setDragId(null); setOver(null); }} onClick={() => setViewing(a)}
                         className={`block w-full rounded-xl border bg-surface p-3 text-left shadow-sm transition-shadow hover:shadow-lift ${late ? "border-bad/50" : "border-line"}`}>
@@ -223,7 +225,7 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
                         </div>
                         <p className="mt-1 flex items-center gap-1.5 text-sm text-muted"><Origin a={a} /> <span className="min-w-0 truncate">{a.company}</span></p>
                         {a.interview_at && ["entretien", "test"].includes(a.status) && <p className="mt-1 text-xs font-semibold text-marigold-deep">{new Date(a.interview_at).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>}
-                        {a.next_action_at && ["postule", "relance"].includes(a.status) && <p className={`mt-1 text-xs ${late ? "font-semibold text-bad" : "text-muted"}`}>Relance {until(a.next_action_at)}</p>}
+                        {on && <p className={`mt-1 text-xs ${late ? "font-semibold text-bad" : "text-muted"}`}>Relance {until(on)}</p>}
                       </button>
                     );
                   })}
@@ -242,7 +244,7 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
 }
 
 function Row({ a, onOpen, onStatus }: { a: Application; onOpen: () => void; onStatus: (s: StatusId) => void }) {
-  const late = a.next_action_at && a.next_action_at <= today() && ["postule", "relance"].includes(a.status);
+  const late = followupDue(a);
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
       <button onClick={onOpen} className="min-w-0 flex-1 basis-48 text-left">
@@ -272,7 +274,8 @@ function Card({ app, onClose, onEdit, onChanged }: { app: Application; onClose: 
   const [hist, setHist] = useState<Hist[]>([]);
   const { toast } = useFeedback();
   const st = STATUSES.find((x) => x.id === app.status);
-  const late = app.next_action_at && app.next_action_at <= today() && ["postule", "relance"].includes(app.status);
+  const late = followupDue(app);
+  const followOn = followupOn(app);
 
   const [asking, setAsking] = useState(false);
 
@@ -339,7 +342,7 @@ function Card({ app, onClose, onEdit, onChanged }: { app: Application; onClose: 
   const when = (iso: string) => new Date(iso).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const facts: [string, React.ReactNode][] = [
     ["Postulé", app.applied_at ? `${fmtDate(app.applied_at)} (${ago(app.applied_at)})` : null],
-    ["Relance", app.next_action_at ? <span className={late ? "font-semibold text-bad" : ""}>{fmtDate(app.next_action_at)}, {until(app.next_action_at)}</span> : null],
+    ["Relance", followOn ? <span className={late ? "font-semibold text-bad" : ""}>{fmtDate(followOn)}, {until(followOn)}</span> : null],
     ["Entretien", app.interview_at ? when(app.interview_at) : null],
     ["Lieu", app.location],
     ["Contrat", app.contract],
@@ -372,6 +375,7 @@ function Card({ app, onClose, onEdit, onChanged }: { app: Application; onClose: 
             {facts.map(([k, v]) => (<div key={k} className="contents"><dt className="text-muted">{k}</dt><dd className="min-w-0 break-words">{v}</dd></div>))}
           </dl>
         )}
+        {isFollowupStatus(app.status) && !app.interview_at && <p className="mt-4 text-sm text-muted">Ajoute la date de l'{app.status === "test" ? "épreuve" : "entretien"} (Modifier) : JobPilot te proposera de relancer quelques jours après, si l'entreprise n'a pas répondu.</p>}
         {app.notes && <p className="mt-4 whitespace-pre-wrap rounded-xl bg-paper p-3 text-sm">{app.notes}</p>}
         {app.url && <a href={app.url} target="_blank" rel="noreferrer" className="link mt-4 inline-flex items-center gap-1.5 text-sm"><ExternalLink size={14} /> Voir l'annonce</a>}
 
@@ -397,10 +401,10 @@ function Card({ app, onClose, onEdit, onChanged }: { app: Application; onClose: 
         <div className="mt-6 flex flex-wrap gap-2">
           <button className="btn btn-primary" onClick={onEdit}><Pencil size={16} /> Modifier</button>
           {app.status === "a_postuler" && <MarkSentButton id={app.id} label="Envoyée" onDone={() => { onChanged(); onClose(); }} />}
-          {["postule", "relance"].includes(app.status) && <FollowupButton id={app.id} contact={app.contact} compact />}
+          {canDraftFollowup(app) && <FollowupButton id={app.id} contact={app.contact} compact />}
           {app.status === "a_postuler" && <button type="button" className="btn" onClick={() => setAsking((v) => !v)} aria-expanded={asking}><X size={16} /> Je ne postule pas</button>}
-          {["postule", "relance", "entretien", "test"].includes(app.status) && <button type="button" className="btn" onClick={notRetained}><X size={16} /> Pas retenu</button>}
-          {["postule", "relance"].includes(app.status) && <button type="button" className="btn" onClick={markGone}><Ban size={16} /> Offre plus disponible</button>}
+          {["postule", "entretien", "test"].includes(app.status) && <button type="button" className="btn" onClick={notRetained}><X size={16} /> Pas retenu</button>}
+          {app.status === "postule" && <button type="button" className="btn" onClick={markGone}><Ban size={16} /> Offre plus disponible</button>}
           {app.offer_id
             ? <Link href={`/offres/${app.offer_id}`} className="btn"><ExternalLink size={16} /> Offre et CV</Link>
             : <Link href={`/offres/nouvelle?auto=1&then=cv&app=${app.id}${app.url ? `&url=${encodeURIComponent(app.url)}` : "&needtext=1"}`} className="btn">Analyser l'offre</Link>}
@@ -453,10 +457,7 @@ function Sheet({ app, onClose, onSaved }: { app: Partial<Application>; onClose: 
     setBusy(true);
     const { id, created_at, updated_at, ...rest } = f as Application;
     void created_at; void updated_at;
-    if (rest.status === "postule" && !rest.applied_at) {
-      rest.applied_at = today();
-      rest.next_action_at ??= addDays(7);
-    }
+    if (rest.status === "postule" && !rest.applied_at) rest.applied_at = today();
     const write = (row: Record<string, unknown>) => (id ? sb.from("applications").update(row).eq("id", id) : sb.from("applications").insert(row));
     let { error } = await write(rest);
     // La date d'entretien demande la mise à jour de la base (Réglages > Installation) : on enregistre le reste sans elle
@@ -494,7 +495,11 @@ function Sheet({ app, onClose, onSaved }: { app: Partial<Application>; onClose: 
           <label className="col-span-2"><span className="label">Poste<span className="ml-1.5 text-xs font-normal text-muted">obligatoire</span></span><input required minLength={2} autoFocus={!app.id} className="field mt-1" value={f.title ?? ""} onChange={set("title")} /></label>
           <label className="col-span-2"><span className="label">Entreprise<span className="ml-1.5 text-xs font-normal text-muted">obligatoire</span></span><input required minLength={2} className="field mt-1" value={f.company ?? ""} onChange={set("company")} /></label>
           <label><span className="label">Statut</span>
-            <select className="field mt-1" value={f.status} onChange={set("status")}>{STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
+            <select className="field mt-1" value={f.status} onChange={(e) => {
+              const s = e.target.value as StatusId;
+              // Passer à Entretien / Test : l'ancienne date de relance (d'avant l'entretien) n'a plus de sens, la relance se déduit de l'entretien
+              setF((x) => ({ ...x, status: s, ...(isFollowupStatus(s) && s !== app.status ? { next_action_at: null } : {}) }));
+            }}>{STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
           </label>
           <label><span className="label">Canal<span className="ml-1.5 text-xs font-normal text-muted">obligatoire</span></span>
             <select required className="field mt-1" value={f.channel ?? ""} onChange={set("channel")}><option value="" disabled>Choisis…</option>{CHANNELS.map((c) => <option key={c}>{c}</option>)}</select>
@@ -505,7 +510,7 @@ function Sheet({ app, onClose, onSaved }: { app: Partial<Application>; onClose: 
             </label>
           )}
           <label><span className="label">Postulé le{!app.id && f.status !== "a_postuler" ? <span className="ml-1.5 text-xs font-normal text-muted">obligatoire</span> : <span className="ml-1.5 text-xs font-normal text-muted">facultatif</span>}</span><input type="date" required={!app.id && f.status !== "a_postuler"} className="field mt-1" value={f.applied_at ?? ""} onChange={set("applied_at")} /></label>
-          <label><span className="label">Relance le<span className="ml-1.5 text-xs font-normal text-muted">facultatif</span></span><input type="date" className="field mt-1" value={f.next_action_at ?? ""} onChange={set("next_action_at")} /></label>
+          {interview && <label><span className="label">Relance le<span className="ml-1.5 text-xs font-normal text-muted">facultatif, sinon 5 jours après</span></span><input type="date" className="field mt-1" value={f.next_action_at ?? ""} onChange={set("next_action_at")} /></label>}
           <label><span className="label">Lieu<span className="ml-1.5 text-xs font-normal text-muted">facultatif</span></span><input className="field mt-1" value={f.location ?? ""} onChange={set("location")} /></label>
           <label><span className="label">Contrat<span className="ml-1.5 text-xs font-normal text-muted">facultatif</span></span><input className="field mt-1" value={f.contract ?? ""} onChange={set("contract")} /></label>
           <label><span className="label">CV utilisé<span className="ml-1.5 text-xs font-normal text-muted">facultatif</span></span>
@@ -535,7 +540,7 @@ function Sheet({ app, onClose, onSaved }: { app: Partial<Application>; onClose: 
                 ))}
               </ul>
             ) : <p className="mt-1 text-sm text-muted">Aucun pour l'instant.</p>}
-            {["postule", "relance"].includes(f.status ?? "") && <div className="mt-3 flex"><FollowupButton id={app.id} contact={f.contact} /></div>}
+            {canDraftFollowup({ status: f.status ?? "", interview_at: f.interview_at }) && <div className="mt-3 flex"><FollowupButton id={app.id} contact={f.contact} /></div>}
 
             {hist.length > 0 && (
               <>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
+import { isExpiredMessage } from "@/lib/gmail-errors";
 
 type Result = {
   gmail?: { scanned?: number; updated?: number; recommended?: number; skipped?: string; partial?: boolean; stopped?: string };
@@ -29,7 +30,11 @@ export function SyncButton({ label = "Tout synchroniser", primary = false }: { l
       const r = (await fetch("/api/gmail/sync", { method: "POST" }).then((r) => r.json()).catch(() => ({ error: "Connexion interrompue, réessaie." }))) as Result;
       last = r;
       if (r.error) {
-        if (i === 1) { setBusy(false); return toast(r.error, { tone: "err" }); }
+        if (i === 1) {
+          setBusy(false);
+          // Accès Gmail perdu : le message seul ne mène nulle part, on propose d'aller le reconnecter
+          return toast(r.error, { tone: "err", ...(isExpiredMessage(r.error) ? { ms: 12000, action: { label: "Reconnecter", run: () => router.push("/parametres#gmail") } } : {}) });
+        }
         break; // un passage précédent a déjà avancé : on garde le bilan
       }
       skipped = skipped || Boolean(r.gmail?.skipped);

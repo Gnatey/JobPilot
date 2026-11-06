@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { appUrl } from "@/lib/gmail";
+import { followupOn, followupDue } from "@/lib/followup";
+import { today } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +29,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const admin = createClient(url, key, { auth: { persistSession: false } });
   const { data: prof } = await admin.from("profiles").select("user_id").eq("data->preferences->>ics_token", token).maybeSingle();
   if (!prof) return new Response("Introuvable", { status: 404 });
-  const { data: apps } = await admin.from("applications").select("*").eq("user_id", prof.user_id).in("status", ["postule", "relance", "entretien", "test"]);
+  const { data: apps } = await admin.from("applications").select("*").eq("user_id", prof.user_id).in("status", ["entretien", "test"]);
 
   const now = stamp(new Date());
+  const todayKey = today();
   const base = appUrl();
   const out = [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//JobPilot//FR", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
@@ -48,10 +51,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
         "END:VEVENT"
       );
     }
-    if (a.next_action_at && ["postule", "relance"].includes(a.status)) {
+    // Relance : seulement après un entretien ou une épreuve (lib/followup.ts) ; plus d'événement pour une candidature sans entretien
+    const on = followupOn(a);
+    if (on && (on >= todayKey || followupDue(a, todayKey))) {
       out.push(
-        "BEGIN:VEVENT", `UID:${a.id}-relance@jobpilot`, `DTSTAMP:${now}`, `DTSTART;VALUE=DATE:${day(a.next_action_at)}`, `DTEND;VALUE=DATE:${nextDay(a.next_action_at)}`,
-        fold(`SUMMARY:${esc(`Relancer ${a.company}`)}`),
+        "BEGIN:VEVENT", `UID:${a.id}-relance@jobpilot`, `DTSTAMP:${now}`, `DTSTART;VALUE=DATE:${day(on)}`, `DTEND;VALUE=DATE:${nextDay(on)}`,
+        fold(`SUMMARY:${esc(`Relancer ${a.company} après l'entretien`)}`),
         fold(`DESCRIPTION:${esc(`${a.title}\nRédiger la relance : ${base}/suivi?open=${a.id}`)}`),
         "TRANSP:TRANSPARENT", "END:VEVENT"
       );

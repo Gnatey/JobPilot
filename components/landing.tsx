@@ -186,7 +186,7 @@ function Feature({ title, text, points, flip, children }: { title: string; text:
 const ALSO = [
   { icon: ScanSearch, title: "Un diagnostic de CV franc", text: "Positionnement, incohérences, lisibilité par les robots de tri, plan d'action." },
   { icon: MessageSquareText, title: "L'entretien préparé", text: "Une fiche tirée de l'offre et de ton profil, pour ne pas arriver à froid." },
-  { icon: Mail, title: "Les relances rédigées", text: "Quand une candidature reste sans réponse, le brouillon du message t'attend." },
+  { icon: Mail, title: "Les relances rédigées", text: "Après un entretien resté sans nouvelles, le brouillon du message t'attend." },
   { icon: BarChart3, title: "Des stats qui servent", text: "Candidatures, réponses, entretiens : tu vois ce qui marche et ce qui bloque." },
   { icon: CalendarDays, title: "Ton agenda à jour", text: "Entretiens et relances s'affichent dans Google Agenda, Apple ou Outlook." },
   { icon: Smartphone, title: "Sur ton téléphone", text: "S'installe comme une appli, avec un mode sombre qui suit celui de ton téléphone." },
@@ -290,8 +290,8 @@ export function Landing() {
                 <MorningPreview />
               </Feature>
               <Feature flip title="Tes candidatures suivies sans y penser"
-                text="Chaque candidature a son statut, sa date de relance et son CV. Gmail, si tu le connectes, met le suivi à jour."
-                points={["Un tableau simple, de « à postuler » à « offre »", "Les réponses de recruteurs lues et classées toutes seules", "Un brouillon de relance quand le silence dure"]}>
+                text="Chaque candidature a son statut, son CV et, après un entretien, sa relance. Gmail, si tu le connectes, met le suivi à jour."
+                points={["Un tableau simple, de « à postuler » à « offre »", "Les réponses de recruteurs lues et classées toutes seules", "Un brouillon de relance quand un entretien reste sans nouvelles"]}>
                 <TrackingPreview />
               </Feature>
             </div>

@@ -1,6 +1,6 @@
 import { fetchAll } from "./paged";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { STATUSES, variantLabel, isNeverSent, reasonKey, type Application } from "./types";
+import { STATUSES, variantLabel, isNeverSent, reasonKey, canonicalStatus, type Application } from "./types";
 
 const RESPONSE = new Set(["entretien", "test", "offre", "refuse"]);
 const INTERVIEW = new Set(["entretien", "test", "offre"]);
@@ -34,7 +34,8 @@ export async function computeStats(supabase: SupabaseClient) {
   // Les offres masquées par le filtre « adapté à mon profil » n'ont jamais été proposées : elles ne comptent pas dans le tri
   const recos = (recosAll ?? []).filter((r) => r.status !== "filtered");
   // Les offres que tu n'as pas voulu postuler (Abandonné, Offre plus disponible, sans date d'envoi) ne sont pas des candidatures
-  const all = ((appsRaw ?? []) as Application[]).filter((a) => !isNeverSent(a));
+  // l'ancienne étape « Relancé » se lit « Postulé » : sans cela ces lignes sortiraient de la répartition par statut
+  const all = ((appsRaw ?? []) as Application[]).filter((a) => !isNeverSent(a)).map((a) => ({ ...a, status: canonicalStatus(a.status) as Application["status"] }));
   const sent = all.filter((a) => a.status !== "a_postuler");
 
   // Statuts atteints par candidature (historique + statut courant)
@@ -67,7 +68,7 @@ export async function computeStats(supabase: SupabaseClient) {
 
   const today = new Date();
   const ghosted = sent.filter(
-    (a) => ["postule", "relance"].includes(a.status) && a.applied_at && (today.getTime() - new Date(a.applied_at).getTime()) / 864e5 > 21
+    (a) => a.status === "postule" && a.applied_at && (today.getTime() - new Date(a.applied_at).getTime()) / 864e5 > 21
   ).length;
 
   // Volume hebdomadaire sur 12 semaines

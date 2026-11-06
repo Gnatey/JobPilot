@@ -3,13 +3,14 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Application } from "@/lib/types";
 import { today } from "@/lib/format";
+import { followupOn, followupDue } from "@/lib/followup";
 
 type Kind = "entretien" | "relance" | "envoi";
 type Ev = { kind: Kind; app: Application; time?: string; late?: boolean };
 
 const KINDS: Record<Kind, { label: string; dot: string; chip: string }> = {
   entretien: { label: "Entretien ou épreuve", dot: "bg-marigold", chip: "bg-marigold/25 text-ink" },
-  relance: { label: "Relance à faire", dot: "bg-sky-500", chip: "bg-sky-500/15 text-ink" },
+  relance: { label: "Relance après entretien", dot: "bg-sky-500", chip: "bg-sky-500/15 text-ink" },
   envoi: { label: "Candidature envoyée", dot: "bg-muted", chip: "bg-line text-muted" },
 };
 const DAYS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."];
@@ -32,7 +33,10 @@ export function SuiviCalendar({ apps, onOpen }: { apps: Application[]; onOpen: (
         const d = new Date(a.interview_at);
         add(ymd(d), { kind: "entretien", app: a, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` });
       }
-      if (a.next_action_at && ["postule", "relance"].includes(a.status)) add(a.next_action_at.slice(0, 10), { kind: "relance", app: a, late: a.next_action_at.slice(0, 10) < todayKey });
+      // Relance : seulement après un entretien ou une épreuve ; en rouge quand elle est due depuis hier ou avant.
+      // Une relance passée à laquelle l'entreprise a déjà répondu n'est plus affichée.
+      const on = followupOn(a);
+      if (on && (on >= todayKey || followupDue(a, todayKey))) add(on, { kind: "relance", app: a, late: on < todayKey });
       if (a.applied_at) add(a.applied_at.slice(0, 10), { kind: "envoi", app: a });
     }
     for (const list of m.values()) list.sort((x, y) => (x.time ?? "99").localeCompare(y.time ?? "99") || x.kind.localeCompare(y.kind));
