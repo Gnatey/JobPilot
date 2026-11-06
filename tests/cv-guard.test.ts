@@ -163,4 +163,18 @@ const ai = readFileSync("lib/ai.ts", "utf8");
 ok("generateCv passe le CV par le garde-fou avant de poser les liens", ai.includes('import { guardCv } from "./cv-guard"') && ai.includes("guardCv(enforceFacts(cv, profile).cv, profile)") && ai.indexOf("guardCv(enforceFacts(") < ai.indexOf("attachLinks(checked"));
 ok("règles de rédaction : pas de résultat ajouté, destinataires gardés, pas de formule creuse", ai.includes("N'ajoute JAMAIS un résultat") && ai.includes("« Business Unit », « CODIR »") && ai.includes("Pas de formule creuse"));
 
+// ---------- Les chiffres du profil qui ne sont pas des réalisations ne « connaissent » pas un chiffre du CV ----------
+{
+  const withSettings = {
+    ...profile,
+    identity: { name: "Test", email: "test@exemple.fr", phone: "06 12 34 56 78", city: "Paris 18" },
+    preferences: { daily_quota: 15, weekly_goal: 10, search_zone: { scope: "departement", departments: [{ code: "93", name: "Seine-Saint-Denis" }, { code: "75", name: "Paris" }] } },
+    todo: ["Ajouter 12 projets"], rules: [],
+  } as unknown as Profile;
+  const r = guardCv(cv(["Piloter le backlog Agile / Scrum +15% d'efficacité"], "SNCF"), withSettings);
+  ok("quota du jour du profil (15) : le « 15 % » du CV reste signalé comme absent du profil", r.report.numbers.some((n) => n.numbers.includes("15")), JSON.stringify(r.report.numbers));
+  ok("code de département (93), téléphone, tâche : jamais une preuve", ["93", "75", "56", "12"].every((n) => guardCv(cv([`Piloter le backlog Agile / Scrum, ${n}% de gain`], "SNCF"), withSettings).report.numbers.some((x) => x.numbers.includes(n))));
+  ok("un chiffre écrit dans une réalisation du profil reste connu (30 %)", guardCv(cv(["Automatiser des pipelines SQL ; réduction du temps de reporting de 30 %"]), withSettings).report.numbers.length === 0);
+}
+
 done();

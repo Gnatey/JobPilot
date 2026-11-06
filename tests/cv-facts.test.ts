@@ -89,6 +89,8 @@ ok("langues : « Français (maternel) · Anglais (B1-B2) »", languagesText(prof
 {
   const r = enforceFacts(base({ languages: "Français (maternel) · Anglais (C1) · Espagnol (B2)" }), profile);
   ok("niveau de langue gonflé par l'IA : remis comme dans le profil", r.cv.languages === "Français (maternel) · Anglais (B1-B2)" && r.report.languages);
+  const same = enforceFacts(base({ languages: "anglais B1-B2, Français maternel" }), profile);
+  ok("mêmes langues et niveaux écrits autrement (ordre, ponctuation) : pas d'écart signalé, texte remis comme le profil", !same.report.languages && same.cv.languages === "Français (maternel) · Anglais (B1-B2)");
   ok("le profil n'a aucune langue : rien d'inventé sur le CV", enforceFacts(base({ languages: "Anglais courant" }), { ...profile, languages: [] } as unknown as Profile).cv.languages === "");
 }
 {

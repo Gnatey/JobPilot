@@ -50,8 +50,13 @@ function evidenceFor(profile: Profile, company: string): string {
   return mine.length ? text : `${text} ${(profile.projects ?? []).map((p) => `${p.name} ${p.description}`).join(" ")}`;
 }
 
-/** Tout le texte du profil, sans les identifiants (leurs chiffres feraient passer un chiffre inventé pour connu). */
-const profileText = (profile: Profile) => JSON.stringify(profile, (k, v) => (k === "id" ? undefined : v));
+/**
+ * Ce que le profil dit de ses réalisations, sans ce qui n'en parle pas : les identifiants, l'identité (téléphone, ville),
+ * les réglages (quota du jour : 15, objectif de la semaine, codes de départements : 93, 75…) et les listes de tâches.
+ * Leurs chiffres feraient passer un « 15 % » inventé pour un chiffre connu (cas de Juliana, 6 novembre).
+ */
+const profileText = (profile: Profile) =>
+  JSON.stringify({ ...profile, identity: undefined, preferences: undefined, rules: undefined, todo: undefined }, (k, v) => (k === "id" ? undefined : v));
 
 /* ---------- Réserves laissées dans le texte du CV ---------- */
 

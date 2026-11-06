@@ -29,6 +29,11 @@ export default async function MonCv() {
         <CvUpload kind="refresh" submitLabel="Analyser ce CV" />
       </Section>
 
+      <Section title="Contrôler mes CV">
+        <p className="max-w-[62ch] text-muted">Compare chaque CV enregistré à ton profil maître : une formation absente, un poste ou des dates qui ne collent pas, un chiffre que ton profil ne dit pas. Rien n'est modifié.</p>
+        <Link href="/mon-cv/controle" className="btn mt-3">Contrôler mes CV</Link>
+      </Section>
+
       <Section title="Historique" aside={scores.length > 1 && <span className="text-sm text-muted">Score : {scores.join(" → ")}</span>}>
         {!list.length ? <Empty>Aucune analyse pour l'instant.</Empty> : (
           <ul className="list">

@@ -103,7 +103,9 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
 
   /* Langues : celles du profil, avec leur niveau. */
   const languages = languagesText(profile.languages);
-  if (normText(languages) !== normText(cv.languages ?? "")) report.languages = true;
+  // Mêmes langues et mêmes niveaux, quel que soit l'ordre ou la ponctuation (« Anglais B2, français natif » = « Français (natif) · Anglais (B2) »)
+  const words = (t: string) => normText(t).split(" ").filter(Boolean).sort().join(" ");
+  if (words(languages) !== words(cv.languages ?? "")) report.languages = true;
 
   /* Certifications : seulement celles du profil (l'IA en choisit, elle n'en crée pas). */
   const certPool = (profile.certifications ?? []).join(" ");
