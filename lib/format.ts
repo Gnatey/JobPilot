@@ -3,6 +3,13 @@ const TZ = "Europe/Paris";
 
 export const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: TZ });
 
+/**
+ * « Nous sommes le 6 novembre 2026. » À donner aux IA qui jugent des dates : sans elle, elles devinent l'année et trouvent « futures »
+ * des périodes déjà passées (diagnostic de CV du 6 novembre 2026 : « Sept 2024 - Sept 2025 » jugé « futuriste »).
+ */
+export const dateLine = (now: Date = new Date()) =>
+  `Nous sommes le ${now.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: TZ })}.`;
+
 const noon = (d: string) => Date.parse(`${d.slice(0, 10)}T12:00:00Z`);
 
 /** Date (AAAA-MM-JJ) dans n jours, à partir d'aujourd'hui ou d'une date donnée. */

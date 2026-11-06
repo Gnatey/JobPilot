@@ -279,6 +279,22 @@ export type AnswerOp =
   | { op: "add"; exp_id: string; text: string }
   | { op: "project"; name: string; description: string };
 
+/** Ce que l'IA rend pour une réponse « À compléter » : sa réponse à la préoccupation (`reply`), et des réécritures du profil seulement si la réponse apporte un fait. */
+export type AnswerRaw = { ops?: AnswerOp[]; reply?: string; settled?: boolean };
+/** Après vérification (lib/answer-reply.ts). `proposed` = opérations proposées avant vérification, pour dire pourquoi il n'y a rien à valider. */
+export type AnswerResult = { ops: AnswerOp[]; reply: string; settled: boolean; proposed: number };
+
+/**
+ * Que montrer à la personne ? Répondre à sa préoccupation suffit : une réponse comme « c'était une alternance, pendant mon Master »
+ * ne se réécrit pas en ligne de CV, mais elle mérite une vraie réponse (c'est un défaut ou non), pas un « je n'ai rien trouvé à écrire ».
+ */
+export function answerView(r: { ops: AnswerOp[]; reply: string; proposed: number }): "reply_and_fix" | "reply_only" | "fix_only" | "rejected" | "none" {
+  if (r.reply && r.ops.length) return "reply_and_fix";
+  if (r.reply) return "reply_only";
+  if (r.ops.length) return "fix_only";
+  return r.proposed > 0 ? "rejected" : "none";
+}
+
 /** La réponse dit-elle autre chose que « je ne sais pas » ? (assez de contenu pour mériter une seconde lecture) */
 export const hasContent = (answer: string) =>
   answer.replace(/je ne sais pas|aucune id[ée]e|\bjsp\b/gi, "").replace(/[^a-zà-ÿ0-9]/gi, "").length >= 25;

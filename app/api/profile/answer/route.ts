@@ -2,13 +2,18 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { answerQuestion } from "@/lib/ai";
-import { hasContent, vetOps } from "@/lib/profile-fix";
+import { finishAnswer } from "@/lib/answer-reply";
+import { dateLine } from "@/lib/format";
+import { hasContent } from "@/lib/profile-fix";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { timeLeft } from "@/lib/budget";
 
 export const maxDuration = 60;
 
-/** Transforme la réponse à une question « À compléter » en modifications du profil. Rien n'est enregistré ici : la personne valide avant/après. */
+/**
+ * Répond à la préoccupation d'une question « À compléter » ET transforme la réponse de la personne en modifications du profil
+ * (seulement si elle apporte un fait). Rien n'est enregistré ici : la personne lit la réponse et valide l'avant / après.
+ */
 export async function POST(req: Request) {
   return handle(52_000, async () => {
     const { supabase, user } = await requireUser();
@@ -19,14 +24,12 @@ export async function POST(req: Request) {
     if (answer.length < 2) throw new HttpError(400, "Écris ta réponse d'abord.");
     const profile = await getProfile(supabase, user);
     await spendAi(supabase, user, AI_COST.document);
-    let raw = await answerQuestion(profile, question, answer);
-    let ops = vetOps(profile, raw, answer);
-    // Réponse riche mais rien d'utilisable (le modèle s'arrête parfois à un « je ne sais pas » en début de phrase) : une seconde lecture, même quota
-    if (!ops.length && hasContent(answer) && timeLeft() > 20_000) {
-      raw = await answerQuestion(profile, question, answer, true);
-      ops = vetOps(profile, raw, answer);
+    const today = dateLine();
+    let result = finishAnswer(profile, await answerQuestion(profile, question, answer), question, answer, today);
+    // Réponse riche mais ni réponse ni réécriture utilisable (le modèle s'arrête parfois à un « je ne sais pas » en début de phrase) : une seconde lecture, même quota
+    if (!result.ops.length && !result.reply && hasContent(answer) && timeLeft() > 20_000) {
+      result = finishAnswer(profile, await answerQuestion(profile, question, answer, true), question, answer, today);
     }
-    // `proposed` : ce que l'IA a proposé avant vérification, pour dire à la personne pourquoi il n'y a rien à valider
-    return { ops, proposed: raw.length };
+    return result;
   });
 }

@@ -5,8 +5,8 @@ import { guardCv } from "./cv-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { cleanCvText, pinProjects } from "./cv-edit";
-import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerOp, type MatchGroup, type Proposal } from "./profile-fix";
-import { today } from "./format";
+import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
+import { dateLine, today } from "./format";
 import type { CvDoc, Diagnostic, LetterDoc, OfferAnalysis, OfferExtract, OnboardingAnswers, PrepDoc, Profile, SkillSuggestion } from "./types";
 
 const S = str();
@@ -395,6 +395,7 @@ Tu juges le CV par rapport aux métiers visés et au marché français actuel :
 - positionnement : un titre clair ou un CV "fourre-tout" ? Les cibles visées sont-elles cohérentes avec l'expérience réelle et récente ? Propose 1 à 3 cibles réalistes.
 - crédibilité : survente (expert, senior, pilotage d'équipes pour un profil débutant), formulations vagues, absence de résultats chiffrés.
 - cohérence entre plusieurs versions (dates, niveaux de langue, intitulés) quand plusieurs CV sont fournis.
+- dates : ${dateLine()} Toute période qui se termine avant aujourd'hui est PASSÉE : tu ne la juges jamais « future » ni « futuriste », et un projet daté de l'année en cours n'est pas « spéculatif ». Une alternance qui chevauche un diplôme est normale quand le CV la nomme alternance : ne la présente pas comme une confusion entre étudiant et professionnel.
 - lisibilité ATS : colonnes, sections standard, mots-clés métier.
 - search_strategy : à partir du questionnaire (durée de recherche, volume, réponses obtenues), dis où l'entonnoir bloque (pas de réponse = CV/ciblage ; entretiens sans offre = entretien) et ce qu'il faut changer.
 ${previous ? "- changes_since_last : compare avec le profil actuel fourni et liste ce qui a changé ou progressé." : ""}
@@ -512,12 +513,14 @@ Ne propose jamais de supprimer une vraie mission professionnelle. Si tout est pr
 
 /* ---------- 13. Réponse à une question « À compléter » ---------- */
 
-export async function answerQuestion(profile: Profile, question: string, answer: string, retry = false): Promise<AnswerOp[]> {
+export async function answerQuestion(profile: Profile, question: string, answer: string, retry = false): Promise<AnswerRaw> {
   // Modèle principal (pas le léger) : c'est de la rédaction, et le résultat finit sur un CV
-  const r = await structured<{ ops: AnswerOp[] & { op: string }[] }>({
+  const r = await structured<AnswerRaw>({
     maxTokens: 2500,
     thinking: 512, // une phrase à réécrire : inutile de laisser le modèle réfléchir longtemps (la personne attend devant l'écran)
-    system: `Une question a été posée à la personne à propos de son profil, et elle a répondu. Propose les modifications du profil qui intègrent sa réponse, et seulement celles-là. Opérations possibles :
+    system: `Une question a été posée à la personne à propos de son profil, et elle a répondu. Tu fais deux choses.
+1. Tu RÉPONDS à la préoccupation derrière la question (« reply »). 1 à 3 phrases, tutoiement, franches : est-ce un vrai défaut du CV ? Si sa réponse montre que ce n'est pas un problème (alternance pendant un diplôme, dates déjà passées, niveau de langue cohérent), dis-le clairement : rien à corriger. Si c'est un vrai défaut, dis ce que la réécriture proposée règle, ou ce qui manque encore. ${dateLine()} Une période qui se termine avant aujourd'hui est passée, jamais « future ». Tu ne cites aucun chiffre absent de la réponse, du profil ou de la date du jour. Tu ne flattes pas. « settled » = true quand la préoccupation est réglée (ce n'était pas un défaut, ou la réécriture proposée le règle), false s'il manque encore une information.
+2. Tu proposes les modifications du profil qui intègrent sa réponse, SEULEMENT si elle apporte un fait à écrire. Une réponse qui lève un doute (« c'était une alternance », « c'est bien ce niveau ») ne se réécrit pas en ligne de CV : « ops » vide, ta réponse suffit. Opérations possibles :
 - "replace" : réécrire UNE réalisation. exp_id de l'expérience, old_text = le texte EXACT de la réalisation actuelle, new_text = la nouvelle version.
 - "add" : ajouter une réalisation à une expérience (exp_id, text) quand la réponse apporte un fait nouveau.
 - "project" : réécrire la description d'un projet existant (name = nom exact, description).
@@ -528,14 +531,16 @@ Règles absolues :
 - Écris une vraie ligne de CV : une phrase qui commence par un verbe d'action au participe passé (Conçu, Développé, Piloté, Automatisé…), sans « je », sans « en tant que », sans nom de poste. Réécris la phrase en entier : ne colle JAMAIS la réponse à la fin de l'ancienne phrase. Un rôle se dit par le verbe et un adverbe (« seule », « en autonomie », « avec 3 développeurs »), pas par une apposition.
   Mauvais : « Création d'un outil de reporting en tant que responsable seule ». Bon : « Conçu et développé seule un outil de reporting ». Le sens de la phrase d'origine reste, seul le rôle ou le contexte apporté par la réponse s'y ajoute.
 - Une ligne de CV fait 25 mots au plus. Si la réponse énumère plusieurs profils, outils ou équipes, résume-les (« en interface avec les équipes métier (médecins, infirmiers…), l'AMOA et les développeurs ») au lieu de tout recopier.
-- Renvoie une liste vide seulement si la réponse n'apporte AUCUN fait (juste « je ne sais pas », « aucune idée »).`,
+- « ops » est vide quand la réponse n'apporte aucun fait à écrire : juste « je ne sais pas », « aucune idée », ou une explication qui lève un doute sur les dates, le statut ou le niveau.`,
     prompt: `PROFIL :\n${JSON.stringify(auditView(profile))}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}${retry ? "\n\nATTENTION : une première lecture n'a rien donné d'utilisable alors que la réponse contient du contexte. Propose au moins une modification sans chiffre inventé, sur la réalisation de l'expérience la plus concernée." : ""}`,
     schema: {
       properties: {
+        reply: str("réponse à la préoccupation, 1 à 3 phrases, sans chiffre inventé"),
+        settled: { type: "boolean" },
         ops: arr(obj({ op: { type: "string", enum: ["replace", "add", "project"] }, exp_id: S, old_text: S, new_text: S, text: S, name: S, description: S }, ["op"])),
       },
-      required: ["ops"],
+      required: ["reply", "settled", "ops"],
     },
   });
-  return (Array.isArray(r.ops) ? r.ops : []) as AnswerOp[];
+  return { ops: Array.isArray(r.ops) ? r.ops : [], reply: typeof r.reply === "string" ? r.reply : "", settled: r.settled === true };
 }

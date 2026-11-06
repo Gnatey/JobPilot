@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
-import { applyOps, normText, previewOps, vetOps, type AnswerOp } from "@/lib/profile-fix";
+import { answerView, applyOps, normText, previewOps, vetOps, type AnswerOp } from "@/lib/profile-fix";
 import type { Profile } from "@/lib/types";
 
 type Props = {
@@ -14,33 +14,40 @@ type Props = {
 const COUNT_Q = /combien|volume|nombre|taux|pourcentage|chiffre|%|fréquence|utilisateurs|dashboards?/i;
 const RANGES = ["moins de 100", "entre 100 et 1 000", "plus de 1 000"];
 
-/** `empty` : pourquoi il n'y a rien à valider. none = l'IA n'a rien trouvé d'écrivable ; rejected = elle avait une phrase mais avec un chiffre absent de la réponse. */
-type Draft = { answer: string; busy: boolean; ops: AnswerOp[] | null; empty: null | "none" | "rejected" };
+/**
+ * `empty` : pourquoi il n'y a rien à valider. none = l'IA n'a rien trouvé d'écrivable ; rejected = elle avait une phrase mais avec un chiffre absent de la réponse.
+ * `reply` : sa réponse à la préoccupation (c'est un défaut ou non) ; `settled` : la préoccupation est réglée, la question peut disparaître.
+ */
+type Draft = { answer: string; busy: boolean; ops: AnswerOp[] | null; empty: null | "none" | "rejected"; reply: string; settled: boolean };
+const BLANK: Draft = { answer: "", busy: false, ops: null, empty: null, reply: "", settled: false };
 
 /**
- * « À compléter pour des CV plus forts » : chaque ligne se traite en répondant (l'IA réécrit la réalisation concernée, tu vois
- * l'avant / après avant d'accepter), ou en cliquant sur Fait. L'IA n'écrit que ce que contient ta réponse.
+ * « À compléter pour des CV plus forts » : chaque ligne se traite en répondant. L'IA répond d'abord à la préoccupation (est-ce un vrai défaut ?),
+ * puis, si ta réponse apporte un fait, réécrit la réalisation concernée : tu vois l'avant / après avant d'accepter. Ou en cliquant sur Fait.
+ * L'IA n'écrit que ce que contient ta réponse.
  */
 export function TodoAnswer({ getProfile, onChange }: Props) {
   const { toast } = useFeedback();
   const [open, setOpen] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft>({ answer: "", busy: false, ops: null, empty: null });
+  const [draft, setDraft] = useState<Draft>(BLANK);
   const profile = getProfile();
 
   const removeTodo = (t: string, base: Profile = getProfile()) => ({ ...base, todo: base.todo.filter((x) => normText(x) !== normText(t)) });
-  const reset = () => { setOpen(null); setDraft({ answer: "", busy: false, ops: null, empty: null }); };
+  const reset = () => { setOpen(null); setDraft(BLANK); };
 
   async function send(t: string) {
     const answer = draft.answer.trim();
     if (answer.length < 2) return;
-    setDraft((d) => ({ ...d, busy: true, ops: null, empty: null }));
+    setDraft((d) => ({ ...d, busy: true, ops: null, empty: null, reply: "", settled: false }));
     try {
       const res = await fetch("/api/profile/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: t, answer }) });
-      const j = (await res.json().catch(() => ({}))) as { ops?: AnswerOp[]; proposed?: number; error?: string };
+      const j = (await res.json().catch(() => ({}))) as { ops?: AnswerOp[]; proposed?: number; reply?: string; settled?: boolean; error?: string };
       if (!res.ok || j.error) { setDraft((d) => ({ ...d, busy: false })); return toast(j.error ?? "L'IA n'a pas pu répondre, réessaie.", { tone: "err" }); }
       // On revérifie sur le profil affiché (il a pu bouger depuis l'envoi)
       const ops = vetOps(getProfile(), j.ops ?? [], answer);
-      setDraft((d) => ({ ...d, busy: false, ops, empty: ops.length ? null : (j.proposed ?? 0) > 0 ? "rejected" : "none" }));
+      const reply = typeof j.reply === "string" ? j.reply : "";
+      const view = answerView({ ops, reply, proposed: j.proposed ?? 0 });
+      setDraft((d) => ({ ...d, busy: false, ops, reply, settled: !!reply && j.settled === true, empty: view === "rejected" ? "rejected" : view === "none" ? "none" : null }));
     } catch {
       setDraft((d) => ({ ...d, busy: false }));
       toast("Connexion interrompue, réessaie.", { tone: "err" });
@@ -61,7 +68,7 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
   return (
     <div className="mb-8 rounded-2xl border border-marigold/50 bg-marigold/10 p-4">
       <p className="font-semibold">À compléter pour des CV plus forts</p>
-      <p className="mt-0.5 text-xs text-muted">Réponds en une phrase : l'IA réécrit la bonne ligne de ton profil, tu valides l'avant / après.</p>
+      <p className="mt-0.5 text-xs text-muted">Réponds en une phrase : l'IA te répond sur le fond (est-ce un vrai défaut ?) et, si ta réponse apporte un fait, réécrit la bonne ligne de ton profil. Tu valides l'avant / après.</p>
       <ul className="mt-2 space-y-3">
         {profile.todo.map((t) => {
           const isOpen = open === t;
@@ -71,7 +78,7 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
               <div className="flex items-start justify-between gap-3">
                 <span>{t}</span>
                 <span className="flex shrink-0 gap-3">
-                  <button className="hit text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft({ answer: "", busy: false, ops: null, empty: null })))}>{isOpen ? "Fermer" : "Répondre"}</button>
+                  <button className="hit text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft(BLANK)))}>{isOpen ? "Fermer" : "Répondre"}</button>
                   <button className="hit text-muted underline" onClick={() => { onChange(removeTodo(t)); if (isOpen) reset(); }}>Fait</button>
                 </span>
               </div>
@@ -79,16 +86,27 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
               {isOpen && (
                 <div className="mt-2 rounded-xl border border-line bg-white/60 p-3 dark:bg-black/10">
                   <label className="label" htmlFor="todo-answer">Ta réponse</label>
-                  <textarea id="todo-answer" rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, empty: null }))} />
+                  <textarea id="todo-answer" rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, empty: null, reply: "", settled: false }))} />
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {COUNT_Q.test(t) && RANGES.map((r) => (
-                      <button key={r} type="button" className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, answer: d.answer ? `${d.answer} ${r}` : r, ops: null, empty: null }))}>{r}</button>
+                      <button key={r} type="button" className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, answer: d.answer ? `${d.answer} ${r}` : r, ops: null, empty: null, reply: "", settled: false }))}>{r}</button>
                     ))}
                     <button type="button" className="btn btn-sm btn-ghost" onClick={() => { onChange(removeTodo(t)); reset(); toast("Question retirée : tu pourras la reprendre en refaisant le point."); }}>Je ne sais pas</button>
                     <button className="btn btn-sm btn-primary ml-auto" disabled={draft.busy || draft.answer.trim().length < 2} onClick={() => send(t)}>
-                      {draft.busy ? <><Loader2 size={15} className="animate-spin" /> Je réécris…</> : "Réécrire avec ma réponse"}
+                      {draft.busy ? <><Loader2 size={15} className="animate-spin" /> Je lis ta réponse…</> : "Envoyer ma réponse"}
                     </button>
                   </div>
+
+                  {draft.reply && (
+                    <div className="mt-3 rounded-lg border border-line bg-white/70 p-3 text-sm dark:bg-black/20" role="status">
+                      <p className="text-xs font-semibold text-muted">Ma réponse</p>
+                      <p className="mt-0.5">{draft.reply}</p>
+                      {!draft.ops?.length && draft.settled && (
+                        <button className="btn btn-sm btn-primary mt-2" onClick={() => { onChange(removeTodo(t)); reset(); toast("Question retirée."); }}><Check size={15} /> C'est réglé, retirer la question</button>
+                      )}
+                      {!draft.ops?.length && !draft.settled && <p className="mt-1 text-xs text-muted">Il manque encore une information : complète ta réponse ci-dessus et renvoie-la.</p>}
+                    </div>
+                  )}
 
                   {draft.empty === "none" && <p className="mt-2 text-sm text-muted" role="status">Je n'ai pas trouvé de quoi écrire une ligne sans l'inventer. Dis ce que tu as livré et pour qui (équipes, périmètre, outils), ou clique sur « Fait ».</p>}
                   {draft.empty === "rejected" && <p className="mt-2 text-sm text-muted" role="status">J'avais une phrase, mais elle contenait un chiffre que tu n'as pas donné : je l'ai écartée plutôt que de l'inventer. Reformule sans chiffre, ou donne le chiffre exact.</p>}
