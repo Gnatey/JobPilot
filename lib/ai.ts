@@ -1,6 +1,7 @@
 import { structured, str, int, arr, obj } from "./llm";
 import { letterParts, letterDoc } from "./letter";
 import { attachLinks } from "./cv-format";
+import { guardCv } from "./cv-guard";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerOp, type MatchGroup, type Proposal } from "./profile-fix";
 import { today } from "./format";
 import type { CvDoc, Diagnostic, LetterDoc, OfferAnalysis, OfferExtract, OnboardingAnswers, PrepDoc, Profile, SkillSuggestion } from "./types";
@@ -136,6 +137,10 @@ Méthode :
 - headline : reprends l'intitulé de l'offre s'il correspond au profil (sinon le titre de la cible "${target?.title ?? variant}"). Un seul métier, pas de "|".
 - summary : 3 lignes max, concrètes, avec les mots-clés de l'offre que le profil couvre réellement. Termine par la disponibilité.
 - experiences : ordre antichronologique. Choisis et reformule les réalisations du profil les plus pertinentes pour l'offre (3-4 puces pour les postes principaux). Commence chaque puce par un verbe d'action. Garde les chiffres existants tels quels. N'inclus PAS une expérience sans réalisation.
+- Chaque puce reformule UNE réalisation du profil sans rien y ajouter : mêmes outils, même public, même périmètre, mêmes chiffres. Reformuler, c'est changer l'ordre des mots et le verbe, jamais les faits.
+- N'ajoute JAMAIS un résultat, un effet ou un bénéfice que la réalisation ne dit pas (« réduisant… », « permettant… », « améliorant… », « afin de… », « ce qui a… »). Une réalisation sans résultat dans le profil s'arrête sur ce qui a été fait, pour qui et avec quoi. Le résultat qui manquerait va dans notes_for_candidate, sous forme de question à se poser.
+- Garde les destinataires et les mots précis du profil (« Business Unit », « CODIR », noms d'outils, de métiers, de processus). Ne les remplace jamais par une expression générale (« la direction », « les équipes », « les parties prenantes », « le pilotage »).
+- Pas de formule creuse (« force de proposition », « environnement dynamique », « forte valeur ajoutée », « pilotage stratégique »).
 - skills : 4-5 lignes thématiques, uniquement ce qui sert l'offre, mots-clés de l'offre en premier.
 - projects : 2-3 projets max, les plus pertinents.
 - certifications : seulement les pertinentes.
@@ -160,8 +165,10 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
       required: ["headline", "summary", "experiences", "education", "skills", "projects", "certifications", "languages", "ats_keywords_used", "notes_for_candidate"],
     },
   });
+  // Garde-fou : un résultat ou un chiffre que le profil ne dit pas est retiré ou signalé (lib/cv-guard.ts)
+  const { cv: checked } = guardCv(cv, profile);
   // Liens : repris du profil (jamais écrits par l'IA), choisis selon l'offre
-  return attachLinks(cv, profile, [offer.title, ...(offer.keywords ?? []), ...(analysis?.matched_keywords ?? []), ...(analysis?.missing_keywords ?? [])].join(" "));
+  return attachLinks(checked, profile,[offer.title, ...(offer.keywords ?? []), ...(analysis?.matched_keywords ?? []), ...(analysis?.missing_keywords ?? [])].join(" "));
 }
 
 /* ---------- 4. Lettre / message de motivation ---------- */
