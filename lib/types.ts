@@ -14,7 +14,8 @@ export type Experience = {
 };
 
 export type Education = { degree: string; school: string; start?: string; end?: string; details?: string[] };
-export type Project = { name: string; year?: string; description: string; tags: string[]; link?: string };
+/** `pin` : « Toujours sur mes CV » (case du profil). Le projet figure sur chaque CV généré, même si l'offre ne le cite pas (lib/cv-edit.ts › pinProjects). */
+export type Project = { name: string; year?: string; description: string; tags: string[]; link?: string; pin?: boolean };
 export type Target = { id: string; title: string; pitch: string };
 
 export type Profile = {

@@ -4,6 +4,7 @@ import { attachLinks } from "./cv-format";
 import { guardCv } from "./cv-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
+import { cleanCvText, pinProjects } from "./cv-edit";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerOp, type MatchGroup, type Proposal } from "./profile-fix";
 import { today } from "./format";
 import type { CvDoc, Diagnostic, LetterDoc, OfferAnalysis, OfferExtract, OnboardingAnswers, PrepDoc, Profile, SkillSuggestion } from "./types";
@@ -145,7 +146,7 @@ Méthode :
 - Pas de formule creuse (« force de proposition », « environnement dynamique », « forte valeur ajoutée », « pilotage stratégique »).
 - education : TOUTES les formations du profil, sans en omettre (même celles qui semblent éloignées de l'offre : un trou entre deux diplômes se voit), avec leurs dates. Elles ne se trient pas. Les intitulés de poste, noms d'entreprise, dates, langues et certifications sont ceux du profil, mot pour mot : tu ne les adaptes pas à l'offre.
 - skills : 4-5 lignes thématiques, uniquement ce qui sert l'offre, mots-clés de l'offre en premier.
-- projects : 2-3 projets max, les plus pertinents.
+- projects : 2-3 projets max, les plus pertinents. Un projet du profil marqué "pin": true figure toujours dans la liste (il compte dans les 3).
 - certifications : seulement les pertinentes.
 - Reprends les dates exactes du profil.
 - notes_for_candidate : ce que la personne doit vérifier ou compléter avant d'envoyer (ex : un chiffre manquant qui renforcerait une puce).
@@ -170,9 +171,10 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
   });
   // Les faits (formations, postes, dates, langues, certifications) sont ceux du profil, pas ceux de l'IA (lib/cv-facts.ts)
   // Puis garde-fou : un résultat ou un chiffre que le profil ne dit pas est retiré ou signalé (lib/cv-guard.ts)
-  const { cv: checked } = guardCv(enforceFacts(cv, profile).cv, profile);
+  // Les projets « Toujours sur mes CV » du profil sont remis s'ils manquent (lib/cv-edit.ts) ; les tirets insécables du profil deviennent des tirets simples
+  const { cv: checked } = guardCv(pinProjects(enforceFacts(cv, profile).cv, profile), profile);
   // Liens : repris du profil (jamais écrits par l'IA), choisis selon l'offre
-  return attachLinks(checked, profile,[offer.title, ...(offer.keywords ?? []), ...(analysis?.matched_keywords ?? []), ...(analysis?.missing_keywords ?? [])].join(" "));
+  return attachLinks(cleanCvText(checked), profile,[offer.title, ...(offer.keywords ?? []), ...(analysis?.matched_keywords ?? []), ...(analysis?.missing_keywords ?? [])].join(" "));
 }
 
 /* ---------- 4. Lettre / message de motivation ---------- */

@@ -188,6 +188,10 @@ export default function ProfilPage() {
                 <textarea rows={2} className="field sm:col-span-3" aria-label="Description" placeholder="Ce que tu as fait, avec quel résultat" value={e.description} onChange={(ev) => updPro(i, { description: ev.target.value })} />
                 <input className="field sm:col-span-2" aria-label="Outils" placeholder="Outils, séparés par des virgules" defaultValue={e.tags.join(", ")} onBlur={(ev) => updPro(i, { tags: csv(ev.target.value) })} />
                 <input className="field" aria-label="Lien" placeholder="Lien (facultatif)" value={e.link ?? ""} onChange={(ev) => updPro(i, { link: ev.target.value })} />
+                <label className="flex items-center gap-2 text-sm sm:col-span-3">
+                  <input type="checkbox" className="h-4 w-4 accent-[var(--color-marigold)]" checked={!!e.pin} onChange={(ev) => updPro(i, { pin: ev.target.checked })} />
+                  Toujours sur mes CV <span className="text-muted">(même si l'offre ne le cite pas ; 3 projets au plus par CV)</span>
+                </label>
               </div>
             ))}
             {!p.projects.length && <p className="text-sm text-muted">Aucun projet renseigné.</p>}

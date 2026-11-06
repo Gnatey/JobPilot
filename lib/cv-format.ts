@@ -78,6 +78,8 @@ export function recentFirst<T>(items: T[], dates: (x: T) => string): number[] {
 
 export const experiencesRecentFirst = (cv: CvDoc) => recentFirst(cv.experiences, (e) => e.dates).map((i) => ({ x: cv.experiences[i], i }));
 export const educationRecentFirst = (cv: CvDoc) => recentFirst(cv.education, (e) => e.dates).map((i) => cv.education[i]);
+/** Même ordre, avec la place de la formation dans le CV (pour la modifier à l'écran). */
+export const educationEntries = (cv: CvDoc) => recentFirst(cv.education, (e) => e.dates).map((i) => ({ e: cv.education[i], i }));
 
 /* ---------- Coordonnées et liens ---------- */
 
@@ -130,7 +132,7 @@ export function pickLinks(links: Link[], hint = "", max = 4): Link[] {
     .map(({ l }) => l);
 }
 
-const nameKey = (s: string) => fold(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+export const nameKey = (s: string) => fold(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /**
  * Ajoute au CV généré ce que l'IA n'a pas à inventer : le lien de chaque projet (repris du profil) et les liens de l'en-tête,
@@ -163,12 +165,14 @@ export function linkItems(id: Id, max = 4, chosen?: Link[]): Item[] {
 
 export const certText = (c: string) => c.replace(/\s*:\s*/, " – ");
 
-export function tailLines(cv: CvDoc): { label: string; text: string }[] {
-  const out: { label: string; text: string }[] = [];
-  if (cv.languages?.trim()) out.push({ label: "Langues", text: cv.languages.trim() });
+export type TailLine = { label: string; text: string; field: "languages" | "certifications" | "extras" };
+
+export function tailLines(cv: CvDoc): TailLine[] {
+  const out: TailLine[] = [];
+  if (cv.languages?.trim()) out.push({ label: "Langues", text: cv.languages.trim(), field: "languages" });
   const certs = (cv.certifications ?? []).filter(Boolean).map(certText);
-  if (certs.length) out.push({ label: certs.length > 1 ? "Certifications" : "Certification", text: certs.join(" · ") });
-  if (cv.extras?.trim()) out.push({ label: "Centres d'intérêt", text: cv.extras.trim() });
+  if (certs.length) out.push({ label: certs.length > 1 ? "Certifications" : "Certification", text: certs.join(" · "), field: "certifications" });
+  if (cv.extras?.trim()) out.push({ label: "Centres d'intérêt", text: cv.extras.trim(), field: "extras" });
   return out;
 }
 

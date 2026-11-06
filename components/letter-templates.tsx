@@ -2,15 +2,13 @@
 import type { ReactNode } from "react";
 import type { Profile } from "@/lib/types";
 import { letterDate, senderItems, type LetterParts, type LetterTemplateId } from "@/lib/letter";
-import { A, E, Inline, Items } from "./cv-templates";
+import { A, E, EMPTY, Inline, Items } from "./cv-templates";
 
 type Id = Profile["identity"];
 export type LetterProps = { p: LetterParts; id: Id; upd: (patch: Partial<LetterParts>) => void };
 
 /* Les six modèles de lettre reprennent l'allure des modèles de CV : un CV et sa lettre qui partent ensemble forment un ensemble.
  * Tout le texte se modifie en cliquant dessus ; « Entrée » ouvre un nouveau paragraphe, un paragraphe vidé disparaît. */
-
-const EMPTY = "[&:empty]:before:text-gray-400 [&:empty]:before:content-['Écris_ici…'] print:[&:empty]:before:content-none";
 
 /** Les paragraphes de la lettre. */
 function Paras({ p, upd, className = "mt-[4mm]" }: LetterProps & { className?: string }) {

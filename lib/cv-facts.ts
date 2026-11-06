@@ -27,6 +27,27 @@ export function educationDates(e: Pick<Education, "start" | "end">): string {
   return first === last ? first : `${first}-${last}`;
 }
 
+/**
+ * « OpenClassrooms : Python, SQL, Excel, SQL » devient « OpenClassrooms : Python, SQL, Excel » : un intitulé écrit deux fois dans le profil
+ * (cela arrive quand deux listes sont fusionnées) ne se répète pas sur le CV. Les virgules entre parenthèses ne séparent rien.
+ */
+export function dedupeCert(c: string): string {
+  const m = /^([^:()]{1,40}:\s*)([\s\S]*)$/.exec(c);
+  const head = m ? m[1] : "";
+  const body = m ? m[2] : c;
+  const parts: string[] = [];
+  let depth = 0, cur = "";
+  for (const ch of body) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth = Math.max(0, depth - 1);
+    if (ch === "," && depth === 0) { parts.push(cur); cur = ""; } else cur += ch;
+  }
+  parts.push(cur);
+  const seen = new Set<string>();
+  const out = parts.map((x) => x.trim()).filter((x) => { const k = normText(x); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+  return head + out.join(", ");
+}
+
 const CEFR = /\b[abc][12]\b/;
 
 /**
@@ -162,14 +183,15 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
   const languages = languagesText(profile.languages);
   if (!sameLanguages(cv.languages ?? "", profile.languages)) report.languages = true;
 
-  /* Certifications : seulement celles du profil (l'IA en choisit, elle n'en crée pas). */
+  /* Certifications : seulement celles du profil (l'IA en choisit, elle n'en crée pas). Un intitulé écrit deux fois n'apparaît qu'une fois. */
   const certPool = (profile.certifications ?? []).join(" ");
+  const seenCerts = new Set<string>();
   const certifications = (cv.certifications ?? []).filter((c) => {
     if (!c?.trim() || share(c, certPool) >= GROUNDED) return !!c?.trim();
     report.inventedCerts.push(c);
     notes.push(`J'ai retiré la certification « ${c} » : elle ne figure pas dans ton profil.`);
     return false;
-  });
+  }).map(dedupeCert).filter((c) => { const k = normText(c); if (seenCerts.has(k)) return false; seenCerts.add(k); return true; });
 
   const have = cv.notes_for_candidate ?? [];
   return { cv: { ...cv, education, experiences, languages, certifications, notes_for_candidate: [...have, ...notes.filter((n) => !have.includes(n))] }, report };

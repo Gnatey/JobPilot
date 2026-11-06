@@ -113,7 +113,7 @@ ok("langues : « Français (maternel) · Anglais (B1-B2) »", languagesText(prof
 
 // ---------- Branchement ----------
 const ai = readFileSync("lib/ai.ts", "utf8");
-ok("generateCv remet les faits du profil AVANT le garde-fou et la pose des liens", ai.includes('import { enforceFacts } from "./cv-facts"') && ai.indexOf("enforceFacts(cv, profile)") > -1 && ai.indexOf("enforceFacts(cv, profile)") < ai.indexOf("attachLinks(checked"));
+ok("generateCv remet les faits du profil AVANT le garde-fou et la pose des liens", ai.includes('import { enforceFacts } from "./cv-facts"') && ai.indexOf("enforceFacts(cv, profile)") > -1 && ai.indexOf("enforceFacts(cv, profile)") < ai.indexOf("attachLinks(cleanCvText(checked)"));
 ok("règle de rédaction : toutes les formations, intitulés et dates du profil mot pour mot", ai.includes("education : TOUTES les formations du profil") && ai.includes("mot pour mot"));
 
 // ---------- Langues : comparées par le sens, avec les vrais textes du profil et des CV de Juliana (6 novembre) ----------

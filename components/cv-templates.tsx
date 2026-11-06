@@ -1,20 +1,43 @@
 "use client";
 import { Fragment } from "react";
 import type { CvDoc, Profile } from "@/lib/types";
-import { contactItems, linkItems, tailLines, tailTitle, experiencesRecentFirst, educationRecentFirst, type Item } from "@/lib/cv-format";
+import { contactItems, linkItems, tailLines, tailTitle, certText, experiencesRecentFirst, educationEntries, type Item } from "@/lib/cv-format";
+import { joinDates, setBullet, setCert, setEdu, setExp, setProject, setSkill, setTail } from "@/lib/cv-edit";
 
 type Id = Profile["identity"];
 type Upd = (fn: (cv: CvDoc) => void) => void;
+type Tag = "span" | "p" | "h1" | "h2" | "li" | "div";
 
-/** Texte modifiable directement sur le CV (enregistré au clic sur "Enregistrer"). */
-export function E({ v, on, className, as: Tag = "span" }: { v: string; on: (s: string) => void; className?: string; as?: "span" | "p" | "h1" | "h2" | "li" | "div" }) {
+/** Repère d'un champ vide : visible à l'écran pour qu'on puisse le remplir, absent du PDF. */
+export const EMPTY = "[&:empty]:before:text-gray-400 [&:empty]:before:content-['Écris_ici…'] print:[&:empty]:before:content-none";
+
+/** Texte modifiable directement sur le CV (enregistré au clic sur "Enregistrer"). `single` : « Entrée » valide au lieu d'ouvrir une ligne. */
+export function E({ v, on, className, as: Tag = "span", single }: { v: string; on: (s: string) => void; className?: string; as?: Tag; single?: boolean }) {
   return (
     <Tag contentEditable suppressContentEditableWarning className={`outline-none focus:bg-yellow-100/60 ${className ?? ""}`}
+      onKeyDown={single ? (e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLElement).blur(); } } : undefined}
       onBlur={(e) => { const t = (e.target as HTMLElement).innerText.trim(); if (t !== v) on(t); }}>
       {v}
     </Tag>
   );
 }
+
+/**
+ * Un texte du CV (poste, entreprise, dates, école, projet, compétence…) : un clic pour écrire, « Entrée » valide.
+ * Il est recréé à chaque changement (`key`) pour que l'écran reste identique au texte enregistré.
+ */
+function F({ v, on, className, as }: { v: string; on: (s: string) => void; className?: string; as?: Tag }) {
+  return <E key={v} single v={v} on={on} as={as} className={`${className ?? ""} ${EMPTY}`} />;
+}
+
+const xf = (upd: Upd, i: number, k: "role" | "company" | "location" | "dates") => (s: string) => upd((c) => setExp(c, i, k, s));
+const ef = (upd: Upd, i: number, k: "degree" | "school" | "dates") => (s: string) => upd((c) => setEdu(c, i, k, s));
+const pf = (upd: Upd, i: number, k: "name" | "description") => (s: string) => upd((c) => setProject(c, i, k, s));
+const sf = (upd: Upd, i: number, k: "label" | "items") => (s: string) => upd((c) => setSkill(c, i, k, s));
+
+/** Lieu d'un poste, précédé de son séparateur ; absent (ou vidé) : rien. */
+const Loc = ({ x, i, upd, sep = ", " }: { x: CvDoc["experiences"][number]; i: number; upd: Upd; sep?: string }) =>
+  x.location ? <>{sep}<F v={x.location} on={xf(upd, i, "location")} /></> : null;
 
 /** Une coordonnée ou un lien : cliquable dans le PDF (mailto, tel, site), jamais coupé en deux au milieu. */
 export function A({ it, wrap }: { it: Item; wrap?: boolean }) {
@@ -44,15 +67,20 @@ export function Inline({ items, sep, className }: { items: Item[]; sep: string; 
 const splitDates = (d: string) => d.replace(/\s+[-–—]\s+/, " –\n");
 
 /** Langues, certifications, centres d'intérêt : une ligne chacun, avec son étiquette. */
-function Tail({ cv, labelClass = "font-bold", className = "mt-0.5", center }: { cv: CvDoc; labelClass?: string; className?: string; center?: boolean }) {
-  return <>{tailLines(cv).map((l) => <p key={l.label} className={`${className} ${center ? "text-center" : ""}`}><span className={labelClass}>{l.label} :</span> {l.text}</p>)}</>;
+function Tail({ cv, upd, labelClass = "font-bold", className = "mt-0.5", center }: { cv: CvDoc; upd: Upd; labelClass?: string; className?: string; center?: boolean }) {
+  return <>{tailLines(cv).map((l) => <p key={l.label} className={`${className} ${center ? "text-center" : ""}`}><span className={labelClass}>{l.label} :</span> <F v={l.text} on={(s) => upd((c) => setTail(c, l.field, s))} /></p>)}</>;
 }
 
+/**
+ * Les puces d'un poste : « Entrée » en ouvre une nouvelle, une puce vidée disparaît (comme les paragraphes d'une lettre).
+ * Le nombre de puces fait partie de la clé : « Entrée » en fin de puce laisse le début identique, et sans cela l'écran garderait le texte tapé
+ * dans l'ancienne puce en plus de la nouvelle (vu au banc d'essai navigateur).
+ */
 function Bullets({ cv, upd, i, className }: { cv: CvDoc; upd: Upd; i: number; className?: string }) {
   return (
     <ul className={`${className ?? ""} space-y-[2px]`}>
       {cv.experiences[i].bullets.map((b, j) => (
-        <E key={j} as="li" v={b} on={(s) => upd((c) => { c.experiences[i].bullets[j] = s; })} />
+        <E key={`${i}-${j}-${b}-${cv.experiences[i].bullets.length}`} as="li" v={b} className="whitespace-pre-line" on={(s) => upd((c) => setBullet(c, i, j, s))} />
       ))}
     </ul>
   );
@@ -75,20 +103,20 @@ export function Classique({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <H>Expérience professionnelle</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
         <div key={i} className="mt-2 break-inside-avoid">
-          <div className="flex justify-between gap-4"><p><strong>{x.role}</strong>, {x.company}{x.location ? `, ${x.location}` : ""}</p><p className="shrink-0 italic">{x.dates}</p></div>
+          <div className="flex justify-between gap-4"><p><strong><F v={x.role} on={xf(upd, i, "role")} /></strong>, <F v={x.company} on={xf(upd, i, "company")} /><Loc x={x} i={i} upd={upd} /></p><p className="shrink-0 italic"><F v={x.dates} on={xf(upd, i, "dates")} /></p></div>
           <Bullets cv={cv} upd={upd} i={i} className="mt-0.5 list-disc pl-5" />
         </div>
       ))}
       <H>Formation</H>
-      {educationRecentFirst(cv).map((e, i) => (
-        <div key={i} className="mt-1 flex justify-between gap-4"><p><strong>{e.degree}</strong>, {e.school}</p><p className="shrink-0 italic">{e.dates}</p></div>
+      {educationEntries(cv).map(({ e, i }) => (
+        <div key={i} className="mt-1 flex justify-between gap-4"><p><strong><F v={e.degree} on={ef(upd, i, "degree")} /></strong>, <F v={e.school} on={ef(upd, i, "school")} /></p><p className="shrink-0 italic"><F v={e.dates} on={ef(upd, i, "dates")} /></p></div>
       ))}
       <H>Compétences</H>
       {cv.skills.map((s, i) => (
-        <p key={i} className="mt-0.5"><strong>{s.label} :</strong> <E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>
+        <p key={i} className="mt-0.5"><strong><F v={s.label} on={sf(upd, i, "label")} /> :</strong> <F v={s.items} on={sf(upd, i, "items")} /></p>
       ))}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong>{p.name} :</strong> {p.description}<ProjLink link={p.link} /></p>)}</>}
-      {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} /></>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong><F v={p.name} on={pf(upd, i, "name")} /> :</strong> <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>}
+      {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} upd={upd} /></>}
     </div>
   );
 }
@@ -110,24 +138,24 @@ export function Moderne({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <H>Compétences</H>
       <div className="mt-1 grid grid-cols-[8.5rem_1fr] gap-x-3 gap-y-0.5">
         {cv.skills.map((s, i) => (
-          <div key={i} className="contents"><p className="font-semibold">{s.label}</p><E as="p" v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></div>
+          <div key={i} className="contents"><p className="font-semibold"><F v={s.label} on={sf(upd, i, "label")} /></p><F as="p" v={s.items} on={sf(upd, i, "items")} /></div>
         ))}
       </div>
       <H>Expérience</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
         <div key={i} className="mt-2 break-inside-avoid">
-          <div className="flex items-baseline justify-between gap-4"><p className="font-bold">{x.role} <span className="font-normal">chez {x.company}</span></p><p className="shrink-0 text-[8.8pt] text-[#4a5270]">{x.dates}</p></div>
+          <div className="flex items-baseline justify-between gap-4"><p className="font-bold"><F v={x.role} on={xf(upd, i, "role")} /> <span className="font-normal">chez <F v={x.company} on={xf(upd, i, "company")} /></span></p><p className="shrink-0 text-[8.8pt] text-[#4a5270]"><F v={x.dates} on={xf(upd, i, "dates")} /></p></div>
           <Bullets cv={cv} upd={upd} i={i} className="mt-0.5 list-disc space-y-0.5 pl-4 marker:text-[#c99400]" />
         </div>
       ))}
       {cv.projects.length > 0 && (
-        <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-semibold">{p.name}</span> : {p.description}<ProjLink link={p.link} /></p>)}</>
+        <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-semibold"><F v={p.name} on={pf(upd, i, "name")} /></span> : <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>
       )}
       <H>Formation</H>
-      {educationRecentFirst(cv).map((e, i) => (
-        <div key={i} className="mt-0.5 flex justify-between gap-4"><p><span className="font-semibold">{e.degree}</span>, {e.school}</p><p className="shrink-0 text-[#4a5270]">{e.dates}</p></div>
+      {educationEntries(cv).map(({ e, i }) => (
+        <div key={i} className="mt-0.5 flex justify-between gap-4"><p><span className="font-semibold"><F v={e.degree} on={ef(upd, i, "degree")} /></span>, <F v={e.school} on={ef(upd, i, "school")} /></p><p className="shrink-0 text-[#4a5270]"><F v={e.dates} on={ef(upd, i, "dates")} /></p></div>
       ))}
-      {tailLines(cv).length > 0 && <div className="mt-4"><Tail cv={cv} labelClass="font-semibold" /></div>}
+      {tailLines(cv).length > 0 && <div className="mt-4"><Tail cv={cv} upd={upd} labelClass="font-semibold" /></div>}
     </div>
   );
 }
@@ -152,25 +180,25 @@ export function Esn({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
         <tbody>
           {cv.skills.map((s, i) => (
             <tr key={i} className="border-b border-gray-300 align-top">
-              <th className="w-40 py-1 pr-3 font-semibold">{s.label}</th>
-              <td className="py-1"><E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></td>
+              <th className="w-40 py-1 pr-3 font-semibold"><F v={s.label} on={sf(upd, i, "label")} /></th>
+              <td className="py-1"><F v={s.items} on={sf(upd, i, "items")} /></td>
             </tr>
           ))}
         </tbody>
       </table>
-      <H>Expériences et missions</H>
+      <H>Expériences</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
         <div key={i} className="mt-2 break-inside-avoid border-l-2 border-gray-300 pl-3">
-          <p className="font-bold">{x.company} : {x.role}</p>
-          <p className="text-[8.8pt] text-gray-700">{[x.dates, x.location].filter(Boolean).join(", ")}</p>
+          <p className="font-bold"><F v={x.company} on={xf(upd, i, "company")} /> : <F v={x.role} on={xf(upd, i, "role")} /></p>
+          <p className="text-[8.8pt] text-gray-700"><F v={x.dates} on={xf(upd, i, "dates")} /><Loc x={x} i={i} upd={upd} /></p>
           <p className="mt-1 font-semibold">Réalisations</p>
           <Bullets cv={cv} upd={upd} i={i} className="list-disc pl-5" />
         </div>
       ))}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong>{p.name} :</strong> {p.description}<ProjLink link={p.link} /></p>)}</>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><strong><F v={p.name} on={pf(upd, i, "name")} /> :</strong> <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>}
       <H>Formation, langues, certifications</H>
-      {educationRecentFirst(cv).map((e, i) => <p key={i} className="mt-0.5"><strong>{e.dates}</strong> : {e.degree}, {e.school}</p>)}
-      <Tail cv={cv} className="mt-0.5" />
+      {educationEntries(cv).map(({ e, i }) => <p key={i} className="mt-0.5"><strong><F v={e.dates} on={ef(upd, i, "dates")} /></strong> : <F v={e.degree} on={ef(upd, i, "degree")} />, <F v={e.school} on={ef(upd, i, "school")} /></p>)}
+      <Tail cv={cv} upd={upd} className="mt-0.5" />
       <Items items={linkItems(id, 4, cv.links)} className="mt-2 text-[8.6pt]" />
     </div>
   );
@@ -187,18 +215,18 @@ export function Compact({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <H>Profil</H>
       <E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} />
       <H>Compétences</H>
-      {cv.skills.map((s, i) => <p key={i}><b>{s.label} :</b> <E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>)}
+      {cv.skills.map((s, i) => <p key={i}><b><F v={s.label} on={sf(upd, i, "label")} /> :</b> <F v={s.items} on={sf(upd, i, "items")} /></p>)}
       <H>Expérience professionnelle</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
         <div key={i} className="mt-1.5">
-          <p><b>{x.role}</b> | {x.company}{x.location ? ` | ${x.location}` : ""} | {x.dates}</p>
+          <p><b><F v={x.role} on={xf(upd, i, "role")} /></b> | <F v={x.company} on={xf(upd, i, "company")} /><Loc x={x} i={i} upd={upd} sep=" | " /> | <F v={x.dates} on={xf(upd, i, "dates")} /></p>
           <Bullets cv={cv} upd={upd} i={i} className="list-disc pl-5" />
         </div>
       ))}
       <H>Formation</H>
-      {educationRecentFirst(cv).map((e, i) => <p key={i}><b>{e.degree}</b> | {e.school} | {e.dates}</p>)}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i}><b>{p.name} :</b> {p.description}<ProjLink link={p.link} /></p>)}</>}
-      {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} className="" /></>}
+      {educationEntries(cv).map(({ e, i }) => <p key={i}><b><F v={e.degree} on={ef(upd, i, "degree")} /></b> | <F v={e.school} on={ef(upd, i, "school")} /> | <F v={e.dates} on={ef(upd, i, "dates")} /></p>)}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i}><b><F v={p.name} on={pf(upd, i, "name")} /> :</b> <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>}
+      {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} upd={upd} className="" /></>}
     </div>
   );
 }
@@ -226,12 +254,12 @@ export function Colonnes({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
           {linkItems(id, 4, cv.links).length > 0 && <Side title="Liens">{linkItems(id, 4, cv.links).map((l, k) => <p key={k}><A it={l} wrap /></p>)}</Side>}
           <Side title="Compétences">
             {cv.skills.map((s, i) => (
-              <p key={i} className="mt-1 first:mt-0"><span className="font-semibold">{s.label}</span><br /><E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>
+              <p key={i} className="mt-1 first:mt-0"><span className="font-semibold"><F v={s.label} on={sf(upd, i, "label")} /></span><br /><F v={s.items} on={sf(upd, i, "items")} /></p>
             ))}
           </Side>
-          {cv.languages && <Side title="Langues"><p>{cv.languages}</p></Side>}
-          {cv.certifications.length > 0 && <Side title="Certifications">{cv.certifications.map((c) => <p key={c}>{c.replace(/\s*:\s*/, " – ")}</p>)}</Side>}
-          {cv.extras && <Side title="Intérêts"><p>{cv.extras}</p></Side>}
+          {cv.languages && <Side title="Langues"><p><F v={cv.languages} on={(s) => upd((c) => setTail(c, "languages", s))} /></p></Side>}
+          {cv.certifications.length > 0 && <Side title="Certifications">{cv.certifications.map((cert, k) => <p key={`${k}-${cert}`}><F v={certText(cert)} on={(s) => upd((c) => setCert(c, k, s))} /></p>)}</Side>}
+          {cv.extras && <Side title="Intérêts"><p><F v={cv.extras} on={(s) => upd((c) => setTail(c, "extras", s))} /></p></Side>}
         </aside>
         <div>
           <H>Profil</H>
@@ -239,16 +267,16 @@ export function Colonnes({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
           <H>Expérience</H>
           {experiencesRecentFirst(cv).map(({ x, i }) => (
             <div key={i} className="mt-2 break-inside-avoid">
-              <div className="flex items-baseline justify-between gap-3"><p className="font-bold">{x.role}</p><p className="shrink-0 text-[8.6pt] text-[#5b6680]">{x.dates}</p></div>
-              <p className="text-[#4a5a78]">{[x.company, x.location].filter(Boolean).join(", ")}</p>
+              <div className="flex items-baseline justify-between gap-3"><p className="font-bold"><F v={x.role} on={xf(upd, i, "role")} /></p><p className="shrink-0 text-[8.6pt] text-[#5b6680]"><F v={x.dates} on={xf(upd, i, "dates")} /></p></div>
+              <p className="text-[#4a5a78]"><F v={x.company} on={xf(upd, i, "company")} /><Loc x={x} i={i} upd={upd} /></p>
               <Bullets cv={cv} upd={upd} i={i} className="mt-0.5 list-disc pl-4 marker:text-[#1f3a5f]" />
             </div>
           ))}
           <H>Formation</H>
-          {educationRecentFirst(cv).map((e, i) => (
-            <div key={i} className="mt-1 flex items-baseline justify-between gap-3"><p><span className="font-semibold">{e.degree}</span>, {e.school}</p><p className="shrink-0 text-[8.6pt] text-[#5b6680]">{e.dates}</p></div>
+          {educationEntries(cv).map(({ e, i }) => (
+            <div key={i} className="mt-1 flex items-baseline justify-between gap-3"><p><span className="font-semibold"><F v={e.degree} on={ef(upd, i, "degree")} /></span>, <F v={e.school} on={ef(upd, i, "school")} /></p><p className="shrink-0 text-[8.6pt] text-[#5b6680]"><F v={e.dates} on={ef(upd, i, "dates")} /></p></div>
           ))}
-          {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold">{p.name} :</span> {p.description}<ProjLink link={p.link} /></p>)}</>}
+          {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold"><F v={p.name} on={pf(upd, i, "name")} /> :</span> <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>}
         </div>
       </div>
     </div>
@@ -266,6 +294,8 @@ export function Timeline({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
   const H = ({ children }: { children: React.ReactNode }) => (
     <div className="mt-4 grid grid-cols-[25mm_1fr] gap-x-3"><span /><h2 className="pl-3.5 text-[11.5pt] font-bold text-[#1f3a5f]">{children}</h2></div>
   );
+  /** Dates en marge, sur deux lignes à l'écran ; une fois modifiées, elles sont réécrites sur une seule ligne. */
+  const dates = (v: string, on: (s: string) => void) => <F v={splitDates(v)} on={(s) => on(joinDates(s))} />;
   return (
     <div className="font-sans text-[9.5pt] leading-[1.42] text-[#1d2433]">
       <div className="grid grid-cols-[25mm_1fr] gap-x-3">
@@ -280,17 +310,17 @@ export function Timeline({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <Row left="Profil"><E as="p" v={cv.summary} on={(s) => upd((c) => { c.summary = s; })} /></Row>
       <H>Expérience</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
-        <Row key={i} left={splitDates(x.dates)}>
-          <p><span className="font-bold">{x.role}</span>, {[x.company, x.location].filter(Boolean).join(", ")}</p>
+        <Row key={i} left={dates(x.dates, (s) => upd((c) => setExp(c, i, "dates", s)))}>
+          <p><span className="font-bold"><F v={x.role} on={xf(upd, i, "role")} /></span>, <F v={x.company} on={xf(upd, i, "company")} /><Loc x={x} i={i} upd={upd} /></p>
           <Bullets cv={cv} upd={upd} i={i} className="mt-0.5 list-disc pl-4 marker:text-[#1f3a5f]" />
         </Row>
       ))}
       <H>Formation</H>
-      {educationRecentFirst(cv).map((e, i) => <Row key={i} left={splitDates(e.dates)}><p><span className="font-semibold">{e.degree}</span>, {e.school}</p></Row>)}
+      {educationEntries(cv).map(({ e, i }) => <Row key={i} left={dates(e.dates, (s) => upd((c) => setEdu(c, i, "dates", s)))}><p><span className="font-semibold"><F v={e.degree} on={ef(upd, i, "degree")} /></span>, <F v={e.school} on={ef(upd, i, "school")} /></p></Row>)}
       <H>Compétences</H>
-      {cv.skills.map((s, i) => <Row key={i} left={s.label}><E as="p" v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></Row>)}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <Row key={i} left={p.name}><p>{p.description}<ProjLink link={p.link} /></p></Row>)}</>}
-      {tailLines(cv).map((l) => <Row key={l.label} left={l.label}><p>{l.text}</p></Row>)}
+      {cv.skills.map((s, i) => <Row key={i} left={<F v={s.label} on={sf(upd, i, "label")} />}><F as="p" v={s.items} on={sf(upd, i, "items")} /></Row>)}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <Row key={i} left={<F v={p.name} on={pf(upd, i, "name")} />}><p><F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p></Row>)}</>}
+      {tailLines(cv).map((l) => <Row key={l.label} left={l.label}><F as="p" v={l.text} on={(s) => upd((c) => setTail(c, l.field, s))} /></Row>)}
     </div>
   );
 }
@@ -312,18 +342,18 @@ export function Elegant({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <H>Expérience</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
         <div key={i} className="mt-2 break-inside-avoid">
-          <div className="flex items-baseline justify-between gap-4"><p><span className="font-bold">{x.role}</span> <span className="italic">· {x.company}{x.location ? `, ${x.location}` : ""}</span></p><p className="shrink-0 text-[9pt] italic text-[#5d4a1c]">{x.dates}</p></div>
+          <div className="flex items-baseline justify-between gap-4"><p><span className="font-bold"><F v={x.role} on={xf(upd, i, "role")} /></span> <span className="italic">· <F v={x.company} on={xf(upd, i, "company")} /><Loc x={x} i={i} upd={upd} /></span></p><p className="shrink-0 text-[9pt] italic text-[#5d4a1c]"><F v={x.dates} on={xf(upd, i, "dates")} /></p></div>
           <Bullets cv={cv} upd={upd} i={i} className="mt-0.5 list-disc pl-5 marker:text-[#b49a5c]" />
         </div>
       ))}
       <H>Formation</H>
-      {educationRecentFirst(cv).map((e, i) => (
-        <div key={i} className="mt-1 flex items-baseline justify-between gap-4"><p><span className="font-bold">{e.degree}</span>, {e.school}</p><p className="shrink-0 text-[9pt] italic text-[#5d4a1c]">{e.dates}</p></div>
+      {educationEntries(cv).map(({ e, i }) => (
+        <div key={i} className="mt-1 flex items-baseline justify-between gap-4"><p><span className="font-bold"><F v={e.degree} on={ef(upd, i, "degree")} /></span>, <F v={e.school} on={ef(upd, i, "school")} /></p><p className="shrink-0 text-[9pt] italic text-[#5d4a1c]"><F v={e.dates} on={ef(upd, i, "dates")} /></p></div>
       ))}
       <H>Compétences</H>
-      {cv.skills.map((s, i) => <p key={i} className="mt-0.5"><span className="font-bold">{s.label} :</span> <E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} /></p>)}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-bold">{p.name} :</span> {p.description}<ProjLink link={p.link} /></p>)}</>}
-      {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} center /></>}
+      {cv.skills.map((s, i) => <p key={i} className="mt-0.5"><span className="font-bold"><F v={s.label} on={sf(upd, i, "label")} /> :</span> <F v={s.items} on={sf(upd, i, "items")} /></p>)}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-0.5"><span className="font-bold"><F v={p.name} on={pf(upd, i, "name")} /> :</span> <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>}
+      {tailLines(cv).length > 0 && <><H>{tailTitle(cv)}</H><Tail cv={cv} upd={upd} center /></>}
     </div>
   );
 }
@@ -348,24 +378,24 @@ export function Bandeau({ cv, id, upd }: { cv: CvDoc; id: Id; upd: Upd }) {
       <div className="mt-1.5 space-y-1">
         {cv.skills.map((s, i) => (
           <div key={i} className="flex items-baseline gap-2">
-            <span className="shrink-0 rounded-full bg-[#e3ebf8] px-2 py-0.5 text-[8.6pt] font-semibold text-[#1f3a5f]">{s.label}</span>
-            <E v={s.items} on={(t) => upd((c) => { c.skills[i].items = t; })} />
+            <span className="shrink-0 rounded-full bg-[#e3ebf8] px-2 py-0.5 text-[8.6pt] font-semibold text-[#1f3a5f]"><F v={s.label} on={sf(upd, i, "label")} /></span>
+            <F v={s.items} on={sf(upd, i, "items")} />
           </div>
         ))}
       </div>
       <H>Expérience</H>
       {experiencesRecentFirst(cv).map(({ x, i }) => (
         <div key={i} className="mt-2 break-inside-avoid">
-          <div className="flex items-baseline justify-between gap-4"><p><span className="font-bold">{x.role}</span> <span className="text-[#4a5a78]">· {x.company}{x.location ? `, ${x.location}` : ""}</span></p><p className="shrink-0 text-[8.8pt] text-[#4a5270]">{x.dates}</p></div>
+          <div className="flex items-baseline justify-between gap-4"><p><span className="font-bold"><F v={x.role} on={xf(upd, i, "role")} /></span> <span className="text-[#4a5a78]">· <F v={x.company} on={xf(upd, i, "company")} /><Loc x={x} i={i} upd={upd} /></span></p><p className="shrink-0 text-[8.8pt] text-[#4a5270]"><F v={x.dates} on={xf(upd, i, "dates")} /></p></div>
           <Bullets cv={cv} upd={upd} i={i} className="mt-0.5 list-disc pl-4 marker:text-[#1f3a5f]" />
         </div>
       ))}
       <H>Formation</H>
-      {educationRecentFirst(cv).map((e, i) => (
-        <div key={i} className="mt-1 flex items-baseline justify-between gap-4"><p><span className="font-semibold">{e.degree}</span>, {e.school}</p><p className="shrink-0 text-[8.8pt] text-[#4a5270]">{e.dates}</p></div>
+      {educationEntries(cv).map(({ e, i }) => (
+        <div key={i} className="mt-1 flex items-baseline justify-between gap-4"><p><span className="font-semibold"><F v={e.degree} on={ef(upd, i, "degree")} /></span>, <F v={e.school} on={ef(upd, i, "school")} /></p><p className="shrink-0 text-[8.8pt] text-[#4a5270]"><F v={e.dates} on={ef(upd, i, "dates")} /></p></div>
       ))}
-      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold">{p.name} :</span> {p.description}<ProjLink link={p.link} /></p>)}</>}
-      {tailLines(cv).length > 0 && <div className="mt-4"><Tail cv={cv} labelClass="font-semibold" /></div>}
+      {cv.projects.length > 0 && <><H>Projets</H>{cv.projects.map((p, i) => <p key={i} className="mt-1"><span className="font-semibold"><F v={p.name} on={pf(upd, i, "name")} /> :</span> <F v={p.description} on={pf(upd, i, "description")} /><ProjLink link={p.link} /></p>)}</>}
+      {tailLines(cv).length > 0 && <div className="mt-4"><Tail cv={cv} upd={upd} labelClass="font-semibold" /></div>}
     </div>
   );
 }
