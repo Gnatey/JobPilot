@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { safeGet } from "./safe-fetch";
+import { readViaReader } from "./offer-reader";
 
 /** Phrases qu'un site affiche quand une annonce est retirée, pourvue ou expirée. */
 const GONE_RE = new RegExp(
@@ -85,6 +86,17 @@ export async function readOffer(url: string, get: Getter = safeGet, now = Date.n
   } catch {
     return { text: null, gone: false };
   }
+}
+
+/**
+ * `readOffer`, puis le lecteur de pages en secours si la lecture directe n'a rien donné (et que l'annonce n'est pas retirée).
+ * Pour les analyses demandées par une personne ; la synchro automatique garde `readOffer` (pas d'appel en masse à un prestataire).
+ */
+export async function readOfferWithReader(url: string, get?: Getter, reader: (url: string) => Promise<string | null> = readViaReader): Promise<OfferRead> {
+  const direct = await readOffer(url, get);
+  if (direct.text || direct.gone) return direct;
+  const text = await reader(url);
+  return text ? { text, gone: false } : direct;
 }
 
 export async function fetchOfferText(url: string): Promise<string | null> {

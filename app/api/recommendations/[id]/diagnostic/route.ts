@@ -1,6 +1,6 @@
 import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
-import { readOffer, goneMessage } from "@/lib/fetch-offer";
+import { readOfferWithReader, goneMessage } from "@/lib/fetch-offer";
 import { createAnalyzedOffer, markRecoGone } from "@/lib/offer-ops";
 import { externalId } from "@/lib/sources";
 import { recoText } from "@/lib/reco-text";
@@ -29,7 +29,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
     let text = recoText(reco);
     if (text.length < 300 && reco.url) {
-      const read = await readOffer(reco.url);
+      const read = await readOfferWithReader(reco.url);
       if (read.gone) {
         await markRecoGone(supabase, id);
         throw new HttpError(410, goneMessage(true));

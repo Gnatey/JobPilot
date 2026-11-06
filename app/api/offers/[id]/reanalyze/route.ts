@@ -2,7 +2,7 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { extractOffer, analyzeOffer } from "@/lib/ai";
-import { readOffer, goneMessage } from "@/lib/fetch-offer";
+import { readOfferWithReader, goneMessage } from "@/lib/fetch-offer";
 import { spendAi, AI_COST } from "@/lib/quota";
 
 export const maxDuration = 60;
@@ -20,7 +20,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
     let text = String(offer.raw_text ?? "").trim();
     if (text.length < 300 && offer.url) {
-      const read = await readOffer(offer.url);
+      const read = await readOfferWithReader(offer.url);
       if (read.gone) throw new HttpError(410, goneMessage(false));
       text = read.text ?? text;
     }

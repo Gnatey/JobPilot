@@ -2,7 +2,7 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { extractOffer, analyzeOffer } from "@/lib/ai";
-import { readOffer, goneMessage, detectSource, normalizeJobUrl, unreadableMessage } from "@/lib/fetch-offer";
+import { readOfferWithReader, goneMessage, detectSource, normalizeJobUrl, unreadableMessage } from "@/lib/fetch-offer";
 import { markRecoGone } from "@/lib/offer-ops";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { recoText } from "@/lib/reco-text";
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     }
 
     if (!text && url) {
-      const read = await readOffer(url);
+      const read = await readOfferWithReader(url);
       // Annonce retirée : inutile de dépenser de l'IA dessus, et on la range pour qu'elle ne revienne pas dans À trier
       if (read.gone) {
         if (body.reco_id) await markRecoGone(supabase, body.reco_id);
