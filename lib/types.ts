@@ -71,15 +71,16 @@ export const STATUSES = [
   { id: "postule", label: "Postulé", color: "bg-sky-500" },
   { id: "entretien", label: "Entretien", color: "bg-amber-500" },
   { id: "test", label: "Test / Cas", color: "bg-orange-500" },
+  { id: "relance", label: "Relancé", color: "bg-indigo-500" },
   { id: "offre", label: "Offre", color: "bg-emerald-500" },
   { id: "refuse", label: "Refusé", color: "bg-rose-500" },
   { id: "abandonne", label: "Abandonné", color: "bg-zinc-400" },
   { id: "expiree", label: "Offre plus disponible", color: "bg-stone-400" },
 ] as const;
 export type StatusId = (typeof STATUSES)[number]["id"];
-// Anciennes saisies : « expire » (sans e final) est lu comme « Offre plus disponible » ;
-// l'ancienne étape « Relancé » n'existe plus (parcours : À postuler, Postulé, Entretien, Test / Cas, Offre) et se lit « Postulé »
-const STATUS_ALIAS: Record<string, string> = { expire: "expiree", expiré: "expiree", expiree: "expiree", relance: "postule" };
+// Anciennes saisies : « expire » (sans e final) est lu comme « Offre plus disponible ».
+// « Relancé » (après Test / Cas) est une étape comme les autres, choisie à la main : JobPilot ne la pose jamais tout seul.
+const STATUS_ALIAS: Record<string, string> = { expire: "expiree", expiré: "expiree", expiree: "expiree" };
 /** Statut tel que l'app le connaît aujourd'hui : à appliquer à toute ligne lue dans la base qui peut dater d'avant le changement. */
 export const canonicalStatus = (id: string) => STATUS_ALIAS[id] ?? id;
 export const statusLabel = (id: string) => {

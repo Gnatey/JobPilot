@@ -145,6 +145,7 @@ async function Today() {
     { label: "À postuler", n: toSend.length, ids: ["a_postuler"] },
     { label: "Postulées", n: apps.filter((a) => a.status === "postule").length },
     { label: "Entretiens", n: interviews.length },
+    { label: "Relancées", n: apps.filter((a) => a.status === "relance").length },
     { label: "Offres", n: apps.filter((a) => a.status === "offre").length },
     { label: "Refus", n: apps.filter((a) => a.status === "refuse").length },
   ];

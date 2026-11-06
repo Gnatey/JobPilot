@@ -6,8 +6,9 @@ import { canonicalStatus } from "./types";
  * Une candidature « Postulée » sans réponse n'est jamais relancée par JobPilot : le silence se voit dans « sans nouvelles depuis trois semaines »
  * (Suivi), mais aucun rappel ni brouillon de relance ne tombe tant qu'aucun entretien n'a eu lieu.
  *
- * Parcours : À postuler → Postulé → Entretien → Test / Cas → Offre (ou Refusé / Abandonné / Offre plus disponible à tout moment).
- * L'ancienne étape « Relancé » n'existe plus : les lignes qui l'avaient sont lues comme « Postulé » (`canonicalStatus`).
+ * Parcours : À postuler → Postulé → Entretien → Test / Cas → Relancé → Offre (ou Refusé / Abandonné / Offre plus disponible à tout moment).
+ * « Relancé » se choisit à la main une fois la relance envoyée : JobPilot ne la pose jamais seul et ne reproposera pas de relance
+ * pour une ligne « Relancé » (elle est faite). La règle ne change pas : une relance n'est proposée qu'après un entretien ou une épreuve.
  */
 
 /** Jours sans nouvelles après l'entretien (ou l'épreuve) avant de proposer la relance. */

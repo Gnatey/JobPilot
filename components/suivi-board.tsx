@@ -101,14 +101,20 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
     toast(`${a.company} : ${statusLabel(status).toLowerCase()}`, { action: { label: "Annuler", run: async () => { await sb.from("applications").update(before).eq("id", a.id); reload(); } } });
   }
 
-  const ghosted = apps.filter((a) => a.status === "postule" && (daysAgo(a.applied_at) ?? 0) > 21 && (daysAgo(a.last_email_at) ?? 99) > 21);
+  const ghosted = apps.filter((a) => (a.status === "postule" || a.status === "relance") && (daysAgo(a.applied_at) ?? 0) > 21 && (daysAgo(a.last_email_at) ?? 99) > 21);
   async function archiveGhosted() {
     const ok = await confirm({ title: `Classer ${plural(ghosted.length, "candidature", "candidatures")} sans suite ?`, body: "Elles passent en « Abandonné ». Aucune réponse depuis plus de trois semaines : tu pourras les rouvrir si l'entreprise répond.", confirmLabel: "Classer sans suite" });
     if (!ok) return;
     const ids = ghosted.map((a) => a.id);
+    // Chaque ligne retrouve son étape d'avant (Postulé ou Relancé) si on annule
+    const idsOf = (st: string) => ghosted.filter((a) => a.status === st).map((a) => a.id);
+    const before = { postule: idsOf("postule"), relance: idsOf("relance") };
     await sb.from("applications").update({ status: "abandonne", next_action_at: null }).in("id", ids);
     await reload();
-    toast(`${plural(ids.length, "candidature classée", "candidatures classées")} sans suite`, { action: { label: "Annuler", run: async () => { await sb.from("applications").update({ status: "postule" }).in("id", ids); reload(); } } });
+    toast(`${plural(ids.length, "candidature classée", "candidatures classées")} sans suite`, { action: { label: "Annuler", run: async () => {
+      for (const [st, list] of Object.entries(before)) if (list.length) await sb.from("applications").update({ status: st }).in("id", list);
+      reload();
+    } } });
   }
 
   const filtered = apps.filter((a) => (!q || `${a.company} ${a.title} ${a.notes ?? ""}`.toLowerCase().includes(q.toLowerCase())));
@@ -403,8 +409,8 @@ function Card({ app, onClose, onEdit, onChanged }: { app: Application; onClose: 
           {app.status === "a_postuler" && <MarkSentButton id={app.id} label="Envoyée" onDone={() => { onChanged(); onClose(); }} />}
           {canDraftFollowup(app) && <FollowupButton id={app.id} contact={app.contact} compact />}
           {app.status === "a_postuler" && <button type="button" className="btn" onClick={() => setAsking((v) => !v)} aria-expanded={asking}><X size={16} /> Je ne postule pas</button>}
-          {["postule", "entretien", "test"].includes(app.status) && <button type="button" className="btn" onClick={notRetained}><X size={16} /> Pas retenu</button>}
-          {app.status === "postule" && <button type="button" className="btn" onClick={markGone}><Ban size={16} /> Offre plus disponible</button>}
+          {["postule", "entretien", "test", "relance"].includes(app.status) && <button type="button" className="btn" onClick={notRetained}><X size={16} /> Pas retenu</button>}
+          {["postule", "relance"].includes(app.status) && <button type="button" className="btn" onClick={markGone}><Ban size={16} /> Offre plus disponible</button>}
           {app.offer_id
             ? <Link href={`/offres/${app.offer_id}`} className="btn"><ExternalLink size={16} /> Offre et CV</Link>
             : <Link href={`/offres/nouvelle?auto=1&then=cv&app=${app.id}${app.url ? `&url=${encodeURIComponent(app.url)}` : "&needtext=1"}`} className="btn">Analyser l'offre</Link>}

@@ -68,7 +68,7 @@ export async function computeStats(supabase: SupabaseClient) {
 
   const today = new Date();
   const ghosted = sent.filter(
-    (a) => a.status === "postule" && a.applied_at && (today.getTime() - new Date(a.applied_at).getTime()) / 864e5 > 21
+    (a) => (a.status === "postule" || a.status === "relance") && a.applied_at && (today.getTime() - new Date(a.applied_at).getTime()) / 864e5 > 21
   ).length;
 
   // Volume hebdomadaire sur 12 semaines

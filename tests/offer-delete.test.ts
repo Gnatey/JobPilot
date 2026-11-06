@@ -71,6 +71,7 @@ const offerRoute = read("app/api/offers/[id]/route.ts");
 const appRoute = read("app/api/applications/[id]/route.ts");
 const dialog = read("components/offer-row-delete.tsx");
 const page = read("app/offres/page.tsx");
+const rows = read("components/offers-list.tsx"); // les lignes (bouton « Annonce », corbeille) vivent dans la liste cliente
 ok("route offre : lit la raison, écarte la recommandation AVANT de supprimer l'offre (ensuite le lien est perdu)", offerRoute.includes("deletionReason(") && offerRoute.includes("reject_reason: reason") && offerRoute.indexOf('from("recommendations")') > -1 && offerRoute.indexOf('from("recommendations")') < offerRoute.indexOf('from("offers").delete()'));
 ok("route offre : sans raison, l'ancien comportement (analysée → à trier) est conservé", /update\(\{ status: "new" \}\)\.eq\("offer_id", id\)\.eq\("status", "analyzed"\)/.test(offerRoute));
 ok("route offre : une candidature envoyée n'est jamais supprimée avec l'offre", /\.in\("status", \["a_postuler", "abandonne", "expiree"\]\)\.is\("applied_at", null\)/.test(offerRoute));
@@ -79,7 +80,7 @@ ok("fenêtre de suppression : la même liste de raisons que « Je ne postule pas
 ok("fenêtre : un clic sur une raison supprime avec cette raison ; la raison part en JSON", dialog.includes("onPick={(reason) => remove(reason)}") && dialog.includes("JSON.stringify({ reason })"));
 ok("fenêtre : Échap et clic à côté la ferment, sans supprimer", dialog.includes("onCancel=") && dialog.includes("e.target === ref.current"));
 ok("fenêtre : pas de formulaire imbriqué (la raison « Autre » est elle-même un formulaire)", !/<form[\s>]/.test(dialog));
-ok("Offres & CV : bouton « Annonce » (nouvel onglet, noreferrer, libellé pour lecteur d'écran), adresse filtrée par httpUrlOrNull", page.includes("Annonce") && page.includes('target="_blank"') && page.includes('rel="noreferrer"') && /aria-label=\{`Ouvrir l'annonce/.test(page) && page.includes("httpUrlOrNull("));
+ok("Offres & CV : bouton « Annonce » (nouvel onglet, noreferrer, libellé pour lecteur d'écran), adresse filtrée par httpUrlOrNull", rows.includes("Annonce") && rows.includes('target="_blank"') && rows.includes('rel="noreferrer"') && /aria-label=\{`Ouvrir l'annonce/.test(rows) && page.includes("httpUrlOrNull("));
 ok("Offres & CV : lien « Annonce » aussi pour les lignes « À analyser » (adresse de la candidature) et les offres analysées (colonne url lue)", /ad: httpUrlOrNull\(a\.url\)/.test(page) && page.includes('select("id, title, company, location, url, created_at")') && page.includes('select("id, title, company, location, url, score,'));
 
 done();

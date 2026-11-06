@@ -55,7 +55,7 @@ function evidenceFor(profile: Profile, company: string): string {
  * les réglages (quota du jour : 15, objectif de la semaine, codes de départements : 93, 75…) et les listes de tâches.
  * Leurs chiffres feraient passer un « 15 % » inventé pour un chiffre connu (cas de Juliana, 6 novembre).
  */
-const profileText = (profile: Profile) =>
+export const profileText = (profile: Profile) =>
   JSON.stringify({ ...profile, identity: undefined, preferences: undefined, rules: undefined, todo: undefined }, (k, v) => (k === "id" ? undefined : v));
 
 /* ---------- Réserves laissées dans le texte du CV ---------- */

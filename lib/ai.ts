@@ -2,6 +2,7 @@ import { structured, str, int, arr, obj } from "./llm";
 import { letterParts, letterDoc } from "./letter";
 import { attachLinks } from "./cv-format";
 import { guardCv } from "./cv-guard";
+import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerOp, type MatchGroup, type Proposal } from "./profile-fix";
 import { today } from "./format";
@@ -183,7 +184,7 @@ export async function generateLetter(profile: Profile, offer: OfferExtract, anal
 Format : 190 à 230 mots au total, QUATRE paragraphes courts (3 à 4 phrases au plus chacun), à la première personne, sans titre ni liste.
 Rôle de chaque paragraphe :
 1. Accroche : une raison précise de vouloir CE poste dans CETTE organisation, tirée de ce que l'annonce dit de sa mission, de son produit, de ses données ou de son contexte. Pas de compliment général, aucune phrase recopiée de l'annonce.
-2. Première preuve : UNE réalisation du profil, la plus proche de la mission principale, racontée comme une petite histoire (le contexte, ce que j'ai fait, le résultat). Un chiffre seulement s'il existe dans le profil.
+2. Première preuve : UNE réalisation du profil, la plus proche de la mission principale, racontée comme une petite histoire (le contexte, ce que j'ai fait, puis le résultat SEULEMENT s'il est écrit dans le profil : sinon n'en invente aucun et termine sur ce que j'ai appris ou mis en place). Un chiffre seulement s'il existe dans le profil ou dans l'annonce.
 3. Seconde preuve : une autre réalisation (ou un projet) qui répond à une autre exigence de l'annonce, puis ce que j'apporterais concrètement dès les premières semaines.
 4. Clôture : une à deux phrases, la disponibilité et la proposition d'un échange. Pas de « n'hésitez pas », pas de « je me permets ».
 Style :
@@ -206,7 +207,10 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
   const text = [raw.greeting, ...(raw.paragraphs ?? []), raw.signoff].filter(Boolean).join("\n\n");
   const parts = letterParts({ subject: raw.subject, body: text, notes_for_candidate: [] },
     { company: offer.company, date: today(), name: profile.identity.name, headline: ctx.headline });
-  return letterDoc(parts, { subject: raw.subject, body: "", notes_for_candidate: raw.notes_for_candidate ?? [] });
+  // Garde-fou : un chiffre que ni le profil ni l'annonce ne contiennent est signalé (la lettre part sous la signature de la personne)
+  const have = raw.notes_for_candidate ?? [];
+  const guard = guardLetter(raw.paragraphs ?? [], profile, offer, have);
+  return letterDoc(parts, { subject: raw.subject, body: "", notes_for_candidate: [...have, ...guard.notes] });
 }
 
 /* ---------- 5. Préparation d'entretien ---------- */
