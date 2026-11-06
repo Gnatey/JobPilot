@@ -27,9 +27,66 @@ export function educationDates(e: Pick<Education, "start" | "end">): string {
   return first === last ? first : `${first}-${last}`;
 }
 
+const CEFR = /\b[abc][12]\b/;
+
+/**
+ * Le niveau tel qu'on l'écrit entre parenthèses sur un CV. Le profil peut porter « B1-B2 (intermédiaire) » : écrit tel quel il donnerait
+ * « Anglais (B1-B2 (intermédiaire)) ». On garde le niveau chiffré et on laisse tomber la glose ; sans niveau chiffré, la glose suit une virgule.
+ * Un mot de niveau (« Langue maternelle », « Courant ») prend une minuscule ; « B1-B2 » reste tel quel.
+ */
+export function cleanLevel(level: string | undefined): string {
+  let t = (level ?? "").trim().replace(/\s+/g, " ");
+  const m = t.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  if (m?.[1]) t = CEFR.test(normText(m[1])) ? m[1].trim() : `${m[1].trim()}, ${m[2].trim()}`;
+  else if (m) t = m[2].trim();
+  return /^[A-ZÀ-Ý][a-zà-ÿ]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t;
+}
+
 /** « Français (maternel) · Anglais (B1-B2) » */
 export const languagesText = (langs: Profile["languages"]): string =>
-  (langs ?? []).filter((l) => l?.name?.trim()).map((l) => (l.level?.trim() ? `${l.name.trim()} (${l.level.trim()})` : l.name.trim())).join(" · ");
+  (langs ?? []).filter((l) => l?.name?.trim()).map((l) => { const lv = cleanLevel(l.level); return lv ? `${l.name.trim()} (${lv})` : l.name.trim(); }).join(" · ");
+
+/** Coupe « Français (langue maternelle), Anglais (B1-B2) » sur · , ; sans couper ce qui est entre parenthèses. */
+function splitLanguages(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0, cur = "";
+  for (const ch of text) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    if (depth === 0 && /[·,;|\n]/.test(ch)) { out.push(cur); cur = ""; } else cur += ch;
+  }
+  return [...out, cur].map((x) => normText(x)).filter(Boolean);
+}
+
+const NATIVE = /\b(maternel|maternelle|natif|native|natale|bilingue)\b/;
+const stems = (t: string) => t.split(" ").filter((w) => w.length > 2).map((w) => w.slice(0, 4)).sort().join(" ");
+
+/** Même niveau ? Niveaux chiffrés (B1-B2) identiques, ou tous deux « langue maternelle », ou mêmes mots. */
+function sameLevel(p: string, c: string): boolean {
+  const codes = (t: string) => [...new Set(t.match(new RegExp(CEFR.source, "g")) ?? [])].sort().join(",");
+  if (codes(p) || codes(c)) return codes(p) === codes(c);
+  if (NATIVE.test(p) || NATIVE.test(c)) return NATIVE.test(p) === NATIVE.test(c);
+  return stems(p) === stems(c);
+}
+
+/**
+ * Les langues du CV disent-elles la même chose que le profil ? Mêmes langues, mêmes niveaux, quelle que soit la façon de l'écrire
+ * (« Français (maternel) » = « Français (Langue maternelle) », « B1‑B2 » = « B1-B2 (intermédiaire) », ordre libre). Une langue en trop,
+ * une langue absente ou un autre niveau (C1 au lieu de B1-B2) = différent.
+ */
+export function sameLanguages(cvText: string, langs: Profile["languages"]): boolean {
+  const prof = (langs ?? []).filter((l) => l?.name?.trim());
+  const segs = splitLanguages(cvText ?? "");
+  const used = new Set<number>();
+  for (const l of prof) {
+    const name = normText(l.name);
+    const i = segs.findIndex((s, k) => !used.has(k) && (s === name || s.startsWith(name + " ")));
+    if (i < 0) return false;
+    used.add(i);
+    if (!sameLevel(normText(l.level ?? ""), segs[i].slice(name.length).trim())) return false;
+  }
+  return used.size === segs.length;
+}
 
 const periodOf = (p: Experience) => [p.start, p.end].filter(Boolean).join(" - ");
 /** Même début et même fin, quelle que soit la façon de l'écrire (« Sept 2022 – Sept 2023 » = « sept. 2022 - sept. 2023 »). */
@@ -103,9 +160,7 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
 
   /* Langues : celles du profil, avec leur niveau. */
   const languages = languagesText(profile.languages);
-  // Mêmes langues et mêmes niveaux, quel que soit l'ordre ou la ponctuation (« Anglais B2, français natif » = « Français (natif) · Anglais (B2) »)
-  const words = (t: string) => normText(t).split(" ").filter(Boolean).sort().join(" ");
-  if (words(languages) !== words(cv.languages ?? "")) report.languages = true;
+  if (!sameLanguages(cv.languages ?? "", profile.languages)) report.languages = true;
 
   /* Certifications : seulement celles du profil (l'IA en choisit, elle n'en crée pas). */
   const certPool = (profile.certifications ?? []).join(" ");

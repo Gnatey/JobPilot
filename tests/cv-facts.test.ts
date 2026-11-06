@@ -1,7 +1,7 @@
 // CV sur mesure : les faits (formations, postes, dates, langues, certifications) viennent du profil, jamais de l'IA.
 // Cas signalé : l'IA avait supprimé le Bachelor E-commerce & Marketing numérique (trou d'un an entre le DUT et le Master).
 import { readFileSync } from "node:fs";
-import { educationDates, enforceFacts, languagesText } from "../lib/cv-facts";
+import { cleanLevel, educationDates, enforceFacts, languagesText, sameLanguages } from "../lib/cv-facts";
 import type { CvDoc, Profile } from "../lib/types";
 import { ok, done } from "./helpers";
 
@@ -115,5 +115,20 @@ ok("langues : « Français (maternel) · Anglais (B1-B2) »", languagesText(prof
 const ai = readFileSync("lib/ai.ts", "utf8");
 ok("generateCv remet les faits du profil AVANT le garde-fou et la pose des liens", ai.includes('import { enforceFacts } from "./cv-facts"') && ai.indexOf("enforceFacts(cv, profile)") > -1 && ai.indexOf("enforceFacts(cv, profile)") < ai.indexOf("attachLinks(checked"));
 ok("règle de rédaction : toutes les formations, intitulés et dates du profil mot pour mot", ai.includes("education : TOUTES les formations du profil") && ai.includes("mot pour mot"));
+
+// ---------- Langues : comparées par le sens, avec les vrais textes du profil et des CV de Juliana (6 novembre) ----------
+{
+  const hers = [{ name: "Français", level: "Langue maternelle" }, { name: "Anglais", level: "B1-B2 (intermédiaire)" }] as Profile["languages"];
+  ok("niveau du profil « B1-B2 (intermédiaire) » : pas de parenthèses imbriquées sur le CV", languagesText(hers) === "Français (langue maternelle) · Anglais (B1-B2)", languagesText(hers));
+  ok("cleanLevel : glose retirée, mot de niveau en minuscule, B1-B2 intact", cleanLevel("B1-B2 (intermédiaire)") === "B1-B2" && cleanLevel("Langue maternelle") === "langue maternelle" && cleanLevel("B2") === "B2" && cleanLevel("") === "" && cleanLevel(undefined) === "" && cleanLevel("(courant)") === "courant" && cleanLevel("Courant (C1)") === "courant, C1");
+  const same = ["Français (langue maternelle) · Anglais (B1-B2)", "Français (maternel) · Anglais (B1\u2011B2)", "Français (maternelle) · Anglais (B1-B2)", "Français (Langue maternelle) · Anglais (B1-B2 (intermédiaire))", "Anglais B1-B2, Français natif", "Français : langue maternelle ; Anglais : B1-B2"];
+  ok("les 5 façons dont ses CV écrivent les mêmes langues : aucun écart", same.every((t) => sameLanguages(t, hers)), same.filter((t) => !sameLanguages(t, hers)).join(" | "));
+  const diff = ["Français (maternel) · Anglais (C1)", "Français (maternel)", "Français · Anglais (B1-B2)", "Français (maternel) · Anglais (B1-B2) · Espagnol (B2)", "Français (maternel) · Anglais (courant)", "Anglais (B1-B2)", ""];
+  ok("autre niveau, langue absente, langue en trop, niveau manquant ou inventé : écart", diff.every((t) => !sameLanguages(t, hers)), diff.filter((t) => sameLanguages(t, hers)).join(" | "));
+  ok("profil sans langue : seul un CV sans langue est conforme", sameLanguages("", []) && !sameLanguages("Anglais (B2)", []) && sameLanguages("", undefined as unknown as Profile["languages"]));
+  ok("deux langues de même nom préfixe (Chinois / Chinois mandarin) : pas de confusion", sameLanguages("Chinois (B1) · Chinois mandarin (C1)", [{ name: "Chinois", level: "B1" }, { name: "Chinois mandarin", level: "C1" }] as Profile["languages"]));
+  const r = enforceFacts(base({ languages: "Français (maternel) · Anglais (B1‑B2)" }), { ...profile, languages: hers } as unknown as Profile);
+  ok("enforceFacts : même sens = pas d'écart signalé, texte du CV remis propre", !r.report.languages && r.cv.languages === "Français (langue maternelle) · Anglais (B1-B2)", r.cv.languages);
+}
 
 done();

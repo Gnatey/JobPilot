@@ -78,6 +78,16 @@ const sent: CvDoc = {
   ok("plusieurs chiffres : un seul message au pluriel", checkCv(two, profile).filter((i) => i.text.includes("chiffres")).length === 1);
 }
 
+// ---------- Ses vrais CV (contrôle du 6 novembre) : 37 CV sur 46 étaient signalés à tort pour leurs langues ----------
+{
+  const hers = { ...profile, languages: [{ name: "Français", level: "Langue maternelle" }, { name: "Anglais", level: "B1-B2 (intermédiaire)" }] } as unknown as Profile;
+  const clean = enforceFacts(sent, profile).cv;
+  const base = { ...clean, experiences: clean.experiences.map((e) => ({ ...e, bullets: e.bullets.map((b) => b.replace(/ \+15% d'efficacité/, "")) })) };
+  const variants = ["Français (langue maternelle) · Anglais (B1-B2)", "Français (maternel) · Anglais (B1\u2011B2)", "Français (maternelle) · Anglais (B1-B2)", "Français (Langue maternelle) · Anglais (B1-B2)"];
+  ok("les 4 façons d'écrire ses langues sur ses CV : aucun écart « Langues »", variants.every((v) => !checkCv({ ...base, languages: v }, hers).some((i) => i.text.startsWith("Langues"))));
+  ok("un vrai écart de langue (C1) reste signalé, avec le texte propre du profil", checkCv({ ...base, languages: "Français (maternel) · Anglais (C1)" }, hers).some((i) => i.level === "fix" && i.text === "Langues : « Français (maternel) · Anglais (C1) » sur le CV, « Français (langue maternelle) · Anglais (B1-B2) » dans ton profil"));
+}
+
 // ---------- Entrées bizarres (anciens CV, contenu vide) ----------
 ok("contenu absent, texte, vide ou d'un autre format : aucun contrôle, pas d'erreur", checkCv(null, profile).length === 0 && checkCv("texte", profile).length === 0 && checkCv({}, profile).length === 0 && checkCv(42, profile).length === 0 && checkCv({ foo: 1 }, profile).length === 0);
 ok("ancien CV sans langues ni certifications : ne plante pas", Array.isArray(checkCv({ headline: "X", experiences: [{ company: "Orano", role: "", dates: "", bullets: [] }], education: [] } as unknown as CvDoc, profile)));

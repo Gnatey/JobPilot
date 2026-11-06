@@ -41,8 +41,8 @@ export function checkCv(content: unknown, profile: Profile): CvIssue[] {
   for (const c of facts.inventedCerts) fix(`Certification qui ne figure pas dans ton profil : ${q(c)}`);
   for (const p of guard.placeholders) fix(`${p.where} : la réserve ${q(p.removed)} est écrite dans le CV`);
 
-  for (const c of guard.cut) read(`${c.company} : ${q(c.removed)}, un résultat que ton profil ne dit pas`);
-  for (const f of guard.flagged) read(`${f.company} : ${q(f.effect)}, un résultat que ton profil ne dit pas`);
+  for (const c of guard.cut) read(`${c.company} : ${q(c.removed)}, un effet ou un but que ton profil ne dit pas`);
+  for (const f of guard.flagged) read(`${f.company} : ${q(f.effect)}, un effet ou un but que ton profil ne dit pas`);
   for (const n of guard.numbers) {
     const list = n.numbers.map(q).join(", ");
     read(`${n.company} : ${n.numbers.length > 1 ? "chiffres" : "chiffre"} ${list} absent${n.numbers.length > 1 ? "s" : ""} de ton profil`);
