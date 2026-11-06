@@ -2,22 +2,19 @@ import { requireUser } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { today } from "@/lib/format";
 import { rateLimit } from "@/lib/rate-limit";
+import { readExport, stripSecrets } from "@/lib/user-export";
 
 export const maxDuration = 60;
 
-const TABLES = ["profiles", "offers", "applications", "status_history", "documents", "emails", "recommendations", "insights", "searches", "diagnostics"] as const;
-
-/** Export de toutes les données de l'utilisateur (hors jeton Gmail), en un fichier JSON. */
+/** Export de toutes les données de l'utilisateur (hors jeton Gmail), en un fichier JSON. Toutes les lignes, pas seulement les 1 000 premières. */
 export async function GET() {
   const res = await handle(async () => {
     const { supabase, user } = await requireUser();
     await rateLimit(supabase, "exportData");
-    const entries = await Promise.all(TABLES.map(async (t) => [t, (await supabase.from(t).select("*")).data ?? []] as const));
-    const data: Record<string, unknown> = Object.fromEntries(entries);
-    // Le lien secret de l'agenda n'a rien à faire dans un fichier qu'on peut partager
-    const prof = (data.profiles as { data?: { preferences?: Record<string, unknown> } }[])[0];
-    if (prof?.data?.preferences) delete prof.data.preferences.ics_token;
-    return { exported_at: new Date().toISOString(), user: user.email, ...data };
+    // Tri stable pour que la lecture page après page ne saute ni ne répète aucune ligne (`profiles` n'a pas de colonne id)
+    const { tables, counts, truncated } = await readExport((t, from, to) => supabase.from(t).select("*").order(t === "profiles" ? "user_id" : "id").range(from, to));
+    stripSecrets(tables.profiles);
+    return { exported_at: new Date().toISOString(), user: user.email, row_counts: counts, ...(truncated.length ? { truncated } : {}), ...tables };
   });
   if (res.ok) res.headers.set("Content-Disposition", `attachment; filename="jobpilot-export-${today()}.json"`);
   return res;
