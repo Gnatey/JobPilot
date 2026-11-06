@@ -90,6 +90,7 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
                 <div className="mt-2 rounded-xl border border-line bg-white/60 p-3 dark:bg-black/10">
                   <label className="label" htmlFor="todo-answer">Ta réponse</label>
                   <textarea id="todo-answer" rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer} onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, empty: null, reply: "", settled: false }))} />
+                  {COUNT_Q.test(t) && <p className="mt-1 text-xs text-muted">Un chiffre sans unité ne peut pas aller sur un CV : dis ce qui est compté (lignes, fichiers, utilisateurs, Mo…). Ex. : « environ 300 lignes par jour ».</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {COUNT_Q.test(t) && RANGES.map((r) => (
                       <button key={r} type="button" className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, answer: d.answer ? `${d.answer} ${r}` : r, ops: null, empty: null, reply: "", settled: false }))}>{r}</button>
@@ -107,7 +108,8 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
                       {!draft.ops?.length && draft.settled && (
                         <button className="btn btn-sm btn-primary mt-2" onClick={() => { onChange(settle(t, draft.answer)); reset(); toast("Question retirée, et notée comme réglée pour les prochains diagnostics."); }}><Check size={15} /> C'est réglé, retirer la question</button>
                       )}
-                      {!draft.ops?.length && !draft.settled && <p className="mt-1 text-xs text-muted">Il manque encore une information : complète ta réponse ci-dessus et renvoie-la.</p>}
+                      {!draft.ops?.length && !draft.settled && <p className="mt-1 text-xs text-muted">Il manque encore une information : complète ta réponse ci-dessus et renvoie-la. Tant qu'elle n'est pas écrite dans ton profil, tes CV n'en tiennent pas compte.</p>}
+                      {!draft.ops?.length && draft.settled && <p className="mt-1 text-xs text-muted">Rien n'est ajouté à ton profil avec cette réponse : la question sera seulement notée comme réglée.</p>}
                     </div>
                   )}
 

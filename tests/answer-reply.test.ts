@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { finishAnswer, vetReply } from "../lib/answer-reply";
 import { EMPTY_PROFILE } from "../lib/empty-profile";
 import { dateLine } from "../lib/format";
-import { answerView, type AnswerOp } from "../lib/profile-fix";
+import { answerView, vetOps, type AnswerOp } from "../lib/profile-fix";
 import type { Profile } from "../lib/types";
 import { ok, done } from "./helpers";
 
@@ -64,5 +64,15 @@ const route = readFileSync("app/api/profile/answer/route.ts", "utf8");
 ok("la route passe par finishAnswer et ne relit pas si une réponse existe", /finishAnswer\(/.test(route) && /!result\.reply/.test(route));
 const screen = readFileSync("components/todo-answer.tsx", "utf8");
 ok("l'écran montre « Ma réponse » et propose de retirer la question réglée", screen.includes("Ma réponse") && screen.includes("C'est réglé, retirer la question"));
+
+// Une réponse qui n'entre pas dans le profil ne doit pas laisser croire le contraire (« Comment je vais m'en souvenir ? », 6 novembre soir)
+ok("l'IA n'annonce jamais que le contexte est « pris en compte » : seul ce qui est appliqué entre dans le profil", /ne dis JAMAIS que le contexte ou la réponse est « pris en compte »/.test(ai));
+ok("un ordre de grandeur donné par la personne s'écrit avec ses mots, un exemple non", ai.includes("s'écrit tel quel, avec ses mots") && ai.includes("Un simple exemple (« par exemple 50 ») n'est pas un résultat"));
+ok("un chiffre sans unité n'est pas écrit : l'IA demande ce qui est compté", ai.includes("Un chiffre sans unité ne s'écrit pas") && ai.includes("demande ce qui est compté"));
+ok("l'écran dit que la réponse n'est pas dans le profil tant qu'elle n'est pas écrite", screen.includes("tes CV n'en tiennent pas compte") && screen.includes("Rien n'est ajouté à ton profil avec cette réponse"));
+ok("les questions de volume demandent l'unité sous la zone de réponse", /COUNT_Q\.test\(t\) && <p[^>]*>Un chiffre sans unité ne peut pas aller sur un CV/.test(screen));
+const rangeOp: AnswerOp = { op: "add", exp_id: "e1", text: "Traité plus de 1 000 lignes par jour dans des rapports Power BI" };
+ok("« plus de 1 000 lignes par jour », dit par la personne, passe le garde-fou des chiffres", vetOps(profile, [rangeOp], "Plus de 1 000 lignes par jour").length === 1);
+ok("le même chiffre sans qu'elle l'ait dit est refusé", vetOps(profile, [rangeOp], "Je ne sais plus").length === 0);
 
 done();
