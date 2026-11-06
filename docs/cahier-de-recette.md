@@ -19,7 +19,7 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 5 | Créer un compte, se connecter (mot de passe ou lien par email) | Arrive sur l'accueil ou « Bienvenue » | À toi | |
 | 6 | Mot de passe oublié | Le lien mène à Paramètres pour en choisir un nouveau | Code | 2026-11-02 |
 | 7 | Vérification en deux étapes activée | Après le mot de passe, seule la page du code est accessible (sauf appareil de confiance, voir 46-48) | Auto (essai local, faux Supabase, session au niveau mot de passe) ; vrai code de l'application : À toi | 2026-11-03 |
-| 8 | Exporter mes données | Fichier avec toutes mes lignes, et seulement les miennes | Code | 2026-11-02 |
+| 8 | Exporter mes données | Fichier avec toutes mes lignes, et seulement les miennes | Code (relu le 2 novembre ; en réalité coupé à 1 000 lignes par table, corrigé et vérifié par la ligne 109) | 2026-11-02 |
 | 9 | Supprimer mon compte (taper SUPPRIMER) | Compte et données supprimés, accès Gmail révoqué | À toi | |
 | 10 | Un compte voit-il les données d'un autre ? | Non : chaque table filtre sur `user_id = auth.uid()` | Code (SQL des 12 tables) | 2026-11-02 |
 
