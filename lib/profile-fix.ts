@@ -1,4 +1,4 @@
-import type { Achievement, Experience, Profile, Project } from "./types";
+import type { Achievement, Experience, Profile, Project, Settled } from "./types";
 
 /**
  * Outils purs (sans IA, sans réseau) pour garder le profil maître propre :
@@ -13,6 +13,37 @@ const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 export const normText = (s: string) => fold(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const key = (s: string) => normText(s).replace(/ /g, "");
 const uniq = <T,>(xs: T[]) => [...new Set(xs)];
+
+/* ---------- Questions réglées (mémoire de « À compléter ») ---------- */
+
+/** Au plus 20 questions gardées (les plus récentes) : chacune est relue par le diagnostic, donc elles coûtent des jetons. */
+export const SETTLED_MAX = 20;
+const SETTLED_CLIP = 200;
+const cut = (s: string, n: number) => { const t = (s ?? "").replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
+
+/** Cette question a-t-elle déjà été réglée ? (même texte, sans accents ni majuscules ni ponctuation) */
+export const isSettled = (list: Settled[] | undefined, question: string) => !!list?.some((s) => normText(s.question) === normText(question));
+
+/** Les questions à poser, sans celles déjà réglées. */
+export const dropSettled = (todo: string[], list: Settled[] | undefined) => (list?.length ? todo.filter((t) => !isSettled(list, t)) : todo);
+
+/** Ajoute une question réglée (la plus récente en dernier, sans doublon, 20 au plus). La réponse peut être vide (« Fait »). */
+export function addSettled(list: Settled[] | undefined, question: string, answer = ""): Settled[] {
+  const q = cut(question, SETTLED_CLIP);
+  if (!q) return list ?? [];
+  const rest = (list ?? []).filter((s) => normText(s.question) !== normText(q));
+  return [...rest, { question: q, answer: cut(answer, SETTLED_CLIP) }].slice(-SETTLED_MAX);
+}
+
+/** Réunit deux mémoires (appliquer un diagnostic ancien ne doit pas faire oublier ce qui a été réglé depuis). `b` est le plus récent. */
+export function mergeSettled(a: Settled[] | undefined, b: Settled[] | undefined): Settled[] {
+  let out: Settled[] = [];
+  for (const s of [...(a ?? []), ...(b ?? [])]) out = addSettled(out, s.question, s.answer);
+  return out;
+}
+
+/** Ce que les IA du diagnostic et de l'audit lisent : « question → réponse » (ou « marquée faite »). */
+export const settledForAi = (list: Settled[] | undefined) => (list ?? []).map((s) => ({ question: s.question, reponse: s.answer || "(marquée comme faite)" }));
 
 /* ---------- Chiffres ---------- */
 
@@ -29,6 +60,23 @@ export const numbersCovered = (a: string, b: string) => {
 export function cleanLabel(name: string): string {
   const base = name.replace(/\.(pdf|docx?|txt)$/i, "").replace(/\s*\(\d+\)\s*$/, "").replace(/[_]+/g, " ").replace(/\s+-\s+/g, " ").replace(/-/g, " ").replace(/\s+/g, " ").trim();
   return (base || "CV").slice(0, 40);
+}
+
+/**
+ * Retire les repères de pagination que les exports de documents laissent dans le texte d'un CV (« Tab 1 Page 1 of 2 », « Page 2 sur 2 ») :
+ * ils ne sont pas dans le CV de la personne, et l'IA du diagnostic les prenait pour du contenu. Une ligne qui n'avait que ça disparaît.
+ */
+const PAGE_MARK = /(?:\bTab\s*\d+\s*)?\bPage\s+\d+\s*(?:of|sur|de|\/)\s*\d+\b/gi;
+export function stripPageMarks(text: string): string {
+  return text
+    .split("\n")
+    .flatMap((line) => {
+      if (!PAGE_MARK.test(line)) return [line];
+      PAGE_MARK.lastIndex = 0;
+      const rest = line.replace(PAGE_MARK, "").replace(/[ \t]{2,}/g, " ").trim();
+      return rest ? [rest] : [];
+    })
+    .join("\n");
 }
 
 /** Les noms de CV d'un texte déposé (« === CV : nom === »), dans l'ordre, sans doublon. */

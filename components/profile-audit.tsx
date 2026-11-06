@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { Check, ClipboardCheck, Loader2, Undo2, X } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
-import { applyProposal, dedupeExact, normText, urlIn, withoutUrl, type Proposal } from "@/lib/profile-fix";
+import { applyProposal, dedupeExact, isSettled, normText, urlIn, withoutUrl, type Proposal } from "@/lib/profile-fix";
 import type { Profile } from "@/lib/types";
 
 type Item = Proposal & { auto?: boolean };
@@ -58,7 +58,7 @@ export function ProfileAudit({ getProfile, onChange }: Props) {
 
       // 3. Les questions rejoignent « À compléter » (sans doublon)
       const known = new Set(next.todo.map(normText));
-      const newQ = (j.questions ?? []).filter((q) => q.trim() && !known.has(normText(q)));
+      const newQ = (j.questions ?? []).filter((q) => q.trim() && !known.has(normText(q)) && !isSettled(next.settled, q));
       if (newQ.length) next = { ...next, todo: [...next.todo, ...newQ] };
 
       if (next !== start) onChange(next);

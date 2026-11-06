@@ -51,7 +51,11 @@ export type Profile = {
   };
   rules: string[];
   todo: string[];
+  /** Questions de « À compléter » que la personne a réglées, avec sa réponse : le diagnostic et l'audit ne les reposent pas (lib/profile-fix.ts › addSettled). Jamais envoyé aux IA qui rédigent, jamais compté comme un chiffre connu du profil. */
+  settled?: Settled[];
 };
+
+export type Settled = { question: string; answer: string };
 
 /** Critères de recherche validés : un seul jeu à la fois, le dernier enregistré remplace le précédent. */
 export type SavedCriteria = {

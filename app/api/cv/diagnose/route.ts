@@ -4,6 +4,7 @@ import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { fileToText } from "@/lib/cv-text";
 import { runCvAnalysis } from "@/lib/cv-job";
+import { stripPageMarks } from "@/lib/profile-fix";
 import { applyAnswers, missingAnswers, normalizeAnswers, withZoneText } from "@/lib/onboarding";
 import type { OnboardingAnswers } from "@/lib/types";
 import { spendAi, AI_COST } from "@/lib/quota";
@@ -28,8 +29,8 @@ export async function POST(req: Request) {
     const pasted = String(form.get("text") ?? "").trim();
 
     const parts: string[] = [];
-    for (const f of files) parts.push(`=== CV : ${f.name} ===\n${await fileToText(f)}`);
-    if (pasted) parts.push(`=== CV collé ===\n${pasted}`);
+    for (const f of files) parts.push(`=== CV : ${f.name} ===\n${stripPageMarks(await fileToText(f))}`);
+    if (pasted) parts.push(`=== CV collé ===\n${stripPageMarks(pasted)}`);
     const text = parts.join("\n\n");
     if (text.length < 200) throw new HttpError(400, "Dépose au moins un CV (PDF, Word ou texte).");
 

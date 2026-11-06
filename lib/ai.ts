@@ -5,7 +5,7 @@ import { guardCv } from "./cv-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { cleanCvText, pinProjects } from "./cv-edit";
-import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
+import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, settledForAi, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
 import { dateLine, today } from "./format";
 import type { CvDoc, Diagnostic, LetterDoc, OfferAnalysis, OfferExtract, OnboardingAnswers, PrepDoc, Profile, SkillSuggestion } from "./types";
 
@@ -18,8 +18,8 @@ const HONESTY = `Règles absolues :
 - Le profil ne dit pas toujours le genre de la personne : sans indication claire, préfère des formulations neutres plutôt que des accords au féminin ou au masculin.
 - Tu écris en français, ton professionnel, sobre et concret.`;
 
-/** Le profil envoyé à l'IA : sans les étiquettes d'origine des CV (inutiles pour rédiger, et elles coûtent des jetons). */
-export const forAi = (p: Profile): Profile => ({ ...p, experiences: p.experiences.map((e) => ({ ...e, achievements: e.achievements.map(({ text, tags }) => ({ text, tags })) })) });
+/** Le profil envoyé à l'IA : sans les étiquettes d'origine des CV (inutiles pour rédiger, et elles coûtent des jetons) ni la mémoire des questions réglées (`settled` : le diagnostic et l'audit la reçoivent à part). */
+export const forAi = (p: Profile): Profile => ({ ...p, settled: undefined, experiences: p.experiences.map((e) => ({ ...e, achievements: e.achievements.map(({ text, tags }) => ({ text, tags })) })) });
 
 /* ---------- 1. Extraction d'une offre ---------- */
 
@@ -399,15 +399,17 @@ Tu juges le CV par rapport aux métiers visés et au marché français actuel :
 - lisibilité ATS : colonnes, sections standard, mots-clés métier.
 - search_strategy : à partir du questionnaire (durée de recherche, volume, réponses obtenues), dis où l'entonnoir bloque (pas de réponse = CV/ciblage ; entretiens sans offre = entretien) et ce qu'il faut changer.
 ${previous ? "- changes_since_last : compare avec le profil actuel fourni et liste ce qui a changé ou progressé." : ""}
+${previous?.settled?.length ? "- déjà tranché : la personne a déjà répondu aux questions listées sous « DÉJÀ TRANCHÉ PAR LA PERSONNE ». Ne les reposes pas, même reformulées, ni dans \"inconsistencies\" ni dans \"missing_metrics\" ; ne les rouvre que si le CV contredit clairement sa réponse." : ""}
+- exemples : dans toute reformulation que tu proposes (\"fix\", \"actions\"), n'écris jamais un chiffre, un pourcentage ou un volume de ton invention : mets [chiffre] à la place. Tu ne connais pas les vrais.
 Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquement sur ce qui est écrit. overall_score : 85+ = prêt à envoyer, 60-84 = correct à retravailler, <60 = à refaire.`,
-    prompt: `QUESTIONNAIRE :\n${JSON.stringify(answers ?? {})}\n\n${previous ? `PROFIL ACTUEL :\n${JSON.stringify(forAi(previous))}\n\n` : ""}CV :\n"""\n${cvText.slice(0, 40000)}\n"""`,
+    prompt: `QUESTIONNAIRE :\n${JSON.stringify(answers ?? {})}\n\n${previous ? `PROFIL ACTUEL :\n${JSON.stringify(forAi(previous))}\n\n` : ""}${previous?.settled?.length ? `DÉJÀ TRANCHÉ PAR LA PERSONNE :\n${JSON.stringify(settledForAi(previous.settled))}\n\n` : ""}CV :\n"""\n${cvText.slice(0, 40000)}\n"""`,
     schema: {
       properties: {
         overall_score: int("0-100"),
         verdict: str("3-4 phrases franches"),
         positioning: obj({ recommended_targets: arr(obj({ title: S, why: S })), comment: S }),
         strengths: list,
-        issues: arr(obj({ issue: S, severity: sev, fix: str("correction concrète, avec un exemple de reformulation si utile") })),
+        issues: arr(obj({ issue: S, severity: sev, fix: str("correction concrète, avec un exemple de reformulation si utile (chiffres remplacés par [chiffre])") })),
         inconsistencies: list,
         missing_metrics: arr(S, "réalisations où un chiffre changerait tout, avec la question à se poser"),
         ats: obj({ ok: list, problems: list }),
@@ -486,8 +488,9 @@ export async function auditProfile(profile: Profile): Promise<AuditResult> {
 Chaque proposition a un "exp_id" copié de l'expérience concernée, et "why" : une phrase simple pour la personne (« Ces deux lignes disent la même chose »).
 "questions" : 4 au plus, courtes, concrètes, chacune nommant l'expérience ou le projet (un chiffre manquant, une date qui ne colle pas, un rôle flou). Pas de question dont la réponse est déjà dans le profil.
 "notes" : 3 au plus, franches et courtes, sur la cohérence du positionnement (un profil qui mélange des métiers sans lien, une expérience qui ne soutient pas la cible).
+"deja_tranche" (s'il est présent) : les questions auxquelles la personne a déjà répondu, avec sa réponse. Ne les reposes pas, même reformulées.
 Ne propose jamais de supprimer une vraie mission professionnelle. Si tout est propre, renvoie des listes vides.`,
-    prompt: JSON.stringify(auditView(profile)),
+    prompt: JSON.stringify(profile.settled?.length ? { ...auditView(profile), deja_tranche: settledForAi(profile.settled) } : auditView(profile)),
     schema: {
       properties: {
         proposals: arr(obj({

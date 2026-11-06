@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
-import { answerView, applyOps, normText, previewOps, vetOps, type AnswerOp } from "@/lib/profile-fix";
+import { addSettled, answerView, applyOps, normText, previewOps, vetOps, type AnswerOp } from "@/lib/profile-fix";
 import type { Profile } from "@/lib/types";
 
 type Props = {
@@ -33,6 +33,8 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
   const profile = getProfile();
 
   const removeTodo = (t: string, base: Profile = getProfile()) => ({ ...base, todo: base.todo.filter((x) => normText(x) !== normText(t)) });
+  /** Retire la question ET la note comme réglée : le prochain diagnostic et le prochain « Faire le point » ne la reposent pas. */
+  const settle = (t: string, answer: string, base: Profile = getProfile()): Profile => ({ ...removeTodo(t, base), settled: addSettled(base.settled, t, answer) });
   const reset = () => { setOpen(null); setDraft(BLANK); };
 
   async function send(t: string) {
@@ -58,7 +60,8 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
     const cur = getProfile();
     const ops = vetOps(cur, draft.ops ?? [], draft.answer);
     if (!ops.length) return toast("Ce changement ne s'applique plus : ton profil a bougé entre-temps.", { tone: "err" });
-    onChange(removeTodo(t, applyOps(cur, ops)));
+    const applied = applyOps(cur, ops);
+    onChange(draft.settled ? settle(t, draft.answer, applied) : removeTodo(t, applied));
     toast("Ton profil est mis à jour. Il sera utilisé dans tes prochains CV.", { tone: "ok" });
     reset();
   }
@@ -79,7 +82,7 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
                 <span>{t}</span>
                 <span className="flex shrink-0 gap-3">
                   <button className="hit text-ink underline" onClick={() => (isOpen ? reset() : (setOpen(t), setDraft(BLANK)))}>{isOpen ? "Fermer" : "Répondre"}</button>
-                  <button className="hit text-muted underline" onClick={() => { onChange(removeTodo(t)); if (isOpen) reset(); }}>Fait</button>
+                  <button className="hit text-muted underline" onClick={() => { onChange(settle(t, isOpen ? draft.answer : "")); if (isOpen) reset(); }}>Fait</button>
                 </span>
               </div>
 
@@ -102,7 +105,7 @@ export function TodoAnswer({ getProfile, onChange }: Props) {
                       <p className="text-xs font-semibold text-muted">Ma réponse</p>
                       <p className="mt-0.5">{draft.reply}</p>
                       {!draft.ops?.length && draft.settled && (
-                        <button className="btn btn-sm btn-primary mt-2" onClick={() => { onChange(removeTodo(t)); reset(); toast("Question retirée."); }}><Check size={15} /> C'est réglé, retirer la question</button>
+                        <button className="btn btn-sm btn-primary mt-2" onClick={() => { onChange(settle(t, draft.answer)); reset(); toast("Question retirée, et notée comme réglée pour les prochains diagnostics."); }}><Check size={15} /> C'est réglé, retirer la question</button>
                       )}
                       {!draft.ops?.length && !draft.settled && <p className="mt-1 text-xs text-muted">Il manque encore une information : complète ta réponse ci-dessus et renvoie-la.</p>}
                     </div>

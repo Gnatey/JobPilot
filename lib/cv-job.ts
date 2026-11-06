@@ -3,6 +3,7 @@ import { HttpError } from "./supabase/server";
 import { getProfileById } from "./profile";
 import { diagnoseCv, mergeProfileWithCv, profileFromCvText } from "./ai";
 import { applyAnswers, slug } from "./onboarding";
+import { dropSettled } from "./profile-fix";
 import type { OnboardingAnswers, Profile } from "./types";
 
 type Job = { userId: string; rowId: string; text: string; answers: OnboardingAnswers | null; startedAt: string };
@@ -39,7 +40,9 @@ export async function runCvAnalysis(db: SupabaseClient, job: Job) {
       };
     }
     // Les points à corriger du diagnostic alimentent la liste "à compléter" du profil
-    proposed.todo = [...new Set([...(proposed.todo ?? []), ...diagnostic.missing_metrics.slice(0, 4), ...diagnostic.inconsistencies.slice(0, 3)])];
+    // Ce que la personne a déjà réglé reste réglé (la mémoire passe dans le profil proposé), et ne revient pas dans la liste, même repris tel quel par l'IA
+    if (current.settled?.length) proposed.settled = current.settled;
+    proposed.todo = dropSettled([...new Set([...(proposed.todo ?? []), ...diagnostic.missing_metrics.slice(0, 4), ...diagnostic.inconsistencies.slice(0, 3)])], proposed.settled);
 
     // Premier passage avec un profil vide : on applique directement
     const now = new Date().toISOString();
