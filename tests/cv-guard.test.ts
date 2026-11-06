@@ -128,6 +128,36 @@ const bad = "Développer des tableaux de bord interactifs sous Power BI (DAX) po
   ok("deuxième passage : mêmes puces, mêmes notes (pas de doublon)", JSON.stringify(twice.cv) === JSON.stringify(once.cv) && twice.report.cut.length === 0);
 }
 
+// ---------- Aucune réserve dans le texte du CV ----------
+{
+  const r = out(["Développer des tableaux de bord sous Power BI (DAX) [chiffre à valider] pour les Business Unit et le CODIR"], "Orano");
+  ok("« [chiffre à valider] » retiré du texte, espaces propres", first(r) === "Développer des tableaux de bord sous Power BI (DAX) pour les Business Unit et le CODIR", first(r));
+  ok("la réserve retirée est dite dans les notes (à côté, pas dans le CV)", r.report.placeholders.length === 1 && r.report.placeholders[0].removed === "[chiffre à valider]" && r.cv.notes_for_candidate[0].includes("« [chiffre à valider] »") && r.cv.notes_for_candidate[0].includes("Orano"));
+}
+{
+  const r = out(["Automatiser des pipelines SQL (à compléter)", "Piloter le backlog Agile (À VÉRIFIER : durée)"], "Orano");
+  ok("« (à compléter) » et « (À VÉRIFIER : durée) » retirés, majuscules comprises", r.cv.experiences[0].bullets.join("|") === "Automatiser des pipelines SQL|Piloter le backlog Agile", r.cv.experiences[0].bullets.join("|"));
+}
+{
+  const r = out(["Automatiser des pipelines SQL – à valider."], "Orano");
+  ok("fin de puce « – à valider » retirée, point final gardé hors réserve", first(r) === "Automatiser des pipelines SQL", first(r));
+}
+{
+  const b = "Rédiger des spécifications à valider par la MOA et la MOE";
+  const r = out([b], "SNCF");
+  ok("une phrase normale qui contient « à valider » n'est PAS touchée", first(r) === b && r.report.placeholders.length === 0);
+}
+{
+  const input = cv(["Analyser des données"], "Orano");
+  input.summary = "Data analyst orienté BI [à compléter : années d'expérience], disponible immédiatement.";
+  input.projects = [{ name: "Portfolio", description: "Site personnel (à valider)" }];
+  const r = guardCv(input, profile);
+  ok("résumé et projets aussi : réserves retirées", r.cv.summary === "Data analyst orienté BI, disponible immédiatement." && r.cv.projects[0].description === "Site personnel", `${r.cv.summary} | ${r.cv.projects[0].description}`);
+  ok("rien n'est écrit dans le CV : le texte final ne contient plus « valider », « compléter » ni « vérifier »", !/valider|compléter|vérifier/i.test(JSON.stringify([r.cv.summary, r.cv.projects, r.cv.experiences])));
+  const again = guardCv(r.cv, profile);
+  ok("deuxième passage : rien de plus, pas de note en double", again.report.placeholders.length === 0 && again.cv.notes_for_candidate.length === r.cv.notes_for_candidate.length);
+}
+
 // ---------- Branchement ----------
 const ai = readFileSync("lib/ai.ts", "utf8");
 ok("generateCv passe le CV par le garde-fou avant de poser les liens", ai.includes('import { guardCv } from "./cv-guard"') && ai.includes("guardCv(cv, profile)") && ai.indexOf("guardCv(cv, profile)") < ai.indexOf("attachLinks(checked"));

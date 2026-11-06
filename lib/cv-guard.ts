@@ -53,6 +53,22 @@ function evidenceFor(profile: Profile, company: string): string {
 /** Tout le texte du profil, sans les identifiants (leurs chiffres feraient passer un chiffre inventé pour connu). */
 const profileText = (profile: Profile) => JSON.stringify(profile, (k, v) => (k === "id" ? undefined : v));
 
+/* ---------- Réserves laissées dans le texte du CV ---------- */
+
+/** « [chiffre à valider] », « (à compléter) » : une réserve n'a pas sa place sur le CV (elle irait chez le recruteur). Les remarques vont à côté, jamais dans le texte. */
+const ASK = "(?:valider|vérifier|verifier|compléter|completer|préciser|preciser|confirmer|renseigner)";
+const BRACKET = new RegExp(`\\s*[\\[(][^\\[\\]()]{0,60}?(?<![\\p{L}])(?:à|a) ${ASK}(?![\\p{L}])[^\\[\\]()]{0,60}[\\])]`, "giu");
+/** Fin de puce « … – à valider » (tiret entouré d'espaces : une phrase normale comme « specs à valider par la MOA » n'est pas touchée). */
+const TRAILING = new RegExp(`\\s+[–—-]\\s+(?:à|a) ${ASK}(?![\\p{L}])[^.]{0,40}\\.?\\s*$`, "iu");
+
+function stripPlaceholders(s: string): { text: string; removed: string[] } {
+  const removed: string[] = [];
+  const text = s
+    .replace(BRACKET, (m) => { removed.push(m.trim()); return ""; })
+    .replace(TRAILING, (m) => { removed.push(m.replace(/^\s+[–—-]\s+/, "").replace(/\.\s*$/, "").trim()); return ""; });
+  return removed.length ? { text: text.replace(/ {2,}/g, " ").replace(/\s+([,.;:])/g, "$1").trim(), removed } : { text: s, removed };
+}
+
 const GROUNDED = 0.6;
 
 type BulletResult = { text: string; effect?: string; cut?: boolean };
@@ -80,18 +96,30 @@ export type GuardReport = {
   flagged: { company: string; effect: string }[];
   /** Chiffres d'une puce qui ne figurent nulle part dans le profil. */
   numbers: { company: string; numbers: string[] }[];
+  /** Réserves (« [à valider] ») retirées du texte du CV : elles ne doivent jamais s'imprimer. */
+  placeholders: { where: string; removed: string }[];
 };
 
 /** Retire ou signale, dans les puces des expériences, ce que le profil ne dit pas. Ne modifie pas l'objet reçu. */
 export function guardCv(cv: CvDoc, profile: Profile): { cv: CvDoc; report: GuardReport } {
   const known = new Set(numbersIn(profileText(profile)));
-  const report: GuardReport = { cut: [], flagged: [], numbers: [] };
+  const report: GuardReport = { cut: [], flagged: [], numbers: [], placeholders: [] };
   const notes: string[] = [];
+  const clean = (where: string, text: string): string => {
+    const r = stripPlaceholders(text);
+    for (const removed of r.removed) {
+      report.placeholders.push({ where, removed });
+      notes.push(`« ${where} » : j'ai retiré « ${removed} » du texte du CV, une réserve n'a pas sa place sur le CV.`);
+    }
+    return r.text;
+  };
 
+  const summary = cv.summary ? clean("Résumé", cv.summary) : cv.summary;
+  const projects = (cv.projects ?? []).map((p) => (p.description ? { ...p, description: clean(p.name, p.description) } : p));
   const experiences = (cv.experiences ?? []).map((e) => {
     const evidence = stemsOf(evidenceFor(profile, e.company));
-    const bullets = (e.bullets ?? []).map((b) => {
-      const r = checkBullet(b, evidence);
+    const bullets = (e.bullets ?? []).map((raw) => {
+      const r = checkBullet(clean(e.company, raw), evidence);
       if (r.effect && r.cut) {
         report.cut.push({ company: e.company, removed: r.effect });
         notes.push(`« ${e.company} » : j'ai retiré « ${r.effect} » en fin de puce, ton profil ne dit pas ce résultat. Si c'est vrai, ajoute-le à ton profil, avec un chiffre si possible.`);
@@ -110,5 +138,5 @@ export function guardCv(cv: CvDoc, profile: Profile): { cv: CvDoc; report: Guard
   });
 
   const have = cv.notes_for_candidate ?? [];
-  return { cv: { ...cv, experiences, notes_for_candidate: [...have, ...notes.filter((n) => !have.includes(n))] }, report };
+  return { cv: { ...cv, summary, projects, experiences, notes_for_candidate: [...have, ...notes.filter((n) => !have.includes(n))] }, report };
 }
