@@ -35,9 +35,9 @@ const MARKER = new RegExp(`(?<=^|[\\s,;])(?:(?:${EFFECT_PARTICIPLES.join("|")})\
 
 const STOP = new Set(["dans", "pour", "avec", "sans", "sous", "entre", "leur", "leurs", "plus", "tout", "tous", "toute", "toutes", "cette", "ainsi", "afin", "dont", "vers", "chez", "comme", "aussi", "tres", "etre", "avoir", "fait", "ayant", "lors", "puis", "donc", "ces", "des", "les", "une", "aux", "qui", "que"]);
 /** Les mots qui comptent, réduits à leurs 4 premières lettres (« réduction » et « réduisant » se reconnaissent). */
-const stemsOf = (s: string) => new Set(normText(s).split(" ").filter((w) => w.length >= 4 && !STOP.has(w)).map((w) => w.slice(0, 4)));
+export const stemsOf = (s: string) => new Set(normText(s).split(" ").filter((w) => w.length >= 4 && !STOP.has(w)).map((w) => w.slice(0, 4)));
 
-const sameCompany = (a: string, b: string) => {
+export const sameCompany = (a: string, b: string) => {
   const x = normText(a), y = normText(b);
   return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
 };

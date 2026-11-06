@@ -160,7 +160,7 @@ const bad = "Développer des tableaux de bord interactifs sous Power BI (DAX) po
 
 // ---------- Branchement ----------
 const ai = readFileSync("lib/ai.ts", "utf8");
-ok("generateCv passe le CV par le garde-fou avant de poser les liens", ai.includes('import { guardCv } from "./cv-guard"') && ai.includes("guardCv(cv, profile)") && ai.indexOf("guardCv(cv, profile)") < ai.indexOf("attachLinks(checked"));
+ok("generateCv passe le CV par le garde-fou avant de poser les liens", ai.includes('import { guardCv } from "./cv-guard"') && ai.includes("guardCv(enforceFacts(cv, profile).cv, profile)") && ai.indexOf("guardCv(enforceFacts(") < ai.indexOf("attachLinks(checked"));
 ok("règles de rédaction : pas de résultat ajouté, destinataires gardés, pas de formule creuse", ai.includes("N'ajoute JAMAIS un résultat") && ai.includes("« Business Unit », « CODIR »") && ai.includes("Pas de formule creuse"));
 
 done();
