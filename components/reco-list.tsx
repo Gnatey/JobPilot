@@ -13,6 +13,11 @@ import { rejectLabel, rejectLabelInline } from "@/lib/types";
 import { PRE_FILTERS } from "@/lib/quick-score";
 import { fmtDate } from "@/lib/format";
 import { FIT_LABELS, isFitReason } from "@/lib/fit";
+import { OLD_LABEL, OLD_REASON } from "@/lib/reco-age";
+import { SORT_OPTIONS, sortRecos, type RecoSort } from "@/lib/reco-sort";
+import { checkCandidates } from "@/lib/reco-check";
+import { CheckRecos } from "./check-recos";
+import { GONE_REASON as GONE } from "@/lib/analyze-skips";
 
 export type Reco = {
   id: string; title: string | null; company: string | null; location: string | null; url: string | null;
@@ -38,6 +43,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
   const [fitOnly, setFitOnly] = useState(true);
   const [minScore, setMinScore] = useState(0);
   const [source, setSource] = useState("");
+  const [sort, setSort] = useState<RecoSort>("date"); // le pré-score ne sépare presque rien (tout est entre 0 et 49) : par défaut, les plus récentes d'abord
   const [q, setQ] = useState("");
   const [items, setItems] = useState(recos);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -53,9 +59,10 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
   const inTab = items.filter((r) => t.match(r.status));
   const matchesText = (r: Reco) => !q || `${r.title} ${r.company} ${r.location}`.toLowerCase().includes(q.toLowerCase());
   const base = inTab.filter((r) => (!source || r.source === source) && matchesText(r) && (tab !== "todo" || !fitOnly || !r.senior));
-  const list = base
-    .filter((r) => tab !== "todo" || r.score >= minScore)
-    .sort((a, b) => (tab === "todo" ? b.score - a.score : (b.received_at ?? "").localeCompare(a.received_at ?? "")));
+  const shown = base.filter((r) => tab !== "todo" || r.score >= minScore);
+  const list = tab === "todo" ? sortRecos(shown, sort) : shown.sort((a, b) => (b.received_at ?? "").localeCompare(a.received_at ?? ""));
+  /** Offres à trier affichées dont on peut vérifier le lien (jamais analysées, avec une adresse) : « Vérifier les annonces ». */
+  const checkList = tab === "todo" ? checkCandidates(list) : [];
   const hiddenSenior = inTab.filter((r) => r.senior).length;
   const belowMin = tab === "todo" && minScore > 0 ? base.filter((r) => r.score < minScore) : [];
   const todoCount = items.filter((r) => TABS[0].match(r.status) && (!fitOnly || !r.senior)).length;
@@ -139,12 +146,20 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
       {olderHere > 0 && (
         <p className="mb-4 max-w-[70ch] text-sm text-muted">
           Les plus récentes sont affichées. {olderHere} offre{olderHere > 1 ? "s" : ""} plus ancienne{olderHere > 1 ? "s" : ""} {olderHere > 1 ? "sont gardées" : "est gardée"} mais pas listée{olderHere > 1 ? "s" : ""} ici
-          {tab === "todo" ? " : Tri rapide te propose d'abord les meilleures." : "."}
+          {tab === "todo" ? " : Tri rapide te propose d'abord les plus récentes." : "."}
         </p>
       )}
 
+      {tab === "todo" && checkList.length > 0 && (
+        <CheckRecos
+          recos={checkList}
+          onRejected={(ids) => setItems((xs) => xs.map((x) => (ids.includes(x.id) ? { ...x, status: "rejected", reject_reason: GONE } : x)))}
+          onRestored={(ids) => setItems((xs) => xs.map((x) => (ids.includes(x.id) ? { ...x, status: x.offer_id ? "analyzed" : "new", reject_reason: null } : x)))}
+        />
+      )}
+
       {tab === "todo" && (
-        <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+        <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
           <label className="relative block">
             <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
             <input className="field !pl-10" placeholder="Filtrer par poste, entreprise, ville…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -156,7 +171,10 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
           <select className="field sm:w-52" aria-label="Niveau minimum" value={minScore} onChange={(e) => setMinScore(Number(e.target.value))}>
             {PRE_FILTERS.map((f) => <option key={f.min} value={f.min}>{f.label}</option>)}
           </select>
-          <label className="flex items-start gap-2 text-sm sm:col-span-3">
+          <select className="field sm:w-56" aria-label="Trier par" value={sort} onChange={(e) => setSort(e.target.value as RecoSort)}>
+            {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+          <label className="flex items-start gap-2 text-sm sm:col-span-4">
             <input type="checkbox" checked={fitOnly} onChange={(e) => setFitOnly(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-marigold)]" />
             <span>
               Adaptées à mon expérience
@@ -164,7 +182,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
             </span>
           </label>
           {belowMin.length > 0 && (
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-4">
               <button className="btn btn-sm" onClick={clearBelow}><Eraser size={15} /> Écarter les {belowMin.length} offres {minScore >= 70 ? "qui ne sont pas des bonnes pistes" : "peu probables"}</button>
             </div>
           )}
@@ -174,7 +192,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
       {tab === "hidden" && (
         <p className="mb-4 flex max-w-[70ch] items-start gap-2 text-sm text-muted">
           <EyeOff size={16} className="mt-0.5 shrink-0" />
-          <span>Ces offres ne correspondent pas à ce que tu as demandé : stages et alternances si tu n'as pas coché ces contrats, métiers éloignés de tes postes visés. Rien n'est supprimé : « Garder dans ma liste » les remet à trier.</span>
+          <span>Ces offres ne correspondent pas à ce que tu as demandé (stages et alternances si tu n'as pas coché ces contrats, métiers éloignés de tes postes visés), ou sont restées plus de 3 semaines sans décision. Rien n'est supprimé : « Garder dans ma liste » les remet à trier, et elles ne sont plus jamais rangées.</span>
         </p>
       )}
       {!list.length ? (
@@ -208,7 +226,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
                   )}
                   {r.penalties.length > 0 && tab === "todo" && <p className="mt-1.5 text-xs text-bad">{r.penalties.join(" ; ")}</p>}
                   {r.status === "rejected" && <p className="mt-1.5 text-sm">Raison : {rejectLabel(r.reject_reason)}</p>}
-                  {r.status === "filtered" && <p className="mt-1.5 text-sm text-muted">Masquée : {isFitReason(r.reject_reason) ? FIT_LABELS[r.reject_reason] : "ne correspond pas à ton profil"}</p>}
+                  {r.status === "filtered" && <p className="mt-1.5 text-sm text-muted">Masquée : {isFitReason(r.reject_reason) ? FIT_LABELS[r.reject_reason] : r.reject_reason === OLD_REASON ? OLD_LABEL : "ne correspond pas à ton profil"}</p>}
                 </div>
               </div>
 

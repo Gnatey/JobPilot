@@ -11,6 +11,8 @@ export type ListItem = {
   score: number | null;
   rough?: boolean;
   title: string;
+  /** Entreprise seule (repérage des doublons). */
+  company?: string;
   /** Entreprise, lieu, type d'entreprise. */
   sub: string;
   /** Étape de la candidature (« À postuler »…), ou null : offre analysée à la main, pas encore tranchée (« À décider »). */

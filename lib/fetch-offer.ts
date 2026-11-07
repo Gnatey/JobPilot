@@ -38,6 +38,8 @@ type Getter = (url: string, opts: { headers: Record<string, string>; timeoutMs: 
  * La lecture passe par safeGet : jamais d'adresse interne, redirections contrôlées, taille limitée.
  */
 export async function readOffer(url: string, get: Getter = safeGet, now = Date.now()): Promise<OfferRead> {
+  // Un lien de connexion automatique n'est jamais ouvert par l'app : ce serait se connecter au compte de la personne (et brûler le jeton)
+  if (isSignInLink(url)) return { text: null, gone: false };
   try {
     const res = await get(url, {
       headers: {
@@ -95,6 +97,7 @@ export async function readOffer(url: string, get: Getter = safeGet, now = Date.n
 export async function readOfferWithReader(url: string, get?: Getter, reader: (url: string) => Promise<string | null> = readViaReader): Promise<OfferRead> {
   const direct = await readOffer(url, get);
   if (direct.text || direct.gone) return direct;
+  if (isSignInLink(url)) return direct; // jamais envoyé à un prestataire : l'adresse porte un jeton de connexion
   const text = await reader(url);
   return text ? { text, gone: false } : direct;
 }
@@ -158,10 +161,31 @@ export function untrackUrl(raw: string): string {
   }
 }
 
+/** Paramètres d'adresse qui sont des jetons de connexion (lien « magic link » d'un e-mail) : jamais gardés, jamais envoyés ailleurs. */
+const SECRET_PARAMS = /^(magic[-_]?token|login[-_]?token|auth[-_]?token|access[-_]?token|one[-_]?time[-_]?token|otp)$/i;
+
+/**
+ * Lien de connexion automatique d'un e-mail (ex. mon-consultant-independant.com/magic-authentication?magic-token=…&next-page=…) :
+ * l'ouvrir depuis le serveur reviendrait à se connecter au compte de la personne et userait le jeton ; l'envoyer au lecteur de secours le donnerait
+ * à un tiers. On ne le lit donc jamais. (Les jetons de suivi LinkedIn, `midToken`, ne sont PAS des connexions : ils ne comptent pas ici.)
+ */
+export function isSignInLink(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    const u = new URL(raw);
+    if (/\/magic[-_]?(?:auth|link|login)/i.test(u.pathname)) return true;
+    for (const k of u.searchParams.keys()) if (SECRET_PARAMS.test(k)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /** Adresse canonique d'une annonce (sans paramètres de suivi), pour repérer les doublons. */
 export function normalizeJobUrl(url: string) {
   try {
     const u = new URL(untrackUrl(url));
+    for (const k of [...u.searchParams.keys()]) if (SECRET_PARAMS.test(k)) u.searchParams.delete(k); // jamais de jeton de connexion rangé en base
     const li = u.pathname.match(/\/jobs\/view\/(\d+)/);
     if (u.hostname.includes("linkedin") && li) return `https://www.linkedin.com/jobs/view/${li[1]}/`;
     const jk = u.searchParams.get("jk");

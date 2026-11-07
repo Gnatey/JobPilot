@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { computeLearning } from "@/lib/learning";
 import { ensureFit } from "@/lib/fit-stock";
+import { archiveOld } from "@/lib/reco-age-db";
 import { RECO_COLS, toReco, olderThanLoaded, type RecoRow } from "@/lib/reco-query";
 import { PageTitle } from "@/components/ui/page-title";
 import { SyncButton } from "@/components/sync-button";
@@ -15,6 +16,7 @@ export default async function Recommandees() {
   const sel = () => supabase.from("recommendations").select(RECO_COLS);
   const profile = await getProfile(supabase, user);
   await ensureFit(supabase, user.id, profile).catch(() => null); // profil ou recherche modifiés : les offres déjà reçues sont revues une fois
+  await archiveOld(supabase, user.id); // offres non décidées depuis plus de 3 semaines : rangées dans Masquées (« Garder dans ma liste » les remet)
   // Chaque onglet affiche les offres les plus récentes (la page reste légère) ; les totaux exacts viennent de requêtes de comptage,
   // pour que le chiffre de l'onglet ne s'arrête jamais en silence à la taille de la liste
   const total = () => supabase.from("recommendations").select("id", { count: "exact", head: true });
@@ -48,6 +50,7 @@ export default async function Recommandees() {
     learning.penaltyWords.length ? `Titres pénalisés quand ils contiennent : ${learning.penaltyWords.join(", ")}` : null,
     learning.boostWords.length ? `Titres favorisés : ${learning.boostWords.join(", ")}` : null,
     ...(profile.preferences.contracts?.length ? [`Offres masquées (onglet Masquées) : ${[...["Stage", "Alternance"].filter((k) => !profile.preferences.contracts.includes(k)).map((k) => k.toLowerCase()), "métiers éloignés de tes postes"].join(", ")}`] : []),
+    `Offres sans décision depuis plus de 3 semaines : rangées dans Masquées (« Garder dans ma liste » les remet)`,
     ...(profile.preferences.max_years != null ? [`Offres exigeant plus de ${profile.preferences.max_years} ans d'expérience pénalisées`] : []),
   ].filter(Boolean) as string[];
 

@@ -44,6 +44,7 @@ export function groupBySite(list: Skip[]): { site: string; items: Skip[] }[] {
 
 /** Ce qu'on dit de faire pour les lignes illisibles d'un site : Indeed refuse la lecture d'office, les autres sites ont refusé cette fois. */
 export function siteAdvice(site: string): string {
+  if (site === "Sans lien") return "Ces lignes n'ont pas de lien : colle le texte de l'annonce, ou supprime la ligne.";
   if (site === "Indeed") return "Indeed refuse la lecture automatique : je ne les relis plus à chaque passage. Ouvre l'annonce, puis utilise le favori « Envoyer à JobPilot » sur sa page, ou colle son texte.";
   if (site === "LinkedIn" || site === "Glassdoor") return `${site} a refusé la lecture de ces annonces : utilise le favori « Envoyer à JobPilot » sur la page de l'annonce, ou colle son texte.`;
   return "Le site a refusé la lecture de ces annonces : colle leur texte, ou supprime la ligne.";

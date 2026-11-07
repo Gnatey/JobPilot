@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "./types";
-import { fitCheck, fitSignature, KEPT, type FitReason } from "./fit";
+import { fitCheck, fitSignature, type FitReason } from "./fit";
+import { staysAsIs } from "./reco-age";
 import { quickScore } from "./quick-score";
 import { patchPreferences } from "./profile";
 
@@ -14,7 +15,8 @@ const chunks = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.len
  * celles qui ne sont pas pour toi passent en « Masquées » (status filtered), celles qui redeviennent compatibles reviennent à trier,
  * et le drapeau « trop senior » est recalculé avec ta limite d'expérience actuelle.
  * Ne tourne que si ce qui décide du filtre a changé depuis le dernier passage (empreinte `fit_sig`), ou avec force.
- * Les offres que tu as toi-même remises dans ta liste (reject_reason « garde ») ne sont jamais re-masquées.
+ * Les offres que tu as toi-même remises dans ta liste (reject_reason « garde ») ne sont jamais re-masquées, et celles rangées pour leur âge
+ * (reject_reason « ancienne », lib/reco-age.ts) ne sont pas remises à trier par ce passage.
  */
 export async function ensureFit(supabase: SupabaseClient, userId: string, profile: Profile, force = false): Promise<{ checked: number; hidden: number; shown: number } | null> {
   const roles = criteriaRoles(profile);
@@ -32,7 +34,7 @@ export async function ensureFit(supabase: SupabaseClient, userId: string, profil
       .eq("user_id", userId).in("status", ["new", "filtered"]).order("created_at", { ascending: true }).range(from, from + 399);
     if (error) return null; // on réessaiera au prochain passage : la signature n'est pas enregistrée
     for (const r of data ?? []) {
-      if (r.reject_reason === KEPT) continue;
+      if (staysAsIs(r.reject_reason)) continue;
       checked++;
       const text = `${r.snippet ?? ""} ${r.location ?? ""}`;
       const fit = fitCheck(profile, { title: r.title ?? "", text }, { roles });

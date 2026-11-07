@@ -7,6 +7,7 @@ import { analyzeOffer, classifyEmails, extractAlertOffers, extractOffer, generat
 import { quickScore } from "./quick-score";
 import { fitCheck } from "./fit";
 import { criteriaRoles, ensureFit } from "./fit-stock";
+import { archiveOld } from "./reco-age-db";
 import { computeLearning } from "./learning";
 import { getProfileById, patchPreferences } from "./profile";
 import { searchAll, hasSource, externalId, type SearchCriteria, type JobOffer } from "./sources";
@@ -274,5 +275,6 @@ export async function autoPrepare(supabase: SupabaseClient, userId: string, spen
 
 /** Avant la synchro : revoit les offres déjà reçues si ton profil ou ta recherche ont changé (sans effet sinon). */
 export async function refitStock(supabase: SupabaseClient, userId: string) {
+  await archiveOld(supabase, userId); // offres non décidées depuis plus de 3 semaines : rangées dans Masquées (lib/reco-age.ts)
   return ensureFit(supabase, userId, await getProfileById(supabase, userId));
 }

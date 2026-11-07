@@ -256,8 +256,8 @@ export const REJECT_REASONS = [
   { id: "expiree", label: "Offre plus disponible" },
   { id: "autre", label: "Autre" },
 ] as const;
-/** Raisons qui ne disent rien de tes goûts (annonce retirée, tri en lot) : l'app n'en tire aucune règle. */
-export const NEUTRAL_REASONS: readonly string[] = ["score_bas", "expiree", "fit_stage", "fit_alternance", "fit_metier", "garde"];
+/** Raisons qui ne disent rien de tes goûts (annonce retirée, déjà vue, tri en lot) : l'app n'en tire aucune règle. */
+export const NEUTRAL_REASONS: readonly string[] = ["score_bas", "expiree", "doublon", "ancienne", "fit_stage", "fit_alternance", "fit_metier", "garde"];
 
 /**
  * « Autre » peut s'accompagner d'un pourquoi libre, facultatif (ex. « offre entièrement en anglais »).
