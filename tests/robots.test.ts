@@ -15,6 +15,7 @@ ok("tous les robots visés", rule.userAgent === "*");
 ok("le reste du site reste fermé (Disallow: /)", disallow.includes("/"));
 ok("accueil, mentions légales et confidentialité autorisées", allow.includes("/$") && allow.includes("/mentions-legales") && allow.includes("/confidentialite"));
 ok("les fichiers qu'il faut pour afficher ces pages sont ouverts (styles, scripts, icônes, image de partage)", ["/_next/static/", "/icon.svg", "/opengraph-image"].every((a) => allow.includes(a)), allow.join(" "));
+ok("le plan du site (/sitemap.xml) n'est pas fermé par Disallow: / (Search Console ne pouvait pas le lire)", allow.includes("/sitemap.xml"), allow.join(" "));
 ok("rien d'autre n'est ouvert (pas d'app, d'API ni d'admin)", allow.length === PUBLIC_PAGES.length + PUBLIC_ASSETS.length && !allow.some((a) => /^\/(api|admin|offres|suivi|profil|parametres|documents|mon-cv|recommandees|recherche|stats|diagnostic|partage|importer|login|auth)/.test(a)), allow.join(" "));
 ok("Google reçoit l'adresse du plan du site", r.sitemap === `${siteUrl()}/sitemap.xml`, String(r.sitemap));
 const map = sitemap().map((e) => e.url);
