@@ -5,10 +5,9 @@ import { requireUser } from "@/lib/supabase/server";
 import { PageTitle, Empty } from "@/components/ui/page-title";
 import { fmtDate } from "@/lib/format";
 import { statusLabel } from "@/lib/types";
-import { OffersList } from "@/components/offers-list";
 import type { ListItem } from "@/lib/offers-filter";
 import { pickApplication } from "@/lib/app-pick";
-import { AnalyzeAll } from "@/components/analyze-all";
+import { OffersWorkspace } from "@/components/offers-workspace";
 import { partitionOffers } from "@/lib/offers-todo";
 import { fetchAll } from "@/lib/paged";
 
@@ -59,7 +58,6 @@ export default async function Offres() {
       <PageTitle title="Offres & CV" sub="Les offres à postuler, leur score et les CV générés pour elles. Celles que tu n'as pas encore tranchées restent dans Recommandées, les candidatures envoyées sont dans Suivi.">
         <Link href="/offres/nouvelle" className="btn btn-primary"><Plus size={16} /> Analyser une offre</Link>
       </PageTitle>
-      {(loose?.length ?? 0) > 0 && <AnalyzeAll count={loose!.length} />}
       {!items.length ? (
         <Empty action={<Link href="/offres/nouvelle" className="btn btn-primary">{offers?.length ? "Analyser une offre" : "Analyser ma première offre"}</Link>}>
           {offers?.length
@@ -67,7 +65,7 @@ export default async function Offres() {
             : "Aucune offre analysée. Colle un lien ou le texte d'une annonce pour obtenir ton score et un CV sur mesure."}
         </Empty>
       ) : (
-        <OffersList items={items} />
+        <OffersWorkspace items={items} lines={(loose ?? []).map((a) => ({ id: a.id as string, title: a.title as string, url: (a.url as string | null) ?? null }))} />
       )}
       {waiting > 0 && (
         <p className="mt-4 text-sm text-muted">

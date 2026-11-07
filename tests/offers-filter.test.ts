@@ -47,7 +47,8 @@ ok("« Voir les N autres » : 30 de plus, ou ce qui reste, puis plus rien", next
 // ---------- Branchement ----------
 const page = readFileSync("app/offres/page.tsx", "utf8");
 const comp = readFileSync("components/offers-list.tsx", "utf8");
-ok("la page passe ses lignes à OffersList (plus de liste de 200 lignes écrite en dur)", page.includes("<OffersList items={items} />") && !page.includes('<ul className="list">'));
+const work = readFileSync("components/offers-workspace.tsx", "utf8");
+ok("la page passe ses lignes à l'espace de travail, qui les passe à OffersList (plus de liste de 200 lignes écrite en dur)", page.includes("<OffersWorkspace items={items}") && work.includes("<OffersList items={items}") && !page.includes('<ul className="list">'));
 ok("la page lit toujours toutes les offres, candidatures et CV page après page", (page.match(/fetchAll\(/g) ?? []).length === 5 && !/\.limit\(/.test(page));
 ok("chaque ligne garde sa fiche, « Annonce » et la suppression avec raison", comp.includes("<Link href={it.href}") && comp.includes("Ouvrir l'annonce") && comp.includes("<OfferRowDelete kind={it.kind} id={it.key} label={it.title} />"));
 ok("accessibilité : champ de recherche étiqueté, filtres en boutons à état (aria-pressed), nombre de résultats annoncé (role=status), bouton « Tout afficher »", comp.includes('aria-label="Rechercher dans Offres & CV"') && comp.includes("aria-pressed={filter === f.id}") && comp.includes('role="status"') && comp.includes("Tout afficher") && comp.includes('className="link hit font-semibold"'));

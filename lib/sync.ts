@@ -19,12 +19,7 @@ import { readOffer, detectSource, normalizeJobUrl, httpUrlOrNull } from "./fetch
 import { recoText } from "./reco-text";
 import { markRecoGone } from "./offer-ops";
 import { splitRoles } from "./job-families";
-
-const norm = (s: string) =>
-  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\b(sa|sas|group|groupe|france)\b/g, "").replace(/[^a-z0-9]/g, "");
-
-const dedupeKey = (url: string, title: string, company: string) =>
-  url ? normalizeJobUrl(url).toLowerCase() : `${norm(title)}|${norm(company)}`;
+import { dedupeKey } from "./dedupe-key";
 
 /* ---------- Corps complet d'un email (pour les alertes) ---------- */
 

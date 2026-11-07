@@ -14,6 +14,8 @@ export const LIMITS = {
   exportData: { max: 6, windowSec: 3600 },
   /** Test des sources d'offres (administration) : chaque appel consomme une requête du quota gratuit d'Adzuna et de Jooble. */
   testSources: { max: 10, windowSec: 3600 },
+  /** « Vérifier les annonces » : chaque appel lit jusqu'à 6 pages de sites d'emploi (84 lignes = 14 appels). */
+  checkAds: { max: 60, windowSec: 3600 },
 } as const;
 
 export type Bucket = keyof typeof LIMITS;

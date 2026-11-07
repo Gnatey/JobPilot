@@ -1,5 +1,6 @@
 import { detectSource, normalizeJobUrl } from "./fetch-offer";
 import { recoText } from "./reco-text";
+import { UNTITLED } from "./offer-keep";
 
 /** Une candidature « À postuler » sans analyse (ligne « À analyser » d'Offres & CV). */
 export type QueueApp = { id: string; title: string | null; company: string | null; url: string | null; created_at?: string | null };
@@ -35,7 +36,13 @@ export type QueueItem = {
 };
 
 const MIN_EXTRACT = 150;
-const k = (title?: string | null, company?: string | null) => `${(title ?? "").toLowerCase().trim()}|${(company ?? "").toLowerCase().trim()}`;
+/** Couple poste + entreprise pour rapprocher une ligne de sa recommandation, quand l'adresse ne suffit pas. « Entreprise ? » (entreprise inconnue) vaut vide ; un poste « Annonce à analyser » ne rapproche JAMAIS rien (null) : deux annonces sans titre ne doivent pas se prendre l'une pour l'autre. */
+const k = (title?: string | null, company?: string | null): string | null => {
+  const t = (title ?? "").toLowerCase().trim();
+  if (t === UNTITLED.toLowerCase()) return null;
+  const c = (company ?? "").toLowerCase().trim();
+  return `${t}|${c === "entreprise ?" ? "" : c}`;
+};
 const u = (url?: string | null) => (url ? normalizeJobUrl(url) : "");
 
 /**
@@ -50,13 +57,15 @@ export function buildQueue(apps: QueueApp[], recos: QueueReco[]): { items: Queue
   const byTitle = new Map<string, QueueReco>();
   for (const r of recos) {
     if (r.url && !byUrl.has(u(r.url))) byUrl.set(u(r.url), r);
-    if (!byTitle.has(k(r.title, r.company))) byTitle.set(k(r.title, r.company), r);
+    const kr = k(r.title, r.company);
+    if (kr && !byTitle.has(kr)) byTitle.set(kr, r);
   }
   const items: QueueItem[] = [];
   const skipped: QueueApp[] = [];
   const blocked: QueueBlocked[] = [];
   for (const a of apps) {
-    const r = (a.url ? byUrl.get(u(a.url)) : undefined) ?? byTitle.get(k(a.title, a.company)) ?? null;
+    const ka = k(a.title, a.company);
+    const r = (a.url ? byUrl.get(u(a.url)) : undefined) ?? (ka ? byTitle.get(ka) : undefined) ?? null;
     const full = r ? recoText(r).length > 0 : false;
     const extract = r ? (r.snippet ?? "").trim().length >= MIN_EXTRACT : false;
     if (!full && !extract && !a.url) { skipped.push(a); continue; }

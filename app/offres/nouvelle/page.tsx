@@ -1,7 +1,8 @@
 "use client";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ClipboardPaste, Sparkles, Link2, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ClipboardPaste, Sparkles, Link2, Loader2, Bookmark } from "lucide-react";
 import { PageTitle } from "@/components/ui/page-title";
 import { useFeedback } from "@/components/ui/feedback";
 import { analyzeOffer, isUrl, useSteps } from "@/lib/client/analyze";
@@ -16,8 +17,14 @@ function Form() {
   const { toast } = useFeedback();
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
+  const [title, setTitle] = useState("");
+  const [company, setCompany] = useState("");
   const [needText, setNeedText] = useState(params.get("needtext") === "1");
   const [busy, setBusy] = useState(false);
+  const [keeping, setKeeping] = useState(false);
+  const [kept, setKept] = useState(0); // offres gardées pendant cette visite
+  const [details, setDetails] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState<string | null>(null);
   const step = useSteps(busy);
   const started = useRef(false);
@@ -45,6 +52,8 @@ function Form() {
     const u = hash.get("u") || params.get("url") || firstUrl(shared) || "";
     let t = hash.get("t") || (shared && !isUrl(shared) ? shared.replace(u, "").trim() : "") || "";
     if (!t && params.get("title") && !u) t = params.get("title") ?? "";
+    // Partage depuis le téléphone avec un lien : le titre de la page sert de poste pour « Garder pour plus tard »
+    if (u && params.get("title")) { setTitle((params.get("title") ?? "").slice(0, 200)); setDetails(true); }
     if (u) setUrl(u);
     if (t) setText(t);
     if (hash.size) history.replaceState(null, "", location.pathname + location.search);
@@ -79,7 +88,31 @@ function Form() {
     return () => document.removeEventListener("paste", onPaste);
   });
 
-  const canRun = !busy && (!!url || text.length >= 150);
+  const canRun = !busy && !keeping && (!!url || text.length >= 150);
+  const canKeep = canRun;
+
+  /** Garder sans analyser : aucun appel d'IA. Le formulaire se vide pour en ajouter une autre à la suite. */
+  async function keep() {
+    if (!url && !title.trim()) {
+      setDetails(true);
+      setErr("Sans lien, indique le poste (champ « Poste » ci-dessous) pour t'y retrouver dans ta liste.");
+      setTimeout(() => titleRef.current?.focus(), 0);
+      return;
+    }
+    setKeeping(true);
+    setErr(null);
+    const res = await fetch("/api/offers/keep", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url || undefined, text: text || undefined, title: title || undefined, company: company || undefined }),
+    }).catch(() => null);
+    const j = res ? await res.json().catch(() => ({})) : {};
+    setKeeping(false);
+    if (!res?.ok) return setErr(j.error ?? "Je n'ai pas pu garder cette offre, réessaie.");
+    toast(j.message ?? "Offre gardée.", { tone: "info" });
+    if (j.outcome === "analyzed" && j.id) return router.push(`/offres/${j.id}`);
+    if (j.outcome === "kept") setKept((n) => n + 1);
+    setUrl(""); setText(""); setTitle(""); setCompany(""); setNeedText(false);
+  }
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); if (canRun) run(url, text); }} className="max-w-2xl space-y-5">
@@ -104,9 +137,25 @@ function Form() {
         {needText && <span className="mt-1 block text-xs text-muted">Sur la page de l'annonce : Ctrl+A, Ctrl+C, puis colle ici. {text.length > 0 && text.length < 150 ? `Encore ${150 - text.length} caractères.` : ""}</span>}
       </label>
 
-      <button className="btn btn-primary btn-xl w-full sm:w-auto" disabled={!canRun}>
-        {busy ? <><Loader2 size={18} className="animate-spin" /> {step}…</> : <><Sparkles size={18} /> Analyser et calculer mon score</>}
-      </button>
+      <details open={details} onToggle={(e) => setDetails(e.currentTarget.open)} className="rounded-xl border border-line p-3">
+        <summary className="cursor-pointer text-sm font-semibold">Préciser le poste et l'entreprise <span className="font-normal text-muted">(facultatif avec un lien)</span></summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block"><span className="label">Poste</span><input ref={titleRef} className="field mt-1" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} placeholder="Data analyst" autoComplete="off" /></label>
+          <label className="block"><span className="label">Entreprise</span><input className="field mt-1" value={company} onChange={(e) => setCompany(e.target.value)} maxLength={120} placeholder="Nom de l'entreprise" autoComplete="off" /></label>
+        </div>
+        <p className="mt-2 text-xs text-muted">Sert seulement à retrouver la ligne dans ta liste. Pour « Analyser », l'IA lit l'annonce elle-même. Sans lien, le poste est nécessaire pour garder l'offre.</p>
+      </details>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button className="btn btn-primary btn-xl w-full sm:w-auto" disabled={!canRun}>
+          {busy ? <><Loader2 size={18} className="animate-spin" /> {step}…</> : <><Sparkles size={18} /> Analyser et calculer mon score</>}
+        </button>
+        <button type="button" className="btn btn-xl w-full sm:w-auto" disabled={!canKeep} onClick={keep}>
+          {keeping ? <><Loader2 size={18} className="animate-spin" /> Je garde…</> : <><Bookmark size={18} /> Garder pour plus tard</>}
+        </button>
+      </div>
+      <p className="-mt-2 text-sm text-muted">« Garder » n'utilise aucune action IA : l'offre va dans <Link href="/offres" className="link">Offres & CV</Link> (à analyser), et tu l'analyseras quand tu veux, seule ou avec d'autres cochées.</p>
+      {kept > 0 && <p className="rounded-xl bg-good/10 p-3 text-sm" role="status">{kept} offre{kept > 1 ? "s" : ""} gardée{kept > 1 ? "s" : ""} pendant cette visite. Tu peux en coller une autre, ou <Link href="/offres" className="link font-semibold">ouvrir Offres & CV</Link>.</p>}
       {busy && <p className="text-sm text-muted">Environ 20 secondes. Tu peux rester sur la page.</p>}
       {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}
       <p className="text-sm text-muted">LinkedIn, Indeed et Glassdoor protègent souvent leurs pages. Dans ce cas, copie le texte de l'annonce : 5 secondes, ou utilise le favori ci-dessus qui le fait en un clic.</p>

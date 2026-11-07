@@ -8,8 +8,11 @@ import { Empty } from "@/components/ui/page-title";
 import { OfferRowDelete } from "@/components/offer-row-delete";
 import { PAGE_SIZE, TOOLS_FROM, filterCounts, nextBatch, selectItems, visibleFilters, type FilterId, type ListItem } from "@/lib/offers-filter";
 
+/** Sélection des lignes « À analyser » (cases à cocher). Sans elle, la liste est en lecture seule comme avant. */
+export type Selection = { ids: ReadonlySet<string>; toggle: (id: string) => void; setMany: (ids: string[], on: boolean) => void };
+
 /** Liste d'Offres & CV : recherche, filtres (avec CV / sans CV / à analyser) et affichage par paquets de 30. */
-export function OffersList({ items }: { items: ListItem[] }) {
+export function OffersList({ items, selection }: { items: ListItem[]; selection?: Selection }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterId>("all");
   const [shown, setShown] = useState(PAGE_SIZE);
@@ -20,6 +23,9 @@ export function OffersList({ items }: { items: ListItem[] }) {
   const active = q.trim() !== "" || filter !== "all";
   const batch = nextBatch(rows.length, shown);
   const visible = rows.slice(0, shown);
+  // Lignes « À analyser » de la recherche en cours (toutes, pas seulement les 30 affichées) : « Cocher les N » les prend toutes
+  const pickable = selection ? rows.filter((r) => r.kind === "app").map((r) => r.key) : [];
+  const unchecked = selection ? pickable.filter((id) => !selection.ids.has(id)).length : 0;
 
   // Une nouvelle recherche ou un autre filtre repart des 30 premières lignes
   const search = (v: string) => { setQ(v); setShown(PAGE_SIZE); };
@@ -47,11 +53,18 @@ export function OffersList({ items }: { items: ListItem[] }) {
         </div>
       )}
 
-      {tools && (
+      {(tools || pickable.length > 0) && (
         <p className="mb-3 text-sm text-muted" role="status" aria-live="polite">
-          {active
+          {tools && (active
             ? <>{rows.length} {rows.length > 1 ? "offres correspondent" : "offre correspond"} sur {items.length}. <button type="button" className="link hit font-semibold" onClick={reset}>Tout afficher</button></>
-            : <>{items.length} offres à traiter.</>}
+            : <>{items.length} offres à traiter.</>)}
+          {selection && pickable.length > 0 && (
+            <>
+              {tools ? " " : ""}
+              {unchecked > 0 && <button type="button" className="link hit font-semibold" onClick={() => selection.setMany(pickable, true)}>Cocher les {unchecked === pickable.length ? pickable.length : `${unchecked} restantes`} à analyser</button>}
+              {unchecked < pickable.length && <>{unchecked > 0 ? " · " : ""}<button type="button" className="link hit font-semibold" onClick={() => selection.setMany(pickable, false)}>Tout décocher</button></>}
+            </>
+          )}
         </p>
       )}
 
@@ -63,8 +76,16 @@ export function OffersList({ items }: { items: ListItem[] }) {
         <ul className="list">
           {visible.map((it) => (
             <li key={it.key} className="flex items-center hover:bg-paper/60">
-              <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                <ScorePill value={it.score} rough={it.rough} />
+              {selection && it.kind === "app" && (
+                <label className="flex shrink-0 cursor-pointer items-center self-stretch pl-4 pr-2">
+                  <input
+                    type="checkbox" className="h-4 w-4 accent-[var(--color-marigold)]" checked={selection.ids.has(it.key)} onChange={() => selection.toggle(it.key)}
+                    aria-label={`Cocher pour analyser : ${it.title}`}
+                  />
+                </label>
+              )}
+              <Link href={it.href} className={`flex min-w-0 flex-1 items-center gap-3 py-3 ${selection && it.kind === "app" ? "pl-2 pr-4" : "px-4"}`}>
+                {!(selection && it.kind === "app") && <ScorePill value={it.score} rough={it.rough} />}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{it.title}</p>
                   <p className="truncate text-sm text-muted">{it.sub}</p>
