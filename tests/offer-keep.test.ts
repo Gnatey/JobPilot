@@ -1,6 +1,6 @@
-// « Garder pour plus tard » : enregistrer une offre sans IA. Contrôles de la logique pure (lib/offer-keep.ts), de la clé de doublon partagée
-// avec la synchro des e-mails, et du rapprochement ligne ↔ recommandation dans la file d'analyse.
-import { MIN_TEXT, UNTITLED, keepMessage, planKeep, titleFromUrl } from "../lib/offer-keep";
+// « Garder pour plus tard » : enregistrer une offre, ou le texte de son annonce, sans IA. Contrôles de la logique pure (lib/offer-keep.ts), de la clé de
+// doublon de la synchro des e-mails (lib/dedupe-key.ts) et du rapprochement ligne ↔ recommandation dans la file d'analyse.
+import { MIN_TEXT, UNTITLED, cleanAdText, keepMessage, planKeep, titleFromUrl } from "../lib/offer-keep";
 import { dedupeKey, normKey } from "../lib/dedupe-key";
 import { normalizeJobUrl } from "../lib/fetch-offer";
 import { buildQueue, type QueueApp, type QueueReco } from "../lib/analyze-queue";
@@ -21,7 +21,6 @@ ok("les caractères encodés sont lus", titleFromUrl("https://exemple.fr/offres/
 const withUrl = planKeep({ url: "https://www.hellowork.com/fr-fr/emplois/82945204.html?utm_source=x" });
 ok("un lien suffit", withUrl.ok && withUrl.plan.url === "https://www.hellowork.com/fr-fr/emplois/82945204.html" && withUrl.plan.site === "HelloWork");
 ok("sans poste deviné, le poste est « Annonce à analyser »", withUrl.ok && withUrl.plan.title === UNTITLED && !withUrl.plan.titleGuessed);
-ok("la clé d'un lien est celle de la synchro des e-mails (même offre = une seule ligne)", withUrl.ok && withUrl.plan.key === dedupeKey("https://www.hellowork.com/fr-fr/emplois/82945204.html?utm_source=x", "Autre titre", "Autre entreprise"));
 const slug = planKeep({ url: "https://www.welcometothejungle.com/fr/companies/hublo/jobs/junior-data-engineer_paris" });
 ok("le titre deviné est marqué comme tel", slug.ok && slug.plan.titleGuessed && slug.plan.title.startsWith("Junior data engineer"));
 const typed = planKeep({ url: "https://exemple.fr/o/1", title: "  Data   analyst  ", company: "Acme" });
@@ -33,11 +32,6 @@ ok("texte trop court sans lien : refusé, avec le nombre de caractères", (() =>
 ok("texte sans lien ni poste : refusé (le poste est la seule façon de retrouver la ligne)", (() => { const r = planKeep({ text: longText }); return !r.ok && /poste/i.test(r.error); })());
 const txt = planKeep({ text: longText, title: "Data analyst", company: "Acme" });
 ok("texte + poste sans lien : accepté", txt.ok && txt.plan.url === null && txt.plan.text.length >= MIN_TEXT && txt.plan.site === "texte");
-const txt2 = planKeep({ text: longText + " autre", title: "Data analyst", company: "Acme" });
-ok("deux textes différents, même poste et même entreprise : deux clés différentes (jamais confondus)", txt.ok && txt2.ok && txt.plan.key !== txt2.plan.key);
-const txt3 = planKeep({ text: longText, title: "Autre poste" });
-ok("le même texte collé deux fois : la même clé (une seule ligne)", txt.ok && txt3.ok && txt.plan.key === txt3.plan.key);
-ok("une clé de texte ne ressemble jamais à une adresse", txt.ok && txt.plan.key.startsWith("texte:") && !/^https?:/.test(txt.plan.key));
 ok("le texte est nettoyé et plafonné", (() => { const r = planKeep({ url: "https://exemple.fr/o/1", text: "a\u0000b ".repeat(20000) }); return r.ok && !r.plan.text.includes("\u0000") && r.plan.text.length <= 20000; })());
 ok("champs non textuels ignorés sans erreur", (() => { const r = planKeep({ url: "https://exemple.fr/o/1", title: 42, company: { x: 1 }, text: null }); return r.ok && r.plan.title === UNTITLED && r.plan.company === ""; })());
 
@@ -47,11 +41,12 @@ ok("sans lien : poste + entreprise normalisés", dedupeKey("", "Data Analyst", "
 ok("avec lien : l'adresse normalisée en minuscules", dedupeKey("https://WWW.hellowork.com/fr-fr/emplois/1.html?utm_source=x", "a", "b") === normalizeJobUrl("https://WWW.hellowork.com/fr-fr/emplois/1.html?utm_source=x").toLowerCase());
 
 // ---------- Messages ----------
-ok("chaque issue a sa phrase", (["kept", "exists", "tracked", "analyzed"] as const).every((o) => keepMessage(o, "Poste").length > 10));
-ok("le texte ajouté ou remplacé est dit ; sans texte, la phrase dit comment en ajouter un ; trop court, elle le dit",
-  /ajouté/.test(keepMessage("exists", "Poste", "added")) && /remplacé/.test(keepMessage("exists", "Poste", "replaced")) && /même texte/.test(keepMessage("exists", "Poste", "same"))
-  && /colle-le/.test(keepMessage("exists", "Poste", "none")) && /trop court/.test(keepMessage("exists", "Poste", "short")) && /trop court/.test(keepMessage("kept", "Poste", "short")));
-
+ok("chaque issue a sa phrase", (["kept", "exists", "tracked", "analyzed", "missing"] as const).every((o) => keepMessage(o, "Poste").length > 10));
+ok("le texte gardé ou remplacé est dit ; sans texte, la phrase dit comment en ajouter un ; trop court, elle le dit",
+  /gardé sur cette ligne/.test(keepMessage("exists", "Poste", "added")) && /remplacé/.test(keepMessage("exists", "Poste", "replaced")) && /déjà gardé/.test(keepMessage("exists", "Poste", "same"))
+  && /colle-le/.test(keepMessage("exists", "Poste", "none")) && /trop court/.test(keepMessage("exists", "Poste", "short")) && /trop court/.test(keepMessage("kept", "Poste", "short"))
+  && /son texte est gardé/i.test(keepMessage("kept", "Poste", "added")));
+ok("le texte collé pour une ligne ouverte est nettoyé et plafonné ; autre chose qu'un texte = vide", (() => { const t = cleanAdText("a\u0000b ".repeat(20000)); return !t.includes("\u0000") && t.length <= 20000 && cleanAdText(42) === "" && cleanAdText(undefined) === ""; })());
 // ---------- La file d'analyse rapproche une ligne gardée de SON texte ----------
 const reco = (id: string, over: Partial<QueueReco>): QueueReco => ({ id, title: UNTITLED, company: "", url: null, quick_score: 40, source: "page", origin: "page", snippet: longText.repeat(2) + id, ...over });
 const app = (id: string, over: Partial<QueueApp>): QueueApp => ({ id, title: UNTITLED, company: "Entreprise ?", url: null, created_at: "2026-11-07", ...over });

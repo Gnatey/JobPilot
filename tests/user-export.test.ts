@@ -1,6 +1,6 @@
 // Export des données : toutes les lignes (Supabase coupe sinon à 1 000 sans le dire), jamais de trou silencieux, jamais de secret.
 import { readFileSync } from "node:fs";
-import { EXPORT_TABLES, readExport, stripSecrets } from "../lib/user-export";
+import { EXPORT_TABLES, orderColumn, readExport, stripSecrets } from "../lib/user-export";
 import { ok, done } from "./helpers";
 
 /** Faux serveur : rend la tranche demandée, mais jamais plus de `cap` lignes par réponse (comme « Max rows » de Supabase). */
@@ -34,6 +34,22 @@ const server = (sizes: Record<string, number>, cap = 1000, fail?: string) => {
   ok("une table illisible fait échouer l'export, avec un message clair (pas de fichier incomplet)", msg.includes("« documents »") && msg.includes("réessaie"), msg);
 }
 
+// ---------- Table ajoutée par une mise à jour de la base (textes d'annonces gardés) ----------
+{
+  const missing = { message: "Could not find the table 'public.application_texts' in the schema cache", code: "PGRST205" };
+  const s = server({ offers: 3 });
+  const read = (t: string, from: number, to: number) => (t === "application_texts" ? Promise.resolve({ data: null, error: missing }) : s.read(t, from, to));
+  const r = await readExport(read);
+  ok("base pas encore à jour : la table des textes absente est comptée vide, l'export marche", r.tables.application_texts.length === 0 && r.counts.application_texts === 0 && r.tables.offers.length === 3);
+  let msg = "";
+  try { await readExport((t, a, b) => (t === "application_texts" ? Promise.resolve({ data: null, error: { message: "JWT expired" } }) : s.read(t, a, b))); } catch (e) { msg = (e as Error).message; }
+  ok("une autre erreur sur cette table fait échouer l'export (jamais un trou silencieux)", msg.includes("« application_texts »"), msg);
+  let msg2 = "";
+  try { await readExport((t, a, b) => (t === "documents" ? Promise.resolve({ data: null, error: missing }) : s.read(t, a, b))); } catch (e) { msg2 = (e as Error).message; }
+  ok("une table de base absente reste une erreur pour toutes les autres tables", msg2.includes("« documents »"), msg2);
+  ok("chaque table se trie sur une colonne qui existe (application_texts n'a pas d'id)", orderColumn("application_texts") === "application_id" && orderColumn("profiles") === "user_id" && orderColumn("offers") === "id");
+}
+
 // ---------- Les secrets ----------
 {
   ok("le jeton Gmail n'est jamais exporté (la table n'est pas dans la liste)", !(EXPORT_TABLES as readonly string[]).includes("gmail_accounts"));
@@ -46,7 +62,7 @@ const server = (sizes: Record<string, number>, cap = 1000, fail?: string) => {
 // ---------- Branchement de la route ----------
 {
   const route = readFileSync("app/api/account/export/route.ts", "utf8");
-  ok("route : lit par readExport (page après page), triée (id, user_id pour profiles), jamais un select(\"*\") nu", route.includes("readExport(") && /\.order\(t === "profiles" \? "user_id" : "id"\)/.test(route) && !/from\(t\)\.select\("\*"\)\)\.data/.test(route));
+  ok("route : lit par readExport (page après page), triée par la colonne stable de chaque table, jamais un select(\"*\") nu", route.includes("readExport(") && route.includes(".order(orderColumn(t))") && !/from\(t\)\.select\("\*"\)\)\.data/.test(route));
   ok("route : limite de requêtes toujours appelée juste après requireUser", /requireUser\(\);\s*await rateLimit\(supabase, "exportData"\)/.test(route));
   ok("route : le fichier est annoncé avec les comptes par table (row_counts)", route.includes("row_counts: counts"));
 }

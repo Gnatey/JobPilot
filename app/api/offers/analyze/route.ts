@@ -6,6 +6,7 @@ import { readOfferWithReader, goneMessage, detectSource, normalizeJobUrl, unread
 import { markRecoGone } from "@/lib/offer-ops";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { recoText } from "@/lib/reco-text";
+import { readLineText } from "@/lib/offer-keep-db";
 import type { OfferAnalysis } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
     let text = (body.text?.trim() || "").slice(0, 30000);
     let extract = ""; // simple extrait de liste ou d'alerte : l'annonce n'a pas été lue en entier
     let partial = false;
+
+    // Texte gardé sur la ligne « À analyser » (« Garder pour plus tard ») : il passe avant tout, sans relire un site souvent bloqué
+    if (!text && body.app_id) text = (await readLineText(supabase, body.app_id)).slice(0, 30000);
 
     // Texte déjà en base pour cette offre recommandée (page lue par le favori, recherche automatique) : inutile de relire un site souvent bloqué
     if (!text && body.reco_id) {
@@ -106,5 +110,7 @@ async function link(supabase: Sb, body: Body, offerId: string, score: number | n
     await supabase.from("applications").update({ offer_id: offerId, score, cv_variant: variant ?? null }).eq("id", body.app_id);
     await supabase.from("offers").update({ decision: "accepted" }).eq("id", offerId);
     await supabase.from("documents").update({ application_id: body.app_id }).eq("offer_id", offerId).is("application_id", null);
+    // Le texte est maintenant dans l'offre (`raw_text`) : celui gardé sur la ligne n'a plus d'utilité (table absente : sans effet)
+    await supabase.from("application_texts").delete().eq("application_id", body.app_id);
   }
 }

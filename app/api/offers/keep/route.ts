@@ -1,29 +1,54 @@
 import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
-import { getProfile } from "@/lib/profile";
-import { computeLearning } from "@/lib/learning";
-import { quickScore } from "@/lib/quick-score";
-import { planKeep } from "@/lib/offer-keep";
-import { keepOffer, type ScoreFn } from "@/lib/offer-keep-db";
+import { cleanAdText, planKeep } from "@/lib/offer-keep";
+import { SetupError, keepOffer, keepOnLine, readLineText } from "@/lib/offer-keep-db";
+import { recoText } from "@/lib/reco-text";
+import { normalizeJobUrl } from "@/lib/fetch-offer";
+
+export const dynamic = "force-dynamic";
 
 /**
- * « Garder pour plus tard » : enregistre une offre SANS l'analyser (aucun appel d'IA, donc aucune action IA dépensée).
- * L'offre devient une ligne « À analyser » d'Offres & CV (candidature « À postuler » sans offre lue) ; le texte de l'annonce, s'il a été collé,
- * est rangé dans la recommandation d'où elle vient, pour que « Tout analyser » / « Analyser la sélection » le retrouvent sans relire le site.
- * Jamais de doublon : une offre déjà analysée est rouverte, une ligne déjà dans la liste n'est pas recréée (son texte est complété si on en apporte un),
- * une offre déjà dans Suivi n'est pas touchée. La logique est dans lib/offer-keep-db.ts (testée).
+ * « Garder pour plus tard » : range une offre, ou le texte de son annonce, SANS l'analyser (aucun appel d'IA, donc aucune action IA dépensée).
+ * Le texte reste attaché à SA ligne « À analyser » d'Offres & CV (table `application_texts`), et rien n'est créé dans Recommandées.
+ * Avec `app_id` (ligne ouverte depuis Offres & CV) : le texte va sur cette ligne. Sans : la ligne est retrouvée par son adresse, sinon créée.
+ * Jamais de doublon. La logique est dans lib/offer-keep-db.ts (testée).
  */
 export async function POST(req: Request) {
   return handle(async () => {
     const { supabase, user } = await requireUser();
-    const planned = planKeep((await req.json().catch(() => ({}))) as Record<string, unknown>);
-    if (!planned.ok) throw new HttpError(400, planned.error);
-    // Le pré-score est gratuit (sans IA) ; le profil et l'historique ne sont lus que s'il y a un texte à noter
-    const score: ScoreFn = async (title, text, company) => {
-      const [profile, learning] = await Promise.all([getProfile(supabase, user), computeLearning(supabase, user.id)]);
-      const q = quickScore(profile, title, text, learning, company);
-      return { quick_score: q.score, matched: q.matched, senior: q.senior };
-    };
-    return keepOffer(supabase, user, planned.plan, score);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    try {
+      if (typeof body.app_id === "string" && body.app_id) {
+        const r = await keepOnLine(supabase, user, body.app_id, cleanAdText(body.text));
+        if (r.outcome === "missing") throw new HttpError(404, r.message);
+        return r;
+      }
+      const planned = planKeep(body);
+      if (!planned.ok) throw new HttpError(400, planned.error);
+      return await keepOffer(supabase, user, planned.plan);
+    } catch (e) {
+      if (e instanceof SetupError) throw new HttpError(409, e.message);
+      throw e;
+    }
+  });
+}
+
+/**
+ * Le texte déjà gardé pour une ligne (`?app=…`), pour le remettre dans la zone de texte quand on rouvre la ligne.
+ * À défaut, le texte rangé par l'ancienne version de « Garder » dans la recommandation de même adresse (livrée le matin du 7 novembre).
+ */
+export async function GET(req: Request) {
+  return handle(async () => {
+    const { supabase } = await requireUser();
+    const appId = new URL(req.url).searchParams.get("app");
+    if (!appId) throw new HttpError(400, "Ligne manquante.");
+    const own = await readLineText(supabase, appId);
+    if (own) return { text: own };
+    const { data: line } = await supabase.from("applications").select("url").eq("id", appId).maybeSingle();
+    const url = (line as { url?: string | null } | null)?.url;
+    if (!url) return { text: "" };
+    const { data: recos } = await supabase.from("recommendations").select("origin, snippet").eq("origin", "page").in("url", [...new Set([url, normalizeJobUrl(url)])]).limit(5);
+    const best = ((recos ?? []) as { origin: string; snippet: string | null }[]).map((r) => recoText(r)).sort((a, b) => b.length - a.length)[0] ?? "";
+    return { text: best };
   });
 }
