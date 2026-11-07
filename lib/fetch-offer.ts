@@ -162,6 +162,7 @@ export function untrackUrl(raw: string): string {
 }
 
 /** Paramètres d'adresse qui sont des jetons de connexion (lien « magic link » d'un e-mail) : jamais gardés, jamais envoyés ailleurs. */
+const NESTED_SECRET = /(?:magic|login|auth|access|one[-_]?time)[-_]?token=|[?&]otp=/i;
 const SECRET_PARAMS = /^(magic[-_]?token|login[-_]?token|auth[-_]?token|access[-_]?token|one[-_]?time[-_]?token|otp)$/i;
 
 /**
@@ -181,11 +182,30 @@ export function isSignInLink(raw: string | null | undefined): boolean {
   }
 }
 
+/**
+ * Un lien de connexion d'e-mail passe par une page de connexion avant l'annonce (`/magic-authentication?magic-token=…&next-page=/annonce?id=…`).
+ * Une fois le jeton retiré, il ne mène plus à l'annonce : on garde la destination (`next-page`), à condition que ce soit un chemin du MÊME site
+ * (jamais une autre adresse : pas de redirection ouverte). Sans destination valable, on renvoie null et l'adresse garde sa page de connexion, sans jeton.
+ */
+function signInDestination(u: URL): string | null {
+  if (!isSignInLink(u.href)) return null;
+  const next = u.searchParams.get("next-page") ?? u.searchParams.get("next") ?? u.searchParams.get("redirect");
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return null;
+  try {
+    const target = new URL(next, u.origin);
+    return target.origin === u.origin && !isSignInLink(target.href) ? target.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Adresse canonique d'une annonce (sans paramètres de suivi), pour repérer les doublons. */
 export function normalizeJobUrl(url: string) {
   try {
-    const u = new URL(untrackUrl(url));
-    for (const k of [...u.searchParams.keys()]) if (SECRET_PARAMS.test(k)) u.searchParams.delete(k); // jamais de jeton de connexion rangé en base
+    let u = new URL(untrackUrl(url));
+    const dest = signInDestination(u);
+    if (dest) u = new URL(dest); // lien de connexion : on garde l'annonce visée, jamais la page de connexion ni son jeton
+    for (const [k, v] of [...u.searchParams.entries()]) if (SECRET_PARAMS.test(k) || NESTED_SECRET.test(v)) u.searchParams.delete(k); // jamais de jeton de connexion rangé en base (même caché dans la valeur d'un autre paramètre)
     const li = u.pathname.match(/\/jobs\/view\/(\d+)/);
     if (u.hostname.includes("linkedin") && li) return `https://www.linkedin.com/jobs/view/${li[1]}/`;
     const jk = u.searchParams.get("jk");

@@ -40,8 +40,14 @@ ok("vide, absent ou illisible : non", !isSignInLink(null) && !isSignInLink("") &
 {
   const n = normalizeJobUrl(magic);
   ok("le jeton est retiré de l'adresse enregistrée", !n.includes("FAUX_JETON") && !/magic-token/i.test(n));
-  ok("le reste de l'adresse est conservé", n.includes("magic-authentication") && n.includes("next-page"));
+  ok("l'adresse enregistrée est celle de l'ANNONCE (next-page), pas la page de connexion : le bouton « Annonce » et le favori y mènent", n === "https://www.exemple-freelance.fr/detail-annonce?recordId=recFAUX", n);
+  ok("…et ce n'est plus un lien de connexion (aucun jeton, rien d'ouvert par erreur)", !isSignInLink(n) && checkable(n));
   ok("deux e-mails pour la même annonce donnent la même adresse (plus de doublon par jeton)", normalizeJobUrl(magic) === normalizeJobUrl(magic.replace("FAUX_JETON_DE_TEST_0123456789", "AUTRE_FAUX_JETON_9876543210")));
+  const evil = (next: string) => `https://www.exemple-freelance.fr/magic-authentication?magic-token=FAUX&next-page=${encodeURIComponent(next)}`;
+  ok("une destination vers un AUTRE site n'est jamais suivie (pas de redirection ouverte) : on garde la page de connexion, sans jeton",
+    ["https://evil.example/x", "//evil.example/x", "\\\\evil.example", "javascript:alert(1)"].every((d) => { const r = normalizeJobUrl(evil(d)); return new URL(r).hostname === "www.exemple-freelance.fr" && !/magic-token/i.test(r) && !/\/magic-authentication/.test(new URL(r).pathname.replace("/magic-authentication", "")); }));
+  ok("sans destination : la page de connexion reste, sans jeton", normalizeJobUrl("https://www.exemple-freelance.fr/magic-authentication?magic-token=FAUX") === "https://www.exemple-freelance.fr/magic-authentication");
+  ok("une destination qui est elle-même un lien de connexion n'est pas suivie", !normalizeJobUrl(evil("/magic-authentication?magic-token=AUTRE")).includes("AUTRE"));
   ok("une adresse ordinaire reste telle quelle", normalizeJobUrl("https://exemple.fr/o/1?utm_source=x") === "https://exemple.fr/o/1");
 }
 
