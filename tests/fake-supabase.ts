@@ -1,14 +1,16 @@
 // Fausse base en mémoire pour tester les routes sans réseau : juste assez de l'API de supabase-js (select, insert, update, delete, filtres, order, limit,
-// maybeSingle, single, count). Pas de sécurité par ligne (une seule personne). `unique` : colonnes qui doivent rester uniques par table (erreur 23505, comme Postgres).
+// maybeSingle, single, count, upsert). Pas de sécurité par ligne (une seule personne). `unique` : colonnes qui doivent rester uniques par table (erreur 23505, comme Postgres).
 export type Row = Record<string, unknown>;
 
-export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<string, string[]> = {}) {
+/** `missing` : tables qui n'existent pas encore (mise à jour de la base pas lancée) : toute requête dessus répond l'erreur de PostgREST (PGRST205). */
+export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<string, string[]> = {}, opts: { missing?: string[] } = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(Object.entries(seed).map(([k, v]) => [k, v.map((r) => ({ ...r }))]));
   let n = 0;
   const log: string[] = [];
   class Q {
     private filters: ((r: Row) => boolean)[] = [];
-    private op: "select" | "insert" | "update" | "delete" = "select";
+    private op: "select" | "insert" | "update" | "delete" | "upsert" = "select";
+    private conflict = "id";
     private patch: Row | Row[] | null = null;
     private head = false;
     private wantCount = false;
@@ -18,6 +20,7 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
     constructor(private t: string) {}
     select(_cols?: string, o?: { count?: string; head?: boolean }) { if (o?.count) this.wantCount = true; if (o?.head) this.head = true; return this; }
     insert(r: Row | Row[]) { this.op = "insert"; this.patch = r; return this; }
+    upsert(r: Row, o?: { onConflict?: string }) { this.op = "upsert"; this.patch = r; this.conflict = o?.onConflict ?? "id"; return this; }
     update(p: Row) { this.op = "update"; this.patch = p; return this; }
     delete() { this.op = "delete"; return this; }
     eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
@@ -29,8 +32,16 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
     single() { this.mode = "one"; return this; }
     then<T>(res: (v: { data: unknown; error: unknown; count?: number }) => T, rej?: (e: unknown) => T) { return Promise.resolve(this.run()).then(res, rej); }
     private run(): { data: unknown; error: unknown; count?: number } {
-      const rows = (tables[this.t] ??= []);
       log.push(`${this.op} ${this.t}`);
+      if (opts.missing?.includes(this.t)) return { data: null, error: { code: "PGRST205", message: `Could not find the table 'public.${this.t}' in the schema cache` } };
+      const rows = (tables[this.t] ??= []);
+      if (this.op === "upsert") {
+        const r = this.patch as Row;
+        const hit = rows.find((x) => x[this.conflict] === r[this.conflict]);
+        if (hit) { Object.assign(hit, r); return { data: null, error: null }; }
+        rows.push({ id: `${this.t}-${++n}`, created_at: `2026-11-07T04:${String(n).padStart(2, "0")}:00Z`, ...r });
+        return { data: null, error: null };
+      }
       if (this.op === "insert") {
         const made: Row[] = [];
         for (const r of Array.isArray(this.patch) ? this.patch : [this.patch as Row]) {

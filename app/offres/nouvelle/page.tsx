@@ -29,6 +29,7 @@ function Form() {
   const [note, setNote] = useState<string | null>(null); // ce que « Garder » a fait quand le formulaire reste rempli (texte trop court, ligne déjà là…)
   const step = useSteps(busy);
   const started = useRef(false);
+  const appId = params.get("app"); // ligne d'Offres & CV ouverte : « Garder » range le texte SUR cette ligne
 
   const run = useCallback(async (u: string, t: string) => {
     setBusy(true);
@@ -58,8 +59,21 @@ function Form() {
     if (u) setUrl(u);
     if (t) setText(t);
     if (hash.size) history.replaceState(null, "", location.pathname + location.search);
-    if (params.get("auto") === "1" && (u || t.length >= 150)) run(u, t);
-  }, [params, run]);
+    const auto = params.get("auto") === "1" && (u || t.length >= 150);
+    // Ligne d'Offres & CV avec un texte déjà gardé : on le remet dans la zone de texte et on NE relance PAS l'analyse (ni la lecture d'un site qui bloque,
+    // ni 2 actions IA à chaque ouverture) : la personne analyse quand elle veut, ou laisse « Tout analyser » s'en charger.
+    if (appId && !t) {
+      fetch(`/api/offers/keep?app=${encodeURIComponent(appId)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null).then((j) => {
+        const saved = typeof j?.text === "string" ? j.text : "";
+        if (saved.length >= 150) {
+          setText(saved); setNeedText(true);
+          setNote("Le texte que tu avais gardé pour cette ligne est là. Lance l'analyse quand tu veux, ou laisse « Tout analyser » s'en charger.");
+        } else if (auto) run(u, t);
+      });
+      return;
+    }
+    if (auto) run(u, t);
+  }, [params, run, appId]);
 
   function takeClip(raw: string) {
     const c = raw.trim();
@@ -94,7 +108,7 @@ function Form() {
 
   /** Garder sans analyser : aucun appel d'IA. Le formulaire se vide pour en ajouter une autre à la suite. */
   async function keep() {
-    if (!url && !title.trim()) {
+    if (!appId && !url && !title.trim()) {
       setDetails(true);
       setErr("Sans lien, indique le poste (champ « Poste » ci-dessous) pour t'y retrouver dans ta liste.");
       setTimeout(() => titleRef.current?.focus(), 0);
@@ -105,7 +119,7 @@ function Form() {
     setNote(null);
     const res = await fetch("/api/offers/keep", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url || undefined, text: text || undefined, title: title || undefined, company: company || undefined }),
+      body: JSON.stringify({ app_id: appId || undefined, url: url || undefined, text: text || undefined, title: title || undefined, company: company || undefined }),
     }).catch(() => null);
     const j = res ? await res.json().catch(() => ({})) : {};
     setKeeping(false);
@@ -117,6 +131,8 @@ function Form() {
     // on le laisse tel quel, avec la phrase sous les boutons : la personne complète et reclique, sans rien retaper.
     const stored = (j.outcome === "kept" && j.text !== "short") || (j.outcome === "exists" && ["added", "replaced", "same"].includes(j.text));
     if (!stored) return setNote(j.message ?? null);
+    // Texte rangé sur une ligne ouverte depuis Offres & CV : retour à la liste, pour passer à la suivante (ou analyser)
+    if (appId) return router.push("/offres");
     setUrl(""); setText(""); setTitle(""); setCompany(""); setNeedText(false);
   }
 
@@ -160,7 +176,11 @@ function Form() {
           {keeping ? <><Loader2 size={18} className="animate-spin" /> Je garde…</> : <><Bookmark size={18} /> Garder pour plus tard</>}
         </button>
       </div>
-      <p className="-mt-2 text-sm text-muted">« Garder » n'utilise aucune action IA : l'offre va dans <Link href="/offres" className="link">Offres & CV</Link> (à analyser), et tu l'analyseras quand tu veux, seule ou avec d'autres cochées.</p>
+      <p className="-mt-2 text-sm text-muted">
+        {appId
+          ? <>« Garder » n'utilise aucune action IA : le texte reste sur cette ligne d'<Link href="/offres" className="link">Offres & CV</Link>. Tu le retrouveras en la rouvrant, et « Tout analyser » le lira.</>
+          : <>« Garder » n'utilise aucune action IA : l'offre va dans <Link href="/offres" className="link">Offres & CV</Link> (à analyser) avec son texte, et tu l'analyseras quand tu veux, seule ou avec d'autres cochées.</>}
+      </p>
       {kept > 0 && <p className="rounded-xl bg-good/10 p-3 text-sm" role="status">{kept} offre{kept > 1 ? "s" : ""} gardée{kept > 1 ? "s" : ""} pendant cette visite. Tu peux en coller une autre, ou <Link href="/offres" className="link font-semibold">ouvrir Offres & CV</Link>.</p>}
       {busy && <p className="text-sm text-muted">Environ 20 secondes. Tu peux rester sur la page.</p>}
       {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}

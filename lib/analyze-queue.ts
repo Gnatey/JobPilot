@@ -3,7 +3,7 @@ import { recoText } from "./reco-text";
 import { UNTITLED } from "./offer-keep";
 
 /** Une candidature « À postuler » sans analyse (ligne « À analyser » d'Offres & CV). */
-export type QueueApp = { id: string; title: string | null; company: string | null; url: string | null; created_at?: string | null };
+export type QueueApp = { id: string; title: string | null; company: string | null; url: string | null; created_at?: string | null; /** Texte d'annonce gardé sur la ligne (« Garder pour plus tard » : table application_texts). */ has_text?: boolean };
 /** L'offre recommandée d'où elle vient, quand on la retrouve : elle porte le pré-score et parfois le texte de l'annonce. */
 export type QueueReco = { id: string; title: string | null; company: string | null; url: string | null; quick_score: number | null; source: string | null; origin: string | null; snippet: string | null };
 
@@ -69,7 +69,8 @@ export function buildQueue(apps: QueueApp[], recos: QueueReco[]): { items: Queue
   for (const a of apps) {
     const ka = k(a.title, a.company);
     const r = (a.url ? byUrl.get(u(a.url)) : undefined) ?? (ka ? byTitle.get(ka) : undefined) ?? null;
-    const full = r ? recoText(r).length > 0 : false;
+    // Le texte gardé sur la ligne passe avant tout : l'annonce est « lue en entier », même sur un site qui refuse la lecture (Indeed)
+    const full = a.has_text === true || (r ? recoText(r).length > 0 : false);
     const extract = r ? (r.snippet ?? "").trim().length >= MIN_EXTRACT : false;
     if (!full && !extract && !a.url) { skipped.push(a); continue; }
     const site = detectSource(a.url);
@@ -79,6 +80,6 @@ export function buildQueue(apps: QueueApp[], recos: QueueReco[]): { items: Queue
       quick_score: r?.quick_score ?? null, full, extract, created_at: a.created_at ?? "",
     });
   }
-  items.sort((x, y) => (y.quick_score ?? -1) - (x.quick_score ?? -1) || y.created_at.localeCompare(x.created_at));
+  items.sort((x, y) => (y.quick_score ?? -1) - (x.quick_score ?? -1) || Number(y.full) - Number(x.full) || y.created_at.localeCompare(x.created_at));
   return { items, skipped, blocked };
 }

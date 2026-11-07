@@ -18,12 +18,13 @@ type Check = { id: string; label: string; state: "ok" | "todo" | "optional"; hin
 /** Réservée aux adresses de OWNER_EMAILS : tout autre visiteur reçoit une page introuvable. */
 export default async function Admin() {
   const { supabase, user } = await requireAdminPage();
-  const [interviewCol, diagTable, usageTable, cronCol, rateTable] = await Promise.all([
+  const [interviewCol, diagTable, usageTable, cronCol, rateTable, textTable] = await Promise.all([
     supabase.from("applications").select("interview_at").limit(1),
     supabase.from("diagnostics").select("id").limit(1),
     supabase.from("ai_usage").select("n").limit(1),
     supabase.from("profiles").select("cron_at").limit(1),
     supabase.from("rate_hits").select("n").limit(1), // table des limites de requêtes (aucune politique : on lit 0 ligne, l'erreur dit seulement si la table existe)
+    supabase.from("application_texts").select("application_id").limit(1), // textes d'annonce gardés sur les lignes « À analyser »
   ]);
 
   let overview: AdminOverview | null = null;
@@ -39,11 +40,11 @@ export default async function Admin() {
 
   const has = (...n: string[]) => n.every((k) => Boolean(process.env[k]));
   const ai = modelInfo();
-  const dbOk = !interviewCol.error && !diagTable.error && !usageTable.error && !cronCol.error && !rateTable.error;
+  const dbOk = !interviewCol.error && !diagTable.error && !usageTable.error && !cronCol.error && !rateTable.error && !textTable.error;
   const sources = activeSources();
   const checks: Check[] = [
     { id: "ai", label: `IA (${[...new Set([...ai.chains.main, ...ai.chains.fast].map((p) => p.name))].join(", ") || "aucune clé"})`, state: ai.configured ? "ok" : "todo", hint: "Ajoute GEMINI_API_KEY dans Vercel (clé gratuite sur aistudio.google.com), puis redéploie. GROQ_API_KEY et MISTRAL_API_KEY (gratuites aussi) répartissent la charge." },
-    { id: "db", label: "Base de données à jour", state: dbOk ? "ok" : "todo", hint: "Une mise à jour de la base est disponible (agenda, pages plus rapides, quota IA par personne, limites de requêtes). Détails juste en dessous." },
+    { id: "db", label: "Base de données à jour", state: dbOk ? "ok" : "todo", hint: "Une mise à jour de la base est disponible (agenda, pages plus rapides, quota IA par personne, limites de requêtes, texte des annonces gardées). Détails juste en dessous." },
     { id: "cron", label: "Tâche automatique du matin", state: has("SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET") ? "ok" : "todo", hint: "Ajoute SUPABASE_SERVICE_ROLE_KEY et CRON_SECRET dans Vercel, puis redéploie." },
     { id: "gmail", label: "Connexion Gmail", state: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") ? "ok" : "todo", hint: "Ajoute GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans Vercel, puis redéploie." },
     { id: "sources", label: "Sources d'offres automatiques", state: sources.length ? "ok" : "optional", hint: "Facultatif : Adzuna ou Jooble apportent des offres chaque matin (clé gratuite). Voir « Sources d'offres » plus bas. Sans elles, les alertes Gmail et le copier-coller suffisent." },

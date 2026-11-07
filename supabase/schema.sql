@@ -301,3 +301,17 @@ begin
 end $$;
 revoke all on function rate_limit(text, int, int) from public;
 grant execute on function rate_limit(text, int, int) to authenticated;
+
+-- ===== Texte d'annonce gardé sur une ligne « À analyser » (mise à jour 6) =====
+-- « Garder pour plus tard » : le texte collé reste attaché à SA ligne d'Offres & CV. Il revient quand on rouvre la ligne, et « Tout analyser » le lit
+-- sans relire le site. Table à part pour ne pas alourdir les listes de candidatures ; supprimée avec la ligne. Tant que ce bloc n'est pas lancé,
+-- « Garder » répond qu'il faut mettre la base à jour, et le reste de l'appli fonctionne comme avant.
+create table if not exists application_texts (
+  application_id uuid primary key references applications on delete cascade,
+  user_id uuid not null references auth.users on delete cascade default auth.uid(),
+  body text not null,
+  updated_at timestamptz not null default now()
+);
+alter table application_texts enable row level security;
+drop policy if exists "own rows" on application_texts;
+create policy "own rows" on application_texts for all using (user_id = auth.uid()) with check (user_id = auth.uid());

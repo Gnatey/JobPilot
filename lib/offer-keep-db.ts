@@ -1,84 +1,101 @@
 /**
- * « Garder pour plus tard », côté base : crée ou complète la recommandation et la ligne « À analyser », sans jamais dupliquer.
- * Séparé de la route pour être testé avec une fausse base (tests/offer-keep-db.test.ts). Aucun appel d'IA : le pré-score vient de `score`, qui est gratuit.
+ * « Garder pour plus tard », côté base : crée la ligne « À analyser » si elle n'existe pas, et range le texte de l'annonce SUR cette ligne
+ * (table `application_texts`), sans jamais dupliquer et sans rien créer dans Recommandées. Séparé de la route pour être testé avec une fausse base
+ * (tests/offer-keep-db.test.ts). Aucun appel d'IA.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureApplication } from "./offer-ops";
-import { MIN_TEXT, UNTITLED, keepMessage, type KeepOutcome, type KeepPlan, type TextState } from "./offer-keep";
+import { isMissingTable } from "./db-missing";
+import { MIN_TEXT, keepMessage, type KeepOutcome, type KeepPlan, type TextState } from "./offer-keep";
 
 type User = { id: string; email?: string | null };
-export type ScoreFn = (title: string, text: string, company: string) => Promise<{ quick_score: number; matched: string[]; senior: boolean }>;
-export type KeepResult = { outcome: KeepOutcome; title: string; message: string; id?: string; appId?: string; textAdded?: boolean; text?: TextState };
-type RecoRow = { id: string; status: string; url: string | null; snippet: string | null; title: string | null; company: string | null; offer_id: string | null };
+export type KeepResult = { outcome: KeepOutcome; title: string; message: string; id?: string; appId?: string; text?: TextState; textAdded?: boolean };
+type LineRow = { id: string; title: string | null; status: string; applied_at: string | null; offer_id: string | null };
 
-export async function keepOffer(supabase: SupabaseClient, user: User, plan: KeepPlan, score: ScoreFn): Promise<KeepResult> {
+/** La table des textes n'existe pas encore : la mise à jour de la base n'a pas été lancée. */
+export class SetupError extends Error {}
+const SETUP = "Pour garder un texte, il faut d'abord mettre la base à jour : Administration › Installation (une fois, 1 minute).";
+
+const LINE_COLS = "id, title, status, applied_at, offer_id";
+const loose = (l: LineRow) => l.status === "a_postuler" && !l.offer_id && !l.applied_at;
+
+function result(outcome: KeepOutcome, title: string, extra: { id?: string; appId?: string; text?: TextState } = {}): KeepResult {
+  return { outcome, title, message: keepMessage(outcome, title, extra.text), ...extra, textAdded: extra.text === "added" || extra.text === "replaced" };
+}
+
+/** Vérifie que la table existe AVANT de créer quoi que ce soit : pas de ligne sans son texte si la base n'est pas à jour. */
+async function needTable(supabase: SupabaseClient) {
+  const { error } = await supabase.from("application_texts").select("application_id").limit(1);
+  if (error && isMissingTable(error)) throw new SetupError(SETUP);
+}
+
+/** Le texte gardé sur une ligne ("" s'il n'y en a pas, ou si la table n'existe pas encore). */
+export async function readLineText(supabase: SupabaseClient, appId: string): Promise<string> {
+  const { data } = await supabase.from("application_texts").select("body").eq("application_id", appId).maybeSingle();
+  return ((data as { body?: string } | null)?.body ?? "").trim();
+}
+
+/**
+ * Range le texte sur la ligne. Le texte de la personne fait foi : il remplace celui qu'on avait, même plus court. Seul un texte trop court pour servir
+ * (< 150 signes) est écarté, et on le lui dit.
+ */
+async function storeText(supabase: SupabaseClient, user: User, appId: string, text: string): Promise<TextState> {
+  if (!text) return "none";
+  if (text.length < MIN_TEXT) return "short";
+  const old = await readLineText(supabase, appId);
+  if (old === text.trim()) return "same";
+  const { error } = await supabase.from("application_texts").upsert(
+    { application_id: appId, user_id: user.id, body: text, updated_at: new Date().toISOString() },
+    { onConflict: "application_id" },
+  );
+  if (error) { if (isMissingTable(error)) throw new SetupError(SETUP); throw error; }
+  return old ? "replaced" : "added";
+}
+
+/** « Garder » depuis une ligne d'Offres & CV ouverte (`?app=…`) : le texte va sur CETTE ligne, quelle que soit l'adresse. */
+export async function keepOnLine(supabase: SupabaseClient, user: User, appId: string, text: string): Promise<KeepResult> {
+  const { data } = await supabase.from("applications").select(LINE_COLS).eq("id", appId).maybeSingle();
+  const line = data as LineRow | null;
+  if (!line) return result("missing", "");
+  const title = line.title || "Poste ?";
+  if (line.offer_id) return result("analyzed", title, { id: line.offer_id, appId });
+  if (!loose(line)) return result("tracked", title, { appId });
+  if (text.length >= MIN_TEXT) await needTable(supabase);
+  return result("exists", title, { appId, text: await storeText(supabase, user, appId, text) });
+}
+
+/** « Garder » depuis la page « Analyser une offre » (sans ligne ouverte) : retrouve la ligne par son adresse (ou son texte), sinon la crée. */
+export async function keepOffer(supabase: SupabaseClient, user: User, plan: KeepPlan): Promise<KeepResult> {
   const urls = [...new Set([plan.url, plan.rawUrl].filter((x): x is string => !!x))];
   let title = plan.title;
-  const done = (outcome: KeepOutcome, extra: { id?: string; appId?: string; text?: TextState } = {}): KeepResult => ({
-    outcome, title, message: keepMessage(outcome, title, extra.text), ...extra, textAdded: extra.text === "added" || extra.text === "replaced",
-  });
 
   // Déjà analysée : on la rouvre
   if (urls.length) {
     const { data: offer } = await supabase.from("offers").select("id").in("url", urls).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (offer) return done("analyzed", { id: offer.id as string });
+    if (offer) return result("analyzed", title, { id: offer.id as string });
   }
-  const recoCols = "id, status, url, snippet, title, company, offer_id";
-  let reco = (await supabase.from("recommendations").select(recoCols).eq("dedupe_key", plan.key).maybeSingle()).data as RecoRow | null;
-  // Une offre reçue par e-mail ou par une recherche automatique n'a pas toujours la clé de son adresse (clé « az:… », ancienne adresse de suivi) :
-  // on la retrouve aussi par son adresse, sinon le texte apporté partirait dans une 2e recommandation que « Tout analyser » ne lirait jamais.
-  if (!reco && urls.length) {
-    const { data: same } = await supabase.from("recommendations").select(recoCols).in("url", urls).order("created_at", { ascending: true }).limit(10);
-    const rows = (same ?? []) as RecoRow[];
-    reco = rows.find((r) => r.offer_id) ?? rows.find((r) => r.status === "accepted") ?? rows[0] ?? null;
-  }
-  if (reco?.offer_id) return done("analyzed", { id: reco.offer_id as string });
 
-  // Ligne déjà dans la liste ? (par l'adresse ; sans adresse, par le poste et l'entreprise de la recommandation retrouvée par son texte)
-  let existing: { id: string; status: string; applied_at: string | null; offer_id: string | null } | null = null;
-  const cols = "id, status, applied_at, offer_id";
+  // Ligne déjà dans la liste ? Par l'adresse ; sans adresse, par le texte lui-même (la même annonce collée deux fois reste une seule ligne)
+  let existing: LineRow | null = null;
   if (urls.length) {
-    existing = (await supabase.from("applications").select(cols).in("url", urls).order("created_at", { ascending: true }).limit(1).maybeSingle()).data;
-  } else if (reco) {
-    existing = (await supabase.from("applications").select(cols).eq("title", reco.title ?? "").eq("company", reco.company || "Entreprise ?").eq("status", "a_postuler").is("offer_id", null).limit(1).maybeSingle()).data;
+    existing = (await supabase.from("applications").select(LINE_COLS).in("url", urls).order("created_at", { ascending: true }).limit(1).maybeSingle()).data as LineRow | null;
+  } else if (plan.text) {
+    const { data: same } = await supabase.from("application_texts").select("application_id").eq("body", plan.text).limit(1).maybeSingle();
+    const id = (same as { application_id?: string } | null)?.application_id;
+    if (id) existing = (await supabase.from("applications").select(LINE_COLS).eq("id", id).maybeSingle()).data as LineRow | null;
   }
-  const loose = !!existing && existing.status === "a_postuler" && !existing.offer_id && !existing.applied_at;
-  if (existing && !loose) return done("tracked", { appId: existing.id });
+  if (existing && existing.offer_id) return result("analyzed", existing.title || title, { id: existing.offer_id, appId: existing.id });
+  if (existing && !loose(existing)) return result("tracked", existing.title || title, { appId: existing.id });
 
-  // Une recommandation déjà connue garde son poste et son entreprise (c'est par eux qu'on la rapproche de sa ligne, quand il n'y a pas de lien)
-  const company = reco ? (reco.company ?? "") : plan.company;
-  if (reco?.title) title = reco.title;
-  // Le titre d'une annonce collée sans lien doit rester unique : « Data analyst » deux fois, de deux entreprises, ne doit pas se rapprocher du mauvais texte
-  else if (!plan.url) {
-    const { count } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("title", title).eq("company", company || "Entreprise ?");
+  if (plan.text.length >= MIN_TEXT) await needTable(supabase);
+
+  if (existing) return result("exists", existing.title || title, { appId: existing.id, text: await storeText(supabase, user, existing.id, plan.text) });
+
+  // Le titre d'une annonce collée sans lien doit rester unique : « Data analyst » deux fois, de deux entreprises, ne doit pas se confondre
+  if (!plan.url) {
+    const { count } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("title", title).eq("company", plan.company || "Entreprise ?");
     if (count) title = `${title} (${count + 1})`;
   }
-
-  // Recommandation : porte le texte de l'annonce et le pré-score (gratuit, sans IA). « Garder » vaut « Je candidate » : elle passe en acceptée.
-  const now = new Date().toISOString();
-  // Le texte que la personne apporte fait foi : il remplace celui qu'on avait (un extrait d'alerte, une recherche, un ancien collage),
-  // même s'il est plus court. Seul un texte trop court pour servir (< 150 signes) est écarté, et on le lui dit.
-  const old = (reco?.snippet ?? "").trim();
-  const text: TextState = !plan.text ? "none" : plan.text.length < MIN_TEXT ? "short" : plan.text.trim() === old ? "same" : old ? "replaced" : "added";
-  const store = text === "added" || text === "replaced";
-  const scored = store ? await score(title === UNTITLED ? "" : title, plan.text, company) : null;
-  if (reco) {
-    const { error } = await supabase.from("recommendations").update({
-      status: "accepted", reject_reason: null, decided_at: now,
-      ...(store ? { snippet: plan.text, ...scored } : {}),
-      ...(!reco.url && plan.url ? { url: plan.url } : {}),
-    }).eq("id", reco.id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase.from("recommendations").insert({
-      user_id: user.id, origin: "page", source: plan.site, dedupe_key: plan.key, title, company, url: plan.url,
-      snippet: store ? plan.text : null, ...(scored ?? {}), status: "accepted", decided_at: now, received_at: now,
-    });
-    if (error) throw error;
-  }
-
-  if (loose && existing) return done("exists", { appId: existing.id, text });
-
-  const appId = await ensureApplication(supabase, user, { company, title, url: plan.url, channel: plan.site === "texte" ? null : plan.site }, "a_postuler");
-  return done("kept", { appId, text });
+  const appId = await ensureApplication(supabase, user, { company: plan.company, title, url: plan.url, channel: plan.site === "texte" ? null : plan.site }, "a_postuler");
+  return result("kept", title, { appId, text: await storeText(supabase, user, appId, plan.text) });
 }
