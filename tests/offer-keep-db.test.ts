@@ -105,10 +105,60 @@ for (const st of ["new", "rejected"]) {
 // ---------- 10. Erreur de base : remontée, pas avalée ----------
 {
   const { sb } = fresh({ recommendations: [] });
-  const bad = { from: (t: string) => (t === "recommendations" ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }), insert: async () => ({ error: new Error("base indisponible") }) } : (sb as unknown as { from: (x: string) => unknown }).from(t)) } as never;
+  const bad = { from: (t: string) => (t === "recommendations" ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }), in: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }), insert: async () => ({ error: new Error("base indisponible") }) } : (sb as unknown as { from: (x: string) => unknown }).from(t)) } as never;
   let msg = "";
   try { await keepOffer(bad, user, plan({ url: URL1 }), score); } catch (e) { msg = (e as Error).message; }
   ok("une erreur d'écriture est remontée à la personne (jamais « gardée » à tort)", msg === "base indisponible");
+}
+
+// ---------- 11. Texte apporté à une ligne déjà dans Offres & CV (retour de Juliana, 7 novembre) ----------
+// Avant : la recommandation d'une ligne n'était retrouvée que par sa clé. Une offre venue d'une recherche (clé « az:… ») ou d'une alerte (ancienne adresse)
+// recevait une 2e recommandation avec le texte, que « Tout analyser » ne lisait pas, et un texte plus court que l'extrait déjà là était écarté sans le dire.
+const URL2 = "https://fr.indeed.com/viewjob?jk=abc123";
+const lineOf = (extra: Record<string, unknown> = {}) => ({ id: "a1", user_id: "u1", url: URL2, title: "Data analyst", company: "Acme", status: "a_postuler", applied_at: null, offer_id: null, ...extra });
+const recoOf = (extra: Record<string, unknown>) => ({ id: "r1", user_id: "u1", dedupe_key: "az:555", status: "accepted", url: URL2, title: "Data analyst", company: "Acme", origin: "search", snippet: "Extrait de la recherche.", offer_id: null, ...extra });
+const queueText = (tables: Record<string, Record<string, unknown>[]>) => {
+  const q = buildQueue(tables.applications as unknown as QueueApp[], tables.recommendations as unknown as QueueReco[]);
+  return String(tables.recommendations.find((x) => x.id === q.items[0]?.reco_id)?.snippet ?? "");
+};
+for (const [label, extra] of [
+  ["recherche automatique (clé « az:… »)", { dedupe_key: "az:555", origin: "search" }],
+  ["alerte reçue avec une ancienne adresse de suivi", { dedupe_key: "https://emails.exemple.fr/clic/xyz", origin: "email" }],
+] as const) {
+  const { sb, tables } = fresh({ applications: [lineOf()], recommendations: [recoOf(extra)] });
+  const r = await keepOffer(sb, user, plan({ url: URL2, text: ad }), score);
+  ok(`${label} : le texte va dans la recommandation DÉJÀ liée à la ligne, pas dans une 2e`, r.outcome === "exists" && r.text === "replaced" && tables.recommendations.length === 1 && tables.applications.length === 1, JSON.stringify(r));
+  ok(`${label} : « Tout analyser » lira ce texte`, queueText(tables).startsWith("Nous recherchons"));
+  ok(`${label} : la phrase dit ce qui s'est passé`, /remplacé|ajouté/.test(r.message));
+}
+{
+  // Texte plus court que l'extrait déjà gardé : celui de la personne fait foi
+  const { sb, tables } = fresh({ applications: [lineOf()], recommendations: [recoOf({ dedupe_key: URL2.toLowerCase(), origin: "email", snippet: "x".repeat(900) })] });
+  const r = await keepOffer(sb, user, plan({ url: URL2, text: ad }), score);
+  ok("un texte plus court que l'extrait déjà là le remplace (la personne l'a collé exprès)", r.text === "replaced" && queueText(tables).startsWith("Nous recherchons") && tables.recommendations.length === 1);
+  const same = await keepOffer(sb, user, plan({ url: URL2, text: ad }), score);
+  ok("le même texte encore : « même texte », rien de recalculé", same.text === "same" && /même texte/.test(same.message));
+}
+{
+  // Texte trop court : jamais rangé, et la personne le sait (avant : « déjà dans ta liste » sans autre mot)
+  const { sb, tables } = fresh({ applications: [lineOf()], recommendations: [recoOf({})] });
+  const r = await keepOffer(sb, user, plan({ url: URL2, text: "trop court" }), score);
+  ok("texte trop court : rien ne change, la phrase l'explique", r.outcome === "exists" && r.text === "short" && /trop court/.test(r.message) && tables.recommendations[0].snippet === "Extrait de la recherche.");
+  const none = await keepOffer(sb, user, plan({ url: URL2 }), score);
+  ok("sans texte : la phrase dit comment en ajouter un, et le texte déjà gardé reste", none.text === "none" && /colle-le/.test(none.message) && tables.recommendations[0].snippet === "Extrait de la recherche.");
+  const fresh1 = fresh();
+  const k1 = await keepOffer(fresh1.sb, user, plan({ url: URL2, text: "trop court" }), score);
+  ok("lien + texte trop court sur une offre neuve : gardée sans ce texte, avec la remarque", k1.outcome === "kept" && k1.text === "short" && fresh1.tables.recommendations[0].snippet === null && /trop court/.test(k1.message));
+}
+{
+  // Doublons déjà créés (une recommandation d'extrait + une « page » avec le texte) : la file prend celle qui a le texte
+  const { tables } = fresh({
+    applications: [lineOf()],
+    recommendations: [recoOf({ id: "r1", snippet: "Court extrait." }), recoOf({ id: "r2", dedupe_key: URL2.toLowerCase(), origin: "page", snippet: ad })],
+  });
+  ok("deux recommandations pour la même offre : la file lit celle qui porte le texte", queueText(tables).startsWith("Nous recherchons"));
+  const rev = { applications: tables.applications, recommendations: [...tables.recommendations].reverse() };
+  ok("… quel que soit l'ordre de lecture", queueText(rev).startsWith("Nous recherchons"));
 }
 
 done();

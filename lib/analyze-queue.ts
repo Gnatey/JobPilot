@@ -55,10 +55,13 @@ const u = (url?: string | null) => (url ? normalizeJobUrl(url) : "");
 export function buildQueue(apps: QueueApp[], recos: QueueReco[]): { items: QueueItem[]; skipped: QueueApp[]; blocked: QueueBlocked[] } {
   const byUrl = new Map<string, QueueReco>();
   const byTitle = new Map<string, QueueReco>();
+  // Plusieurs recommandations peuvent porter la même offre (reçue par e-mail, trouvée par une recherche, gardée à la main) : la mieux fournie en texte l'emporte
+  const richer = (a: QueueReco, b: QueueReco) => recoText(a).length - recoText(b).length || (a.snippet ?? "").length - (b.snippet ?? "").length;
+  const put = (m: Map<string, QueueReco>, key: string, r: QueueReco) => { const cur = m.get(key); if (!cur || richer(r, cur) > 0) m.set(key, r); };
   for (const r of recos) {
-    if (r.url && !byUrl.has(u(r.url))) byUrl.set(u(r.url), r);
+    if (r.url) put(byUrl, u(r.url), r);
     const kr = k(r.title, r.company);
-    if (kr && !byTitle.has(kr)) byTitle.set(kr, r);
+    if (kr) put(byTitle, kr, r);
   }
   const items: QueueItem[] = [];
   const skipped: QueueApp[] = [];

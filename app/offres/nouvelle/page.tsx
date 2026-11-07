@@ -26,6 +26,7 @@ function Form() {
   const [details, setDetails] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null); // ce que « Garder » a fait quand le formulaire reste rempli (texte trop court, ligne déjà là…)
   const step = useSteps(busy);
   const started = useRef(false);
 
@@ -101,6 +102,7 @@ function Form() {
     }
     setKeeping(true);
     setErr(null);
+    setNote(null);
     const res = await fetch("/api/offers/keep", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: url || undefined, text: text || undefined, title: title || undefined, company: company || undefined }),
@@ -111,6 +113,10 @@ function Form() {
     toast(j.message ?? "Offre gardée.", { tone: "info" });
     if (j.outcome === "analyzed" && j.id) return router.push(`/offres/${j.id}`);
     if (j.outcome === "kept") setKept((n) => n + 1);
+    // Le formulaire se vide seulement quand l'offre et son texte sont rangés. Sinon (texte trop court, ligne déjà là sans texte, offre dans le suivi),
+    // on le laisse tel quel, avec la phrase sous les boutons : la personne complète et reclique, sans rien retaper.
+    const stored = (j.outcome === "kept" && j.text !== "short") || (j.outcome === "exists" && ["added", "replaced", "same"].includes(j.text));
+    if (!stored) return setNote(j.message ?? null);
     setUrl(""); setText(""); setTitle(""); setCompany(""); setNeedText(false);
   }
 
@@ -158,6 +164,7 @@ function Form() {
       {kept > 0 && <p className="rounded-xl bg-good/10 p-3 text-sm" role="status">{kept} offre{kept > 1 ? "s" : ""} gardée{kept > 1 ? "s" : ""} pendant cette visite. Tu peux en coller une autre, ou <Link href="/offres" className="link font-semibold">ouvrir Offres & CV</Link>.</p>}
       {busy && <p className="text-sm text-muted">Environ 20 secondes. Tu peux rester sur la page.</p>}
       {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}
+      {note && <p className="rounded-xl bg-marigold/10 p-3 text-sm" role="status">{note}</p>}
       <p className="text-sm text-muted">LinkedIn, Indeed et Glassdoor protègent souvent leurs pages. Dans ce cas, copie le texte de l'annonce : 5 secondes, ou utilise le favori ci-dessus qui le fait en un clic.</p>
     </form>
   );

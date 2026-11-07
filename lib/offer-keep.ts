@@ -74,11 +74,21 @@ export function planKeep(input: KeepInput): { ok: true; plan: KeepPlan } | { ok:
 
 /** Ce que la route a fait, pour la phrase de confirmation. */
 export type KeepOutcome = "kept" | "exists" | "tracked" | "analyzed";
+/** Ce qu'il est advenu du texte apporté : rangé (added), remplacé (replaced), identique à celui déjà gardé (same), trop court pour servir (short), aucun (none). */
+export type TextState = "added" | "replaced" | "same" | "short" | "none";
 
-export function keepMessage(outcome: KeepOutcome, title: string, textAdded = false): string {
+export function keepMessage(outcome: KeepOutcome, title: string, text: TextState = "none"): string {
+  const tooShort = ` Le texte collé est trop court pour servir (${MIN_TEXT} caractères au moins) : colle l'annonce complète.`;
   switch (outcome) {
-    case "kept": return `Gardée dans Offres & CV (à analyser) : ${title}.`;
-    case "exists": return textAdded ? "Cette offre était déjà dans ta liste : j'y ai ajouté le texte de l'annonce." : "Cette offre est déjà dans ta liste (Offres & CV, à analyser).";
+    case "kept": return `Gardée dans Offres & CV (à analyser) : ${title}.${text === "short" ? tooShort : ""}`;
+    case "exists":
+      switch (text) {
+        case "added": return "Cette offre était déjà dans ta liste : j'y ai ajouté le texte de l'annonce.";
+        case "replaced": return "Cette offre était déjà dans ta liste : j'ai remplacé son texte par celui que tu viens de coller.";
+        case "same": return "Cette offre est déjà dans ta liste, avec ce même texte.";
+        case "short": return `Cette offre est déjà dans ta liste, et rien n'a changé.${tooShort}`;
+        default: return "Cette offre est déjà dans ta liste (Offres & CV, à analyser). Pour lui ajouter le texte de l'annonce, colle-le dans la zone de texte, puis « Garder ».";
+      }
     case "tracked": return "Cette offre est déjà dans ton suivi : rien n'a été ajouté.";
     case "analyzed": return "Cette offre est déjà analysée : je te l'ouvre.";
   }

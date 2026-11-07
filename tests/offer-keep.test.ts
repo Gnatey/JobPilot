@@ -48,7 +48,9 @@ ok("avec lien : l'adresse normalisée en minuscules", dedupeKey("https://WWW.hel
 
 // ---------- Messages ----------
 ok("chaque issue a sa phrase", (["kept", "exists", "tracked", "analyzed"] as const).every((o) => keepMessage(o, "Poste").length > 10));
-ok("le texte ajouté à une ligne existante est dit", /texte/.test(keepMessage("exists", "Poste", true)) && !/texte/.test(keepMessage("exists", "Poste", false)));
+ok("le texte ajouté ou remplacé est dit ; sans texte, la phrase dit comment en ajouter un ; trop court, elle le dit",
+  /ajouté/.test(keepMessage("exists", "Poste", "added")) && /remplacé/.test(keepMessage("exists", "Poste", "replaced")) && /même texte/.test(keepMessage("exists", "Poste", "same"))
+  && /colle-le/.test(keepMessage("exists", "Poste", "none")) && /trop court/.test(keepMessage("exists", "Poste", "short")) && /trop court/.test(keepMessage("kept", "Poste", "short")));
 
 // ---------- La file d'analyse rapproche une ligne gardée de SON texte ----------
 const reco = (id: string, over: Partial<QueueReco>): QueueReco => ({ id, title: UNTITLED, company: "", url: null, quick_score: 40, source: "page", origin: "page", snippet: longText.repeat(2) + id, ...over });
