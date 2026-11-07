@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles, Square } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
+import { SkipReport } from "@/components/analyze-skips";
+import { removeSkips, skipKind, type Skip } from "@/lib/analyze-skips";
 import type { QueueItem } from "@/lib/analyze-queue";
 
-type Skip = { title: string; why: string };
 type Run = { total: number; done: number; ok: number; estimated: number; current: string; skipped: Skip[]; stopped: string | null; finished: boolean; possible: number | null; noSource: number };
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -69,12 +70,9 @@ export function AnalyzeAll({ count }: { count: number }) {
       // Limite d'actions du jour, ou toutes les IA saturées / à leur limite : inutile d'insister, on reprendra plus tard
       if (status === 429 || status === 503) { stopped = j.error ?? "Les IA gratuites sont à leur limite pour le moment."; break; }
       if (status === 401) { stopped = "Ta session a expiré : reconnecte-toi, puis relance."; break; }
-      if (status === 410) skipped.push({ title: label, why: "annonce plus disponible" });
-      else if (status === 422 || status === 400) skipped.push({ title: label, why: "annonce illisible : ouvre sa fiche et colle le texte" });
-      else {
-        skipped.push({ title: label, why: "n'a pas pu être analysée, à relancer" });
-        if (++fails >= 3) { stopped = "Plusieurs échecs de suite : je m'arrête, réessaie dans un moment."; break; }
-      }
+      const kind = skipKind(status);
+      skipped.push({ appId: it.app_id, title: label, url: it.url, kind });
+      if (kind === "failed" && ++fails >= 3) { stopped = "Plusieurs échecs de suite : je m'arrête, réessaie dans un moment."; break; }
     }
     setBusy(false);
     setRun({ total: items.length, done: ok + skipped.length, ok, estimated, current: "", skipped, stopped, finished: true, possible, noSource });
@@ -110,10 +108,7 @@ export function AnalyzeAll({ count }: { count: number }) {
               {run.noSource > 0 && <p className="mt-1 text-muted">{run.noSource} autre{run.noSource > 1 ? "s" : ""} ligne{run.noSource > 1 ? "s n'ont" : " n'a"} ni lien ni texte : ouvre-{run.noSource > 1 ? "les" : "la"} une à une pour coller l'annonce.</p>}
               {run.stopped && <p className="mt-1 text-muted">{run.stopped} Clique à nouveau sur « Tout analyser » plus tard : je reprends là où j'en suis.</p>}
               {run.skipped.length > 0 && (
-                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted">
-                  {run.skipped.slice(0, 8).map((s, i) => <li key={i}><span className="text-ink">{s.title}</span> : {s.why}</li>)}
-                  {run.skipped.length > 8 && <li>… et {run.skipped.length - 8} autres.</li>}
-                </ul>
+                <SkipReport skips={run.skipped} onRemoved={(ids) => setRun((r) => r && { ...r, skipped: removeSkips(r.skipped, ids) })} />
               )}
             </div>
           )}

@@ -11,8 +11,10 @@ import { ReasonChips } from "@/components/reason-chips";
  * Choisir une raison supprime tout de suite, et la raison aide JobPilot à mieux trier ; « Supprimer sans préciser » supprime sans raison.
  * - « offer » : offre analysée. Son analyse et ses documents partent avec elle, ainsi que ses lignes « À postuler » dans Suivi.
  * - « app » : ligne « À analyser » (candidature sans analyse) : seule la ligne du suivi est supprimée.
+ * - `fixedReason` : la raison est déjà connue (bilan de « Tout analyser » : annonce plus disponible), la fenêtre n'en demande pas d'autre.
+ * - `onDeleted` : appelé après une suppression réussie (le bilan retire la ligne de sa liste).
  */
-export function OfferRowDelete({ kind, id, label }: { kind: "offer" | "app"; id: string; label: string }) {
+export function OfferRowDelete({ kind, id, label, fixedReason, onDeleted }: { kind: "offer" | "app"; id: string; label: string; fixedReason?: string; onDeleted?: () => void }) {
   const router = useRouter();
   const { toast } = useFeedback();
   const ref = useRef<HTMLDialogElement>(null);
@@ -42,6 +44,7 @@ export function OfferRowDelete({ kind, id, label }: { kind: "offer" | "app"; id:
     setOpen(false);
     refreshBadges();
     toast(kind === "offer" ? "Offre supprimée." : "Ligne supprimée.", { tone: "info" });
+    onDeleted?.();
     router.refresh();
   }
 
@@ -65,12 +68,16 @@ export function OfferRowDelete({ kind, id, label }: { kind: "offer" | "app"; id:
                 ? `${label}. L'analyse et les documents (CV, LM…) seront supprimés, ainsi que la ligne correspondante dans Suivi. Cette action est définitive.`
                 : `${label}. Elle n'a pas encore été analysée : seule sa ligne dans Suivi est supprimée.`}
             </p>
-            <p className="mt-4 text-sm font-semibold">Pourquoi ? <span className="font-normal text-muted">Un clic supprime, et ça aide JobPilot à mieux trier la suite.</span></p>
-            <ReasonChips className="mt-2" disabled={busy} onPick={(reason) => remove(reason)} />
+            {!fixedReason && (
+              <>
+                <p className="mt-4 text-sm font-semibold">Pourquoi ? <span className="font-normal text-muted">Un clic supprime, et ça aide JobPilot à mieux trier la suite.</span></p>
+                <ReasonChips className="mt-2" disabled={busy} onPick={(reason) => remove(reason)} />
+              </>
+            )}
             <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
               {busy && <Loader2 size={16} className="animate-spin text-muted" aria-label="Suppression en cours" />}
               <button type="button" className="btn btn-ghost" onClick={close} disabled={busy}>Annuler</button>
-              <button type="button" className="btn border-bad bg-bad text-on-solid" onClick={() => remove()} disabled={busy}>Supprimer sans préciser</button>
+              <button type="button" className="btn border-bad bg-bad text-on-solid" onClick={() => remove(fixedReason)} disabled={busy}>{fixedReason ? "Supprimer" : "Supprimer sans préciser"}</button>
             </div>
           </div>
         )}
