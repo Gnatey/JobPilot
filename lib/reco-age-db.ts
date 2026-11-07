@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { KEPT } from "./fit";
 import { OLD_REASON, oldCutoff } from "./reco-age";
+import { READING, readingCutoff } from "./reco-import";
 
 const chunks = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
@@ -11,6 +12,7 @@ const chunks = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.len
  * Ne lève jamais d'erreur (c'est un rangement, jamais bloquant) : en cas de problème de lecture, rien n'est fait. Renvoie le nombre d'offres rangées.
  */
 export async function archiveOld(supabase: SupabaseClient, userId: string, now: Date = new Date()): Promise<number> {
+  await purgeUnread(supabase, userId, now);
   try {
     const cutoff = oldCutoff(now);
     const ids: string[] = [];
@@ -30,4 +32,15 @@ export async function archiveOld(supabase: SupabaseClient, userId: string, now: 
   } catch {
     return 0;
   }
+}
+
+/**
+ * Supprime les offres prises sur une page par le favori mais jamais lues en entier (statut « reading », invisible) depuis plus de 2 jours :
+ * la personne a fermé la page avant la fin et n'a pas repris l'import (lib/reco-import.ts). Rien d'autre n'est touché : ni une offre visible, ni
+ * celle d'une autre personne. Appelée avec le rangement des offres anciennes, aux mêmes endroits. Ne lève jamais d'erreur.
+ */
+export async function purgeUnread(supabase: SupabaseClient, userId: string, now: Date = new Date()): Promise<void> {
+  try {
+    await supabase.from("recommendations").delete().eq("user_id", userId).eq("status", READING).lt("received_at", readingCutoff(now));
+  } catch { /* un rangement n'est jamais bloquant */ }
 }

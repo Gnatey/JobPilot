@@ -8,20 +8,20 @@ import { Bookmarklet } from "@/components/settings-controls";
 import { analyzeOffer, captureList, useSteps, type CaptureItem, type CaptureResult } from "@/lib/client/analyze";
 import { usableJobText } from "@/lib/reco-text";
 import { withHeader } from "@/lib/offer-header";
+import { READ_CAP, sameSite, importSummary } from "@/lib/reco-import";
 
 type Payload = { jp: 1; url: string; title: string; one: string; page: string; links: { t: string; h: string }[] };
 
 /** Adresses qui montrent une liste de résultats plutôt qu'une seule annonce. */
 const LIST_URL = /linkedin\.com\/jobs\/(search|collections)|indeed\.[a-z.]+\/(jobs|emplois)(\?|\/?$)|welcometothejungle\.com\/[^/]+\/jobs(\?|$)|hellowork\.com\/[^?]*recherche|apec\.fr\/[^?]*recherche|francetravail\.fr\/[^?]*recherche|[?&](q|query|keywords|motsCles)=/i;
 
-/** Au plus 12 annonces lues par import, une à une et sans se presser : on reste un lecteur humain, pas un robot. */
-const MAX_READ = 12;
+/** Au plus `READ_CAP` (30) annonces lues par import, une à une et sans se presser : on reste un lecteur humain, pas un robot. */
 const DIAG_TOP = 3;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const sameSite = (a: string, b: string) => { try { return new URL(a).origin === new URL(b).origin; } catch { return false; } };
 
 type Scored = { id: string; score: number; senior: boolean; analyzed: boolean };
-type Enriched = { read: number; tried: number; diag: number; diagError?: string; skipped?: string };
+/** `read` : annonces enregistrées par le serveur ; `toRead` : annonces à lire ; `pending` : offres encore invisibles (« en lecture ») faute d'avoir pu être lues. */
+type Enriched = { read: number; tried: number; diag: number; toRead: number; pending: number; diagError?: string; skipped?: string };
 
 const valid = (d: unknown): d is Payload =>
   !!d && typeof d === "object" && (d as Payload).jp === 1 && typeof (d as Payload).url === "string" && typeof (d as Payload).page === "string" && Array.isArray((d as Payload).links);
@@ -71,8 +71,8 @@ export default function Importer() {
 
   /** Lit les annonces de la liste avec la session de la personne, recalcule les scores, puis fait le diagnostic des meilleures. */
   const enrich = useCallback(async (m: Payload, items: CaptureItem[]): Promise<Enriched> => {
-    const todo = items.filter((i) => sameSite(i.url, m.url) && !/(^|\.)linkedin\.com$/.test(new URL(i.url).hostname)).slice(0, MAX_READ);
-    const out: Enriched = { read: 0, tried: 0, diag: 0 };
+    const todo = items.filter((i) => sameSite(i.url, m.url) && !/(^|\.)linkedin\.com$/.test(new URL(i.url).hostname)).slice(0, READ_CAP);
+    const out: Enriched = { read: 0, tried: 0, diag: 0, toRead: todo.length, pending: 0 };
     if (!items.length) return out;
     if (!todo.length) return { ...out, skipped: /linkedin\.com/.test(m.url) ? "linkedin" : "site" };
 
@@ -89,13 +89,16 @@ export default function Importer() {
     for (const it of todo) {
       out.tried++;
       const text = await ask(it.url);
-      if (text && usableJobText(text)) { batch.push({ id: it.id, text }); out.read++; fails = 0; }
+      if (text && usableJobText(text)) { batch.push({ id: it.id, text }); fails = 0; }
       else if (++fails >= 3) break; // page d'origine fermée, ou site qui refuse : inutile d'insister
       setProg({ done: out.tried, total: todo.length });
       if (batch.length >= 4) await flush();
       await sleep(1200 + Math.random() * 1400);
     }
     await flush();
+    out.read = scored.length; // ce que le serveur a vraiment enregistré
+    const stored = new Set(scored.map((x) => x.id));
+    out.pending = todo.filter((i) => i.reading && !stored.has(i.id)).length;
 
     const top = scored.filter((x) => !x.analyzed && !x.senior).sort((a, b) => b.score - a.score).slice(0, DIAG_TOP);
     if (top.length) {
@@ -116,7 +119,9 @@ export default function Importer() {
     setList(r);
     const e = await enrich(m, r.items ?? []);
     setEnriched(e); setPhase("done");
-    if ((r.added ?? 0) > 0) setTimeout(() => router.replace("/recommandees"), 4000);
+    // LinkedIn : comme avant. Ailleurs, on ne repart que s'il y a quelque chose de lu ET rien à expliquer (offres non prises ou non lues).
+    const sum = r.lenient ? null : importSummary({ found: r.found ?? 0, read: e.read, toRead: e.toRead, pending: e.pending, skipped: r.skipped ?? { known: 0, duplicate: 0, otherSite: 0, noLink: 0, overCap: 0 } });
+    if (r.lenient ? (r.added ?? 0) > 0 : e.read > 0 && !sum?.notes.length) setTimeout(() => router.replace("/recommandees"), 4000);
   }, [router, enrich]);
 
   useEffect(() => {
@@ -198,7 +203,35 @@ export default function Importer() {
           </div>
         )}
 
-        {phase === "done" && list && (
+        {phase === "done" && list && !list.lenient && (() => {
+          const sum = importSummary({ found: list.found ?? 0, read: enriched?.read ?? 0, toRead: enriched?.toRead ?? 0, pending: enriched?.pending ?? 0, skipped: list.skipped ?? { known: 0, duplicate: 0, otherSite: 0, noLink: 0, overCap: 0 } });
+          return (
+            <div className="card space-y-3 p-5" role="status">
+              <p className="flex items-center gap-2 font-medium"><CheckCircle2 className={sum.ok ? "text-good" : "text-muted"} size={22} />{sum.title}</p>
+              {!!list.found && <p className="text-sm text-muted">{list.found} repérée{list.found > 1 ? "s" : ""} sur la page{(list.already ?? 0) > 0 ? `, ${list.already} déjà connue${(list.already ?? 0) > 1 ? "s" : ""}` : ""}.</p>}
+              {enriched && enriched.read > 0 && (
+                <p className="text-sm">
+                  Leur score est calculé sur le texte complet, plus seulement sur le titre.
+                  {enriched.diag > 0 && <> Diagnostic complet fait pour les {enriched.diag} meilleure{enriched.diag > 1 ? "s" : ""}.</>}
+                </p>
+              )}
+              {sum.hint && <p className="rounded-xl bg-marigold/12 p-3 text-sm">{sum.hint}</p>}
+              {sum.notes.length > 0 && (
+                <ul className="space-y-1.5 rounded-xl bg-marigold/12 p-3 text-sm">
+                  {sum.notes.map((n) => <li key={n}>{n}</li>)}
+                </ul>
+              )}
+              {enriched?.diagError && enriched.diag === 0 && <p className="text-sm text-bad" role="alert">{enriched.diagError}</p>}
+              {list.found === 0 && <p className="text-sm text-muted">Si c'était une seule annonce, utilise le bouton ci-dessous.</p>}
+              <div className="flex flex-wrap gap-2">
+                <Link href="/recommandees" className="btn btn-primary"><ListChecks size={16} /> Voir les recommandées</Link>
+                {msg && <button className="btn btn-ghost" onClick={() => runOne(msg)}><FileText size={16} /> C'était une seule annonce : l'analyser</button>}
+              </div>
+            </div>
+          );
+        })()}
+
+        {phase === "done" && list && list.lenient && (
           <div className="card space-y-3 p-5" role="status">
             <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="text-good" size={22} />
               {list.found === 0 ? "Je n'ai trouvé aucune offre précise sur cette page." : `${list.added} nouvelle${(list.added ?? 0) > 1 ? "s" : ""} offre${(list.added ?? 0) > 1 ? "s" : ""} ajoutée${(list.added ?? 0) > 1 ? "s" : ""}`}

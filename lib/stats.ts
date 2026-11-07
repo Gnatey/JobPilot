@@ -32,7 +32,7 @@ export async function computeStats(supabase: SupabaseClient) {
     fetchAll<{ status: string; reject_reason: string | null; source: string | null; quick_score: number | null; senior: boolean | null }>((a, b) => supabase.from("recommendations").select("status, reject_reason, source, quick_score, senior").order("id").range(a, b)),
   ]);
   // Les offres masquées par le filtre « adapté à mon profil » n'ont jamais été proposées : elles ne comptent pas dans le tri
-  const recos = (recosAll ?? []).filter((r) => r.status !== "filtered");
+  const recos = (recosAll ?? []).filter((r) => r.status !== "filtered" && r.status !== "reading"); // « reading » : page d'import pas encore lue en entier, invisible
   // Les offres que tu n'as pas voulu postuler (Abandonné, Offre plus disponible, sans date d'envoi) ne sont pas des candidatures
   // l'ancienne étape « Relancé » se lit « Postulé » : sans cela ces lignes sortiraient de la répartition par statut
   const all = ((appsRaw ?? []) as Application[]).filter((a) => !isNeverSent(a)).map((a) => ({ ...a, status: canonicalStatus(a.status) as Application["status"] }));

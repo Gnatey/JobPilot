@@ -41,7 +41,8 @@ const rec = (id: string, over: Row = {}): Row => ({ id, user_id: U, status: "new
   ok("sans date de réception : rien", by("sans-date").status === "new");
   ok("acceptée, écartée, déjà masquée : intactes (raisons comprises)", by("acceptee").status === "accepted" && by("ecartee").reject_reason === "metier" && by("masquee").reject_reason === "fit_stage");
   ok("l'offre d'une autre personne n'est pas touchée", by("autre-personne").status === "new");
-  ok("jamais de suppression : le nombre de lignes ne change pas", tables.recommendations.length === 10 && !log.some((l) => l.startsWith("delete")));
+  // La seule suppression de ce rangement vise les offres « en lecture » de plus de 2 jours (lib/reco-import.ts, tests/reco-import.test.ts) : ici il n'y en a pas
+  ok("aucune offre supprimée : le nombre de lignes ne change pas", tables.recommendations.length === 10 && log.filter((l) => l.startsWith("delete")).length <= 1);
   const again = await archiveOld(sb, U, NOW);
   ok("rejouable : le second passage ne fait rien", again === 0);
 }

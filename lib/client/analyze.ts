@@ -31,8 +31,10 @@ export function useSteps(busy: boolean, steps: string[] = STEPS, every = 4000) {
 
 export const isUrl = (s: string) => /^https?:\/\/\S+$/i.test(s.trim());
 
-export type CaptureItem = { id: string; url: string; title: string };
-export type CaptureResult = { found?: number; added?: number; already?: number; source?: string; items?: CaptureItem[]; error?: string };
+/** `reading` : offre pas encore visible (rangée « en lecture » tant que son annonce n'est pas lue en entier). */
+export type CaptureItem = { id: string; url: string; title: string; reading?: boolean };
+export type CaptureSkips = { known: number; duplicate: number; otherSite: number; noLink: number; overCap: number };
+export type CaptureResult = { found?: number; added?: number; already?: number; source?: string; items?: CaptureItem[]; lenient?: boolean; skipped?: CaptureSkips; error?: string };
 
 /** Envoie une page de résultats (reçue du favori) pour en extraire toutes les offres. */
 export async function captureList(body: { url: string; title: string; page: string; links: { t: string; h: string }[] }): Promise<CaptureResult> {

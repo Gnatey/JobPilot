@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/profile";
 import { computeLearning } from "@/lib/learning";
 import { quickScore } from "@/lib/quick-score";
 import { tidyText, usableJobText } from "@/lib/reco-text";
+import { READING } from "@/lib/reco-import";
 
 export const maxDuration = 30;
 
@@ -12,6 +13,7 @@ type Body = { items?: { id?: unknown; text?: unknown }[] };
 /**
  * Complète des offres recommandées avec le texte de l'annonce, lu par la personne dans son propre navigateur.
  * Le pré-score est recalculé sur l'annonce entière (gratuit, sans IA) : il devient bien plus fiable que sur le seul titre.
+ * Une offre prise sur une page et restée « en lecture » (invisible) devient « À trier » dès que son annonce est lue en entier (lib/reco-import.ts).
  */
 export async function POST(req: Request) {
   return handle(25_000, async () => {
@@ -24,14 +26,15 @@ export async function POST(req: Request) {
     if (!items.length) return { updated: [] };
 
     const [profile, learning] = await Promise.all([getProfile(supabase, user), computeLearning(supabase, user.id)]);
-    const { data: rows } = await supabase.from("recommendations").select("id, title, company, location, offer_id").in("id", items.map((i) => i.id)).eq("user_id", user.id);
+    const { data: rows } = await supabase.from("recommendations").select("id, title, company, location, offer_id, status").in("id", items.map((i) => i.id)).eq("user_id", user.id);
 
     const updated: { id: string; score: number; senior: boolean; analyzed: boolean }[] = [];
     for (const r of rows ?? []) {
       const text = items.find((i) => i.id === r.id)?.text;
       if (!text) continue;
       const q = quickScore(profile, r.title ?? "", `${text} ${r.location ?? ""}`, learning, r.company ?? "");
-      await supabase.from("recommendations").update({ snippet: text, quick_score: q.score, matched: q.matched, senior: q.senior }).eq("id", r.id).eq("user_id", user.id);
+      const patch = { snippet: text, quick_score: q.score, matched: q.matched, senior: q.senior };
+      await supabase.from("recommendations").update(r.status === READING ? { ...patch, status: "new" } : patch).eq("id", r.id).eq("user_id", user.id);
       updated.push({ id: r.id, score: q.score, senior: q.senior, analyzed: !!r.offer_id });
     }
     return { updated };
