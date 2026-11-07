@@ -6,13 +6,13 @@ import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 import { SkipReport } from "@/components/analyze-skips";
 import { removeSkips, type Skip } from "@/lib/analyze-skips";
-import { CHECK_BATCH, checkSummary, chunk, tally, type CheckResult } from "@/lib/offer-check";
+import { CHECK_BATCH, checkSummary, chunk, tally, unclearSkips, type CheckResult } from "@/lib/offer-check";
 
 /** Une ligne « À analyser » (poste, entreprise, lien) : de quoi vérifier son lien et l'afficher dans le bilan. */
 export type CheckLine = { id: string; title: string; url: string | null };
 export type CheckHandle = { start: (only?: string[]) => void };
 
-type Run = { total: number; done: number; results: CheckResult[]; gone: Skip[]; stopped: string | null; finished: boolean };
+type Run = { total: number; done: number; results: CheckResult[]; gone: Skip[]; unclear: Skip[]; stopped: string | null; finished: boolean };
 
 /**
  * « Vérifier les annonces » : lit les liens des lignes « À analyser » SANS IA (aucune action IA dépensée) pour repérer celles qui ne sont plus en ligne.
@@ -35,7 +35,7 @@ export function CheckAds({ lines, ref, locked = false, onBusy }: { lines: CheckL
     cancel.current = false;
     setBusy(true);
     onBusy?.(true);
-    setRun({ total: wanted.length, done: 0, results: [], gone: [], stopped: null, finished: false });
+    setRun({ total: wanted.length, done: 0, results: [], gone: [], unclear: [], stopped: null, finished: false });
     const results: CheckResult[] = [];
     let stopped: string | null = null;
     let fails = 0;
@@ -56,9 +56,11 @@ export function CheckAds({ lines, ref, locked = false, onBusy }: { lines: CheckL
     const gone: Skip[] = results
       .filter((r) => r.verdict === "gone")
       .map((r) => ({ appId: r.id, title: byId.get(r.id)?.title ?? "Annonce", url: byId.get(r.id)?.url ?? null, kind: "gone", site: r.site }));
+    // Les lignes qu'on n'a pas pu lire (site qui bloque, pas de lien, lien de connexion) : listées avec leur lien pour vérifier à la main, jamais déclarées disparues
+    const unclear = unclearSkips(results, byId);
     setBusy(false);
     onBusy?.(false);
-    setRun({ total: wanted.length, done: results.length, results, gone, stopped, finished: true });
+    setRun({ total: wanted.length, done: results.length, results, gone, unclear, stopped, finished: true });
     refreshBadges();
     router.refresh();
   }
@@ -89,8 +91,8 @@ export function CheckAds({ lines, ref, locked = false, onBusy }: { lines: CheckL
             <div className="mt-3 border-t border-line pt-3 text-sm" role="status" aria-live="polite">
               <p><strong>{checkSummary(t, Boolean(run.stopped))}</strong></p>
               {run.stopped && <p className="mt-1 text-muted">{run.stopped}</p>}
-              {run.gone.length > 0 && (
-                <SkipReport skips={run.gone} onRemoved={(ids) => setRun((r) => r && { ...r, gone: removeSkips(r.gone, ids) })} />
+              {run.gone.length + run.unclear.length > 0 && (
+                <SkipReport skips={[...run.gone, ...run.unclear]} onRemoved={(ids) => setRun((r) => r && { ...r, gone: removeSkips(r.gone, ids), unclear: removeSkips(r.unclear, ids) })} />
               )}
             </div>
           )}

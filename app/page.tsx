@@ -8,6 +8,7 @@ import { Landing } from "@/components/landing";
 import { getProfile } from "@/lib/profile";
 import { loadApplications } from "@/lib/applications";
 import { fetchAll } from "@/lib/paged";
+import { archiveOld } from "@/lib/reco-age-db";
 import { modelInfo } from "@/lib/llm";
 import { isAdminEmail } from "@/lib/admin";
 import { Section } from "@/components/ui/page-title";
@@ -65,6 +66,7 @@ function cvLink(a: Application, hasCv: boolean) {
 async function Today() {
   const { supabase, user } = await requireUser();
   const t = today();
+  await archiveOld(supabase, user.id); // offres non décidées depuis plus de 3 semaines : rangées dans Masquées, pour que l'accueil ne les propose plus
   const [profile, appsRes, recosRes, cvRes, gmailRes, emailsRes, searchesRes] = await Promise.all([
     getProfile(supabase, user),
     loadApplications(supabase), // toutes : une relance due sur une vieille candidature doit apparaître

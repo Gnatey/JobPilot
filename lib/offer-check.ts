@@ -6,6 +6,7 @@
  */
 // Ce fichier est lu aussi par l'écran (navigateur) : aucun import d'exécution venant du serveur (voir lib/offer-check-read.ts pour `checkable`).
 import type { OfferRead } from "./fetch-offer";
+import type { Skip } from "./analyze-skips";
 
 /** Lignes vérifiées par requête (lues en parallèle) : assez peu pour tenir dans les 52 secondes d'une requête, même si les sites répondent lentement. */
 export const CHECK_BATCH = 6;
@@ -47,4 +48,17 @@ export function checkSummary(t: CheckTally, stopped = false): string {
   const unclear = t.unknown + t.skipped;
   if (unclear) parts.push(`${unclear} impossible${s(unclear)} à vérifier (site qui refuse la lecture automatique)`);
   return `${parts.join(", ")}${stopped ? " (vérification arrêtée avant la fin)" : ""}.`;
+}
+
+/** Nom du « site » des lignes sans lien, dans le bilan (au lieu de « texte »). */
+export const NO_LINK_SITE = "Sans lien";
+
+/**
+ * Les lignes dont la vérification n'a rien prouvé (site qui bloque la lecture, pas de lien, lien de connexion), rangées comme les annonces illisibles
+ * du bilan de « Tout analyser » : un lien pour ouvrir l'annonce, « Coller le texte », la corbeille. JAMAIS cochées pour suppression : seule une preuve (« gone ») coche.
+ */
+export function unclearSkips(results: CheckResult[], lines: Map<string, { title: string; url: string | null }>): Skip[] {
+  return results
+    .filter((r) => r.verdict === "unknown" || r.verdict === "skipped")
+    .map((r) => ({ appId: r.id, title: lines.get(r.id)?.title ?? "Annonce", url: lines.get(r.id)?.url ?? null, kind: "unreadable" as const, site: r.site === "texte" ? NO_LINK_SITE : r.site }));
 }

@@ -38,7 +38,7 @@ export default async function Offres() {
   for (const d of docs ?? []) cvCount.set(d.offer_id, (cvCount.get(d.offer_id) ?? 0) + 1);
   const items: ListItem[] = [
     ...todo.map((o): ListItem => ({
-      key: o.id, kind: "offer", href: `/offres/${o.id}`, ad: httpUrlOrNull((o as unknown as { url?: string | null }).url), score: o.score as number | null, rough: Boolean((o as unknown as { estimated?: boolean | null }).estimated), title: o.title as string,
+      key: o.id, kind: "offer", href: `/offres/${o.id}`, ad: httpUrlOrNull((o as unknown as { url?: string | null }).url), score: o.score as number | null, rough: Boolean((o as unknown as { estimated?: boolean | null }).estimated), title: o.title as string, company: (o.company as string | null) ?? "",
       sub: [o.company, o.location, (o as unknown as { company_type?: string | null }).company_type].filter(Boolean).join(", "),
       state: status.has(o.id) ? statusLabel(status.get(o.id)!) : null,
       meta: `${cvCount.get(o.id) ? `${cvCount.get(o.id)} CV` : "Aucun CV"}, ${fmtDate(o.created_at)}`, at: o.created_at as string, cv: cvCount.get(o.id) ?? 0,
@@ -46,7 +46,7 @@ export default async function Offres() {
     ...(loose ?? []).map((a): ListItem => ({
       // Un clic ouvre la fiche : l'analyse se lance (lien prérempli, ou texte à coller) puis la fiche s'affiche, rattachée à cette candidature.
       // Pas de pourcentage : sans analyse complète, il n'y en a pas (un ancien pré-tri copié dans le suivi n'est pas un score).
-      key: a.id, kind: "app", href: `/offres/nouvelle?auto=1&app=${a.id}${a.url ? `&url=${encodeURIComponent(a.url)}` : "&needtext=1"}`, ad: httpUrlOrNull(a.url), score: null, title: a.title as string,
+      key: a.id, kind: "app", href: `/offres/nouvelle?auto=1&app=${a.id}${a.url ? `&url=${encodeURIComponent(a.url)}` : "&needtext=1"}`, ad: httpUrlOrNull(a.url), score: null, title: a.title as string, company: (a.company as string | null) ?? "",
       sub: [a.company, a.location].filter(Boolean).join(", "),
       state: statusLabel("a_postuler"),
       meta: `À analyser, ${fmtDate(a.created_at)}`, at: a.created_at as string, cv: 0,

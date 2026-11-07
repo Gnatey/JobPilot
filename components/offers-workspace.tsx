@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { SearchCheck, Sparkles, X } from "lucide-react";
 import { AnalyzeAll, type AnalyzeHandle } from "@/components/analyze-all";
 import { CheckAds, type CheckHandle, type CheckLine } from "@/components/check-ads";
+import { OfferDups } from "@/components/offer-dups";
 import { OffersList, type Selection } from "@/components/offers-list";
 import type { ListItem } from "@/lib/offers-filter";
 import { checkedLabel, pruneSelection, setMany, toggleId } from "@/lib/selection";
@@ -24,6 +25,7 @@ export function OffersWorkspace({ items, lines }: { items: ListItem[]; lines: Ch
     toggle: (id) => setPicked((s) => toggleId(s, id)),
     setMany: (list, on) => setPicked((s) => setMany(s, list, on)),
   };
+  const dupItems = useMemo(() => items.map((it) => ({ ...it, company: it.company ?? "" })), [items]);
   const scrollUp = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   return (
@@ -34,6 +36,7 @@ export function OffersWorkspace({ items, lines }: { items: ListItem[]; lines: Ch
           <CheckAds lines={lines} ref={check} locked={running === "analyze"} onBusy={(b) => setRunning(b ? "check" : null)} />
         </>
       )}
+      <OfferDups items={dupItems} />
       <OffersList items={items} selection={lines.length > 0 ? selection : undefined} />
       {ids.length > 0 && (
         <div

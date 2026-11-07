@@ -15,6 +15,7 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
     private head = false;
     private wantCount = false;
     private lim = Infinity;
+    private from_ = 0;
     private sort: [string, boolean][] = [];
     private mode: "one" | "maybe" | null = null;
     constructor(private t: string) {}
@@ -25,6 +26,8 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
     delete() { this.op = "delete"; return this; }
     eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
     in(c: string, vs: unknown[]) { this.filters.push((r) => vs.includes(r[c])); return this; }
+    lt(c: string, v: unknown) { this.filters.push((r) => r[c] != null && String(r[c]) < String(v)); return this; }
+    range(a: number, b: number) { this.from_ = a; this.lim = b - a + 1; return this; }
     is(c: string, v: unknown) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
     order(c: string, o?: { ascending?: boolean }) { this.sort.push([c, o?.ascending !== false]); return this; }
     limit(k: number) { this.lim = k; return this; }
@@ -57,7 +60,7 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
       if (this.op === "update") { for (const r of hit) Object.assign(r, this.patch); return { data: null, error: null }; }
       if (this.op === "delete") { tables[this.t] = rows.filter((r) => !hit.includes(r)); return { data: null, error: null }; }
       for (const [c, asc] of [...this.sort].reverse()) hit.sort((a, b) => (String(a[c] ?? "") < String(b[c] ?? "") ? -1 : String(a[c] ?? "") > String(b[c] ?? "") ? 1 : 0) * (asc ? 1 : -1));
-      return this.shape(hit.slice(0, this.lim), hit.length);
+      return this.shape(hit.slice(this.from_, this.from_ + this.lim), hit.length);
     }
     private shape(rows: Row[], total = rows.length) {
       const count = this.wantCount ? total : undefined;
