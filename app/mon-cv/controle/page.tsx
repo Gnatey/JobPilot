@@ -34,7 +34,7 @@ export default async function ControleCv() {
   const unreadable = docs.length - readable.length;
   const rows = readable.map((d) => {
     const app = (d.application_id ? byId.get(d.application_id) : null) ?? pickApplication(d.offer_id ? byOffer.get(d.offer_id) : null);
-    const issues = checkCv(d.content, profile);
+    const issues = checkCv(d.content, profile, d.offers?.title);
     return { d, app, sent: !!app && !isUnsentApp(app), issues, fixes: fixCount(issues) };
   });
   // Les CV partis d'abord (ce sont eux qui comptent), puis ceux où il y a quelque chose à corriger, puis le plus récent
@@ -49,7 +49,7 @@ export default async function ControleCv() {
 
   return (
     <>
-      <PageTitle title="Contrôle de mes CV" sub="Compare chaque CV enregistré à ton profil maître : formations, postes, dates, langues, certifications, chiffres. Rien n'est modifié.">
+      <PageTitle title="Contrôle de mes CV" sub="Compare chaque CV enregistré à ton profil maître et à son offre : titre, formations, postes, dates, langues, certifications, chiffres. Rien n'est modifié.">
         <Link href="/mon-cv" className="btn">Retour à Mon CV</Link>
       </PageTitle>
 

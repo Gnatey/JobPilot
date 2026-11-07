@@ -4,6 +4,7 @@ import { attachLinks } from "./cv-format";
 import { guardCv } from "./cv-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
+import { alignHeadline } from "./cv-title";
 import { cleanCvText, pinProjects } from "./cv-edit";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, settledForAi, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
 import { dateLine, today } from "./format";
@@ -137,7 +138,7 @@ export async function generateCv(profile: Profile, offer: OfferExtract, analysis
     maxTokens: 6000,
     system: `Tu rédiges un CV français d'UNE page, une colonne, optimisé ATS, ciblé sur une offre précise.
 Méthode :
-- headline : reprends l'intitulé de l'offre s'il correspond au profil (sinon le titre de la cible "${target?.title ?? variant}"). Un seul métier, pas de "|".
+- headline : l'intitulé de l'offre, mot pour mot, sans « H/F », sans lieu ni nom d'entreprise. Ne le remplace JAMAIS par le titre d'une cible, même si le métier te semble éloigné du profil. Seule exception : une offre qui demande un niveau senior, expert ou lead, que le profil n'a pas : prends alors le titre de la cible "${target?.title ?? variant}". Un seul métier, pas de "|".
 - summary : 3 lignes max, concrètes, avec les mots-clés de l'offre que le profil couvre réellement. Termine par la disponibilité.
 - experiences : ordre antichronologique. Choisis et reformule les réalisations du profil les plus pertinentes pour l'offre (3-4 puces pour les postes principaux). Commence chaque puce par un verbe d'action. Garde les chiffres existants tels quels. N'inclus PAS une expérience sans réalisation.
 - Chaque puce reformule UNE réalisation du profil sans rien y ajouter : mêmes outils, même public, même périmètre, mêmes chiffres. Reformuler, c'est changer l'ordre des mots et le verbe, jamais les faits.
@@ -169,6 +170,11 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
       required: ["headline", "summary", "experiences", "education", "skills", "projects", "certifications", "languages", "ats_keywords_used", "notes_for_candidate"],
     },
   });
+  // Le titre du CV est l'intitulé de l'offre (règle du profil « aligné sur l'intitulé de l'offre »), pas un titre choisi par l'IA : la même offre Klesia
+  // avait reçu « Administrateur Base de Données », « Data Analyst » puis « Data Engineer » (lib/cv-title.ts). Offre de niveau senior : le titre de l'IA reste, et la note le dit.
+  const aligned = alignHeadline(cv.headline, offer.title);
+  cv.headline = aligned.headline;
+  if (aligned.reason === "senior") cv.notes_for_candidate = [...(cv.notes_for_candidate ?? []), `L'offre demande un niveau senior (« ${aligned.offerTitle} ») : le titre du CV ne reprend pas cet intitulé, ton profil est junior. À toi de voir si tu candidates ainsi.`];
   // Les faits (formations, postes, dates, langues, certifications) sont ceux du profil, pas ceux de l'IA (lib/cv-facts.ts)
   // Puis garde-fou : un résultat ou un chiffre que le profil ne dit pas est retiré ou signalé (lib/cv-guard.ts)
   // Les projets « Toujours sur mes CV » du profil sont remis s'ils manquent (lib/cv-edit.ts) ; les tirets insécables du profil deviennent des tirets simples

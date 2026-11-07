@@ -109,4 +109,16 @@ ok("page : écarts lisibles par un lecteur d'écran (« À corriger : », « À 
 ok("page : « À corriger » et « À relire » sont deux sections ; un document illisible n'est jamais déclaré conforme", page.includes('title="À corriger"') && page.includes('title="À relire"') && page.includes("isCv(d.content)") && page.includes("unreadable"));
 ok("Mon CV : lien vers le contrôle", read("app/mon-cv/page.tsx").includes('href="/mon-cv/controle"') && read("app/mon-cv/page.tsx").includes("Contrôler mes CV"));
 
+// ---------- Titre du CV et intitulé de l'offre (7 novembre : « Data Engineer » sur une offre « Administrateur base de données ») ----------
+{
+  const titleIssues = (headline: string, offer?: string | null) => checkCv({ ...sent, headline }, profile, offer).filter((i) => i.text.startsWith("Titre du CV"));
+  const bad = titleIssues("Data Engineer", "Administrateur base de données H/F");
+  ok("titre du CV différent de l'offre : à corriger, avec les deux titres", bad.length === 1 && bad[0].level === "fix" && bad[0].text.includes("« Data Engineer »") && bad[0].text.includes("« Administrateur base de données »"), bad.map((i) => i.text).join("|"));
+  ok("le même métier (H/F, pluriel, junior en plus) : rien à signaler", titleIssues("Administrateur Base de Données", "Administrateur Bases de Données H/F").length === 0 && titleIssues("Data Analyst", "Data Analyst Junior (H/F)").length === 0);
+  ok("offre de niveau senior : le titre de l'IA est voulu, rien à signaler", titleIssues("Data Analyst", "Data Engineer Senior H/F").length === 0);
+  ok("offre inconnue ou sans titre exploitable (ou appel sans titre) : rien à signaler", titleIssues("Data Analyst", null).length === 0 && titleIssues("Data Analyst", "").length === 0 && titleIssues("Data Analyst").length === 0);
+  ok("un CV sans titre n'est pas accusé d'un mauvais titre", checkCv({ ...sent, headline: "" }, profile, "Data Analyst").every((i) => !i.text.startsWith("Titre du CV")));
+  ok("la page de contrôle passe le titre de l'offre", readFileSync("app/mon-cv/controle/page.tsx", "utf8").includes("checkCv(d.content, profile, d.offers?.title)"));
+}
+
 done();

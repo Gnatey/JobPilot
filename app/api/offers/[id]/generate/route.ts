@@ -6,6 +6,7 @@ import type { CvDoc, OfferExtract } from "@/lib/types";
 import { letterTemplateFor } from "@/lib/letter";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { pickApplication } from "@/lib/app-pick";
+import { withOfferTitle } from "@/lib/cv-title";
 
 export const maxDuration = 60;
 
@@ -47,7 +48,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         if (!src) throw new HttpError(404, "CV source introuvable");
         const { data, error } = await supabase.from("documents").insert({
           user_id: user.id, offer_id: id, application_id: app?.id ?? null, kind: "cv",
-          variant: src.variant, template: body.template || src.template, content: src.content, reused_from: src.id,
+          variant: src.variant, template: body.template || src.template,
+          // Le contenu est copié, mais le titre devient celui de CETTE offre (un CV « Data Engineer » ne part pas sur une offre « Administrateur base de données »)
+          content: withOfferTitle(src.content as CvDoc, offer.extracted?.title || offer.title), reused_from: src.id,
         }).select("id").single();
         if (error) throw error;
         if (app) await supabase.from("applications").update({ cv_variant: src.variant }).eq("id", app.id);

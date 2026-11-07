@@ -1,12 +1,14 @@
 import { enforceFacts, languagesText } from "./cv-facts";
 import { guardCv } from "./cv-guard";
+import { cleanOfferTitle, isSeniorTitle, sameTitle } from "./cv-title";
 import type { CvDoc, Profile } from "./types";
 
 /**
  * Contrôle d'un CV DÉJÀ enregistré (peut-être déjà envoyé) : on le compare au profil maître, avec les mêmes règles que celles
  * qui corrigent un nouveau CV (lib/cv-facts.ts et lib/cv-guard.ts). Sans IA, sans réseau, en lecture seule : rien n'est modifié.
  *
- * - « fix » : un fait qui ne colle pas au profil (formation absente, poste ou dates différents, langue, certification inconnue, réserve écrite dans le CV).
+ * - « fix » : un fait qui ne colle pas au profil (formation absente, poste ou dates différents, langue, certification inconnue, réserve écrite dans le CV),
+ *   ou un titre de CV qui n'est pas l'intitulé de l'offre (si `offerTitle` est donné).
  * - « read » : à relire (un chiffre ou un résultat que le profil ne dit pas : souvent écrit à la main par la personne, donc à garder si c'est vrai).
  *
  * Ce contrôle ne lit pas les fautes de frappe.
@@ -22,7 +24,7 @@ export const isCv = (content: unknown): content is CvDoc => {
   return !!cv.headline || !!cv.experiences?.length;
 };
 
-export function checkCv(content: unknown, profile: Profile): CvIssue[] {
+export function checkCv(content: unknown, profile: Profile, offerTitle?: string | null): CvIssue[] {
   if (!isCv(content)) return [];
   const cv = content;
 
@@ -32,6 +34,9 @@ export function checkCv(content: unknown, profile: Profile): CvIssue[] {
   const fix = (text: string) => out.push({ level: "fix", text });
   const read = (text: string) => out.push({ level: "read", text });
 
+  // Le titre du CV doit être celui de l'offre (règle du profil, lib/cv-title.ts) ; une offre de niveau senior n'est pas comparée (le titre de l'IA y est voulu)
+  const wanted = cleanOfferTitle(offerTitle);
+  if (wanted && !isSeniorTitle(wanted) && cv.headline && !sameTitle(cv.headline, wanted)) fix(`Titre du CV ${q(cv.headline)}, l'offre dit ${q(wanted)}`);
   for (const d of facts.restored) fix(`Formation absente du CV : ${q(d)}`);
   for (const d of facts.inventedEducation) fix(`Formation qui ne figure pas dans ton profil : ${q(d)}`);
   for (const r of facts.roles) fix(`${r.company} : poste écrit ${q(r.from)}, ton profil dit ${q(r.to)}`);
