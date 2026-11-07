@@ -1,7 +1,7 @@
 // Bilan de « Tout analyser » : toutes les lignes en échec sont listées avec un lien, une corbeille, et une suppression en lot des annonces disparues.
 import { readFileSync } from "node:fs";
 import {
-  GONE_REASON, SKIP_WHY, bulkMessage, firstOf, groupSkips, linkOf, removeSkips, selectedSkips, skipKind, type Skip,
+  GONE_REASON, SKIP_WHY, bulkMessage, firstOf, groupBySite, groupSkips, linkOf, pasteHref, removeSkips, selectedSkips, siteAdvice, skipKind, type Skip,
 } from "../lib/analyze-skips";
 import { deletionReason } from "../lib/offer-delete";
 import { rejectRecosOfApplication } from "../lib/offer-ops";
@@ -9,7 +9,7 @@ import { NEUTRAL_REASONS, REJECT_REASONS } from "../lib/types";
 import { ok, done } from "./helpers";
 
 const read = (f: string) => readFileSync(f, "utf8");
-const sk = (id: string, kind: Skip["kind"], url: string | null = `https://exemple.fr/${id}`): Skip => ({ appId: id, title: `Poste ${id}`, url, kind });
+const sk = (id: string, kind: Skip["kind"], url: string | null = `https://exemple.fr/${id}`, site = "Site entreprise"): Skip => ({ appId: id, title: `Poste ${id}`, url, kind, site });
 
 // ---------- La cause d'après le code de l'analyse ----------
 ok("410 : annonce retirée", skipKind(410) === "gone");
@@ -42,6 +42,23 @@ ok("une ligne supprimée sort de la liste, les autres restent", removeSkips(all,
 ok("la sélection en lot = toutes les annonces disparues sauf celles décochées", selectedSkips(g.gone, new Set()).length === 3 && selectedSkips(g.gone, new Set(["c"])).map((s) => s.appId).join() === "a,e" && selectedSkips(g.gone, new Set(["a", "c", "e"])).length === 0);
 ok("la sélection ne contient jamais une ligne d'une autre cause", selectedSkips(g.gone, new Set()).every((s) => s.kind === "gone"));
 
+// ---------- Les lignes illisibles rangées par site ----------
+{
+  const un = [sk("a", "unreadable", null, "Indeed"), sk("b", "unreadable", null, "HelloWork"), sk("c", "unreadable", null, "Indeed"), sk("d", "unreadable", null, "Indeed"), sk("e", "unreadable", null, "LinkedIn"), sk("f", "unreadable", null, "HelloWork")];
+  const by = groupBySite(un);
+  ok("par site : le plus fourni d'abord (Indeed 3, HelloWork 2, LinkedIn 1)", by.map((x) => `${x.site}:${x.items.length}`).join() === "Indeed:3,HelloWork:2,LinkedIn:1");
+  ok("par site : l'ordre reçu est gardé dans chaque site, rien n'est perdu", by[0].items.map((s) => s.appId).join() === "a,c,d" && by.reduce((n, x) => n + x.items.length, 0) === un.length);
+  ok("par site : à égalité, ordre alphabétique", groupBySite([sk("1", "unreadable", null, "LinkedIn"), sk("2", "unreadable", null, "Glassdoor")]).map((x) => x.site).join() === "Glassdoor,LinkedIn");
+  ok("par site : liste vide = aucun groupe", groupBySite([]).length === 0);
+  ok("conseil Indeed : refus d'office, favori ou texte collé, pas relu à chaque passage", /Indeed refuse la lecture automatique/.test(siteAdvice("Indeed")) && /Envoyer à JobPilot/.test(siteAdvice("Indeed")) && /plus/.test(siteAdvice("Indeed")));
+  ok("conseil LinkedIn / Glassdoor : nommés, favori ou texte collé", /^LinkedIn a refusé/.test(siteAdvice("LinkedIn")) && /^Glassdoor a refusé/.test(siteAdvice("Glassdoor")));
+  ok("conseil des autres sites : texte collé ou suppression", /colle leur texte, ou supprime la ligne/.test(siteAdvice("HelloWork")) && /colle leur texte/.test(siteAdvice("Site entreprise")));
+  const href = pasteHref("abc-1", "https://fr.indeed.com/viewjob?jk=d61e12bb2430df9e");
+  ok("« Coller le texte » : page d'analyse, candidature rattachée, zone de texte ouverte, adresse jointe", href === "/offres/nouvelle?app=abc-1&needtext=1&url=" + encodeURIComponent("https://fr.indeed.com/viewjob?jk=d61e12bb2430df9e"));
+  ok("« Coller le texte » : pas d'adresse valide ou trop longue = pas d'adresse jointe", pasteHref("x", null) === "/offres/nouvelle?app=x&needtext=1" && pasteHref("x", "javascript:alert(1)") === "/offres/nouvelle?app=x&needtext=1" && !pasteHref("x", "https://exemple.fr/?q=" + "a".repeat(2000)).includes("&url="));
+  ok("« Coller le texte » : l'identifiant est protégé (pas d'injection de paramètre)", !pasteHref("a&b=1", null).includes("a&b=1") && pasteHref("a&b=1", null).includes("a%26b%3D1"));
+}
+
 // ---------- Listes longues ----------
 const many = Array.from({ length: 25 }, (_, i) => i);
 ok("liste courte : tout est montré", firstOf([1, 2, 3], false).hidden === 0 && firstOf([1, 2, 3], false).shown.length === 3);
@@ -61,6 +78,10 @@ ok("rien supprimé : on le dit", /^Aucune ligne supprimée \(2 échecs\)/.test(b
   ok("le bilan n'est plus coupé à 8 lignes (« … et 11 autres » : impossible de vérifier)", !/slice\(0, 8\)/.test(all) && !/et \{run\.skipped\.length - 8\}/.test(all));
   ok("chaque échec garde son identifiant, son titre et son adresse, avec la cause d'après le code reçu", /skipKind\(status\)/.test(all) && /appId: it\.app_id/.test(all) && /url: it\.url/.test(all));
   ok("le bilan passe par SkipReport et retire de sa liste les lignes supprimées", /<SkipReport skips=\{run\.skipped\}/.test(all) && /removeSkips\(r\.skipped, ids\)/.test(all));
+  ok("les lignes d'un site qui refuse la lecture (Indeed) sont listées d'office, sans être tentées", /q\.blocked/.test(all) && /const skipped: Skip\[\] = \[\.\.\.blocked\]/.test(all) && /site: b\.site/.test(all));
+  ok("même quand rien n'est analysable automatiquement, le bilan s'affiche", /!items\.length && !blocked\.length/.test(all) && /Rien à analyser automatiquement/.test(all));
+  ok("le bilan range les lignes illisibles par site, chacun avec son conseil", /groupBySite\(g\.unreadable\)/.test(ui) && /siteAdvice\(site\)/.test(ui) && /Annonces illisibles : \{site\}/.test(ui));
+  ok("« Coller le texte » s'ouvre dans un autre onglet, pour ne pas perdre le bilan", /href=\{pasteHref\(s\.appId, s\.url\)\} target="_blank" rel="noopener noreferrer"/.test(ui));
   ok("les arrêts de la file (429, 503, 401) restent inchangés", /status === 429 \|\| status === 503/.test(all) && /status === 401/.test(all));
   ok("le lien s'ouvre dans un autre onglet, sans donner la main à l'annonce (noopener)", /target="_blank" rel="noopener noreferrer"/.test(ui));
   ok("le lien passe par linkOf (jamais javascript:)", /linkOf\(s\.url\)/.test(ui));

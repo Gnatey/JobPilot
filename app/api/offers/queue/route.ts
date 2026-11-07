@@ -19,9 +19,9 @@ export async function GET() {
       fetchAll((a, b) => supabase.from("recommendations").select("id, title, company, url, quick_score, source, origin, snippet").eq("status", "accepted").is("offer_id", null).order("id").range(a, b)),
       usedToday(supabase, user.id),
     ]);
-    const { items, skipped } = buildQueue(apps ?? [], recos ?? []);
+    const { items, skipped, blocked } = buildQueue(apps ?? [], recos ?? []);
     const cap = isOwner(user.email) ? null : dailyBudget();
     const possible = cap == null || used == null ? null : Math.max(0, Math.floor((cap - used) / AI_COST.offer));
-    return { items, skipped: skipped.length, budget: { cap, used, possible } };
+    return { items, skipped: skipped.length, blocked, budget: { cap, used, possible } };
   });
 }

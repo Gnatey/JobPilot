@@ -6,7 +6,7 @@ import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 import { SkipReport } from "@/components/analyze-skips";
 import { removeSkips, skipKind, type Skip } from "@/lib/analyze-skips";
-import type { QueueItem } from "@/lib/analyze-queue";
+import type { QueueBlocked, QueueItem } from "@/lib/analyze-queue";
 
 type Run = { total: number; done: number; ok: number; estimated: number; current: string; skipped: Skip[]; stopped: string | null; finished: boolean; possible: number | null; noSource: number };
 
@@ -37,18 +37,20 @@ export function AnalyzeAll({ count }: { count: number }) {
     const items = q.items as QueueItem[];
     const noSource = Number(q.skipped) || 0; // lignes sans lien ni texte : jamais analysables d'ici
     const possible = (q.budget?.possible ?? null) as number | null;
-    if (!items.length) {
+    // Lignes d'un site qui refuse la lecture (Indeed), sans texte ni extrait : jamais tentées, listées d'office dans le bilan
+    const blocked: Skip[] = ((q.blocked ?? []) as QueueBlocked[]).map((b) => ({ appId: b.app_id, title: `${b.title}${b.company ? `, ${b.company}` : ""}`, url: b.url, kind: "unreadable", site: b.site }));
+    if (!items.length && !blocked.length) {
       setBusy(false); setRun(null);
       return toast(q.skipped ? "Ces lignes n'ont ni lien ni texte : ouvre-les une à une pour coller l'annonce." : "Rien à analyser.", { tone: "info" });
     }
-    if (possible === 0) {
+    if (!items.length || possible === 0) {
       setBusy(false);
-      return setRun({ total: items.length, done: 0, ok: 0, estimated: 0, current: "", skipped: [], stopped: "Tu as déjà utilisé toutes tes actions IA d'aujourd'hui. Elles repartent de zéro cette nuit : reviens demain.", finished: true, possible, noSource });
+      return setRun({ total: items.length, done: 0, ok: 0, estimated: 0, current: "", skipped: blocked, stopped: items.length ? "Tu as déjà utilisé toutes tes actions IA d'aujourd'hui. Elles repartent de zéro cette nuit : reviens demain." : null, finished: true, possible, noSource });
     }
 
     let ok = 0, estimated = 0, fails = 0;
     let stopped: string | null = null;
-    const skipped: Skip[] = [];
+    const skipped: Skip[] = [...blocked];
     for (let i = 0; i < items.length; i++) {
       if (cancel.current) { stopped = "Arrêté à ta demande."; break; }
       const it = items[i];
@@ -71,11 +73,11 @@ export function AnalyzeAll({ count }: { count: number }) {
       if (status === 429 || status === 503) { stopped = j.error ?? "Les IA gratuites sont à leur limite pour le moment."; break; }
       if (status === 401) { stopped = "Ta session a expiré : reconnecte-toi, puis relance."; break; }
       const kind = skipKind(status);
-      skipped.push({ appId: it.app_id, title: label, url: it.url, kind });
+      skipped.push({ appId: it.app_id, title: label, url: it.url, kind, site: it.site });
       if (kind === "failed" && ++fails >= 3) { stopped = "Plusieurs échecs de suite : je m'arrête, réessaie dans un moment."; break; }
     }
     setBusy(false);
-    setRun({ total: items.length, done: ok + skipped.length, ok, estimated, current: "", skipped, stopped, finished: true, possible, noSource });
+    setRun({ total: items.length, done: ok + skipped.length - blocked.length, ok, estimated, current: "", skipped, stopped, finished: true, possible, noSource });
     refreshBadges();
     router.refresh();
   }
@@ -102,7 +104,7 @@ export function AnalyzeAll({ count }: { count: number }) {
           {run?.finished && (
             <div className="mt-3 border-t border-line pt-3 text-sm" role="status" aria-live="polite">
               <p>
-                <strong>{run.ok} offre{run.ok > 1 ? "s" : ""} analysée{run.ok > 1 ? "s" : ""}</strong>
+                {run.total === 0 ? <strong>Rien à analyser automatiquement.</strong> : <strong>{run.ok} offre{run.ok > 1 ? "s" : ""} analysée{run.ok > 1 ? "s" : ""}</strong>}
                 {run.estimated > 0 && <> dont {run.estimated} avec un pourcentage <em>estimé</em> (extrait seulement)</>}.
               </p>
               {run.noSource > 0 && <p className="mt-1 text-muted">{run.noSource} autre{run.noSource > 1 ? "s" : ""} ligne{run.noSource > 1 ? "s n'ont" : " n'a"} ni lien ni texte : ouvre-{run.noSource > 1 ? "les" : "la"} une à une pour coller l'annonce.</p>}

@@ -1,16 +1,16 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ClipboardPaste, ExternalLink, Loader2 } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 import { OfferRowDelete } from "@/components/offer-row-delete";
-import { GONE_REASON, bulkMessage, firstOf, groupSkips, linkOf, selectedSkips, type Skip } from "@/lib/analyze-skips";
+import { GONE_REASON, bulkMessage, firstOf, groupBySite, groupSkips, linkOf, pasteHref, selectedSkips, siteAdvice, type Skip } from "@/lib/analyze-skips";
 
 type Check = { on: boolean; set: (on: boolean) => void };
 
 /** Une ligne du bilan : le poste, un lien pour ouvrir l'annonce et vérifier, la corbeille. */
-function Row({ s, onRemoved, check }: { s: Skip; onRemoved: (ids: string[]) => void; check?: Check }) {
+function Row({ s, onRemoved, check, paste }: { s: Skip; onRemoved: (ids: string[]) => void; check?: Check; paste?: boolean }) {
   const link = linkOf(s.url);
   return (
     <li className="flex items-center gap-2 py-1">
@@ -26,6 +26,11 @@ function Row({ s, onRemoved, check }: { s: Skip; onRemoved: (ids: string[]) => v
           <ExternalLink size={16} aria-hidden /> <span className="hidden sm:inline">Annonce</span>
         </a>
       ) : <span className="shrink-0 text-xs text-muted">pas de lien</span>}
+      {paste && (
+        <a href={pasteHref(s.appId, s.url)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm shrink-0" aria-label={`Coller le texte de l'annonce : ${s.title}`} title="Coller le texte de l'annonce">
+          <ClipboardPaste size={16} aria-hidden /> <span className="hidden sm:inline">Coller le texte</span>
+        </a>
+      )}
       <OfferRowDelete kind="app" id={s.appId} label={s.title} fixedReason={s.kind === "gone" ? GONE_REASON : undefined} onDeleted={() => onRemoved([s.appId])} />
     </li>
   );
@@ -42,7 +47,7 @@ export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (id
   const { toast } = useFeedback();
   const g = groupSkips(skips);
   const [keep, setKeep] = useState<Set<string>>(new Set()); // décochées : à garder
-  const [more, setMore] = useState({ unreadable: false, failed: false });
+  const [more, setMore] = useState<{ failed: boolean; sites: Record<string, boolean> }>({ failed: false, sites: {} });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
@@ -84,7 +89,7 @@ export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (id
     toast(bulkMessage(deleted.length, failed), { tone: failed ? "err" : "info" });
   }
 
-  const un = firstOf(g.unreadable, more.unreadable);
+  const sites = groupBySite(g.unreadable);
   const fa = firstOf(g.failed, more.failed);
   const toggle = (id: string, on: boolean) => setKeep((k) => { const n = new Set(k); if (on) n.delete(id); else n.add(id); return n; });
 
@@ -104,14 +109,17 @@ export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (id
           </ul>
         </section>
       )}
-      {g.unreadable.length > 0 && (
-        <section aria-label="Annonces illisibles">
-          <h3 className="font-semibold text-ink">Annonces illisibles ({g.unreadable.length})</h3>
-          <p className="text-muted">Le site bloque la lecture : ouvre sa fiche dans la liste pour coller le texte de l'annonce, ou supprime la ligne.</p>
-          <ul className="mt-1 divide-y divide-line">{un.shown.map((s) => <Row key={s.appId} s={s} onRemoved={onRemoved} />)}</ul>
-          {un.hidden > 0 && <button type="button" className="btn btn-ghost btn-sm mt-1" onClick={() => setMore((m) => ({ ...m, unreadable: true }))}>Voir les {un.hidden} autres</button>}
-        </section>
-      )}
+      {sites.map(({ site, items }) => {
+        const v = firstOf(items, Boolean(more.sites[site]));
+        return (
+          <section key={site} aria-label={`Annonces illisibles : ${site}`}>
+            <h3 className="font-semibold text-ink">Annonces illisibles : {site} ({items.length})</h3>
+            <p className="text-muted">{siteAdvice(site)}</p>
+            <ul className="mt-1 divide-y divide-line">{v.shown.map((s) => <Row key={s.appId} s={s} onRemoved={onRemoved} paste />)}</ul>
+            {v.hidden > 0 && <button type="button" className="btn btn-ghost btn-sm mt-1" onClick={() => setMore((m) => ({ ...m, sites: { ...m.sites, [site]: true } }))}>Voir les {v.hidden} autres</button>}
+          </section>
+        );
+      })}
       {g.failed.length > 0 && (
         <section aria-label="Analyses à relancer">
           <h3 className="font-semibold text-ink">À relancer ({g.failed.length})</h3>

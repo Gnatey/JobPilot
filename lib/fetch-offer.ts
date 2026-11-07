@@ -141,14 +141,32 @@ export function detectSource(url?: string | null) {
   return "Site entreprise";
 }
 
+/**
+ * Lien de suivi d'un e-mail HelloWork (emails.hellowork.com/clic/…/<jeton>) : le dernier morceau est un jeton base64 qui contient l'adresse réelle
+ * de l'annonce. On ne garde QUE cette adresse (jamais le reste du jeton, qui contient l'adresse e-mail de la personne), et seulement si elle
+ * pointe vers hellowork.com. Sans cela, ces liens ne se lisent pas et chaque e-mail donne une adresse différente pour la même offre (doublons).
+ */
+export function untrackUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.hostname !== "emails.hellowork.com" || !u.pathname.startsWith("/clic/")) return raw;
+    const token = u.pathname.split("/").filter(Boolean).pop() ?? "";
+    const m = Buffer.from(token, "base64url").toString("utf8").match(/https:\/\/(?:www\.)?hellowork\.com\/[^\s\u0000-\u001f"'<>]+/);
+    return m ? m[0] : raw;
+  } catch {
+    return raw;
+  }
+}
+
 /** Adresse canonique d'une annonce (sans paramètres de suivi), pour repérer les doublons. */
 export function normalizeJobUrl(url: string) {
   try {
-    const u = new URL(url);
+    const u = new URL(untrackUrl(url));
     const li = u.pathname.match(/\/jobs\/view\/(\d+)/);
     if (u.hostname.includes("linkedin") && li) return `https://www.linkedin.com/jobs/view/${li[1]}/`;
     const jk = u.searchParams.get("jk");
     if (u.hostname.includes("indeed") && jk) return `https://fr.indeed.com/viewjob?jk=${jk}`;
+    if ((u.hostname === "hellowork.com" || u.hostname.endsWith(".hellowork.com")) && /\/emplois\/\d+\.html$/.test(u.pathname)) return `https://www.hellowork.com${u.pathname}`;
     ["utm_source", "utm_medium", "utm_campaign", "utm_content", "trackingId", "refId", "trk", "lipi", "midToken", "midSig", "eid"].forEach((k) => u.searchParams.delete(k));
     return u.toString();
   } catch {
