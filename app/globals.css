@@ -171,6 +171,20 @@ body {
 dialog { color: var(--color-ink); }
 dialog::backdrop { background: rgb(10 14 30 / .55); backdrop-filter: blur(3px); }
 
+/* Administration : affichage plus serré sur ordinateur (page technique, lue par une seule personne, pleine de listes et de tableaux).
+   Hors de toute couche pour passer devant les utilitaires Tailwind, et limité à .admin-dense : aucune autre page n'est touchée. Téléphone : inchangé (zones de toucher). */
+@media screen and (min-width: 768px) {
+  .admin-dense { font-size: 0.93rem; }
+  .admin-dense > header { margin-bottom: 1rem; }
+  .admin-dense > header h1 { font-size: 1.9rem; }
+  .admin-dense section { margin-bottom: 1.5rem; }
+  .admin-dense section h2 { font-size: 1.05rem; }
+  .admin-dense .list > li { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .admin-dense .list > li > a { padding-top: 0.45rem; padding-bottom: 0.45rem; }
+  .admin-dense table th, .admin-dense table td { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .admin-dense .admin-tabs { margin-bottom: 1rem; }
+}
+
 /* CV : pas de mot tout seul au bout d'une ligne, pas de texte justifié (trous entre les mots) */
 .print-sheet p, .print-sheet li { text-wrap: pretty; }
 

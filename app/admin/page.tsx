@@ -9,6 +9,8 @@ import { AiTest, CopySql, SourcesTest } from "@/components/settings-controls";
 import { CopyId } from "@/components/copy-id";
 import { fmtDate, plural } from "@/lib/format";
 import { activeSources } from "@/lib/sources";
+import { describeKeys, keysSummary, KEY_GROUPS, rowsOfGroup } from "@/lib/admin-keys";
+import { AdminTabs, type AdminTab } from "@/components/admin-tabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Administration", robots: { index: false, follow: false } };
@@ -44,13 +46,17 @@ export default async function Admin() {
   const sources = activeSources();
   const checks: Check[] = [
     { id: "ai", label: `IA (${[...new Set([...ai.chains.main, ...ai.chains.fast].map((p) => p.name))].join(", ") || "aucune clé"})`, state: ai.configured ? "ok" : "todo", hint: "Ajoute GEMINI_API_KEY dans Vercel (clé gratuite sur aistudio.google.com), puis redéploie. GROQ_API_KEY et MISTRAL_API_KEY (gratuites aussi) répartissent la charge." },
-    { id: "db", label: "Base de données à jour", state: dbOk ? "ok" : "todo", hint: "Une mise à jour de la base est disponible (agenda, pages plus rapides, quota IA par personne, limites de requêtes, texte des annonces gardées). Détails juste en dessous." },
+    { id: "db", label: "Base de données à jour", state: dbOk ? "ok" : "todo", hint: "Une mise à jour de la base est disponible (agenda, pages plus rapides, quota IA par personne, limites de requêtes, texte des annonces gardées). Le script est juste en dessous." },
     { id: "cron", label: "Tâche automatique du matin", state: has("SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET") ? "ok" : "todo", hint: "Ajoute SUPABASE_SERVICE_ROLE_KEY et CRON_SECRET dans Vercel, puis redéploie." },
     { id: "gmail", label: "Connexion Gmail", state: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") ? "ok" : "todo", hint: "Ajoute GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET dans Vercel, puis redéploie." },
-    { id: "sources", label: "Sources d'offres automatiques", state: sources.length ? "ok" : "optional", hint: "Facultatif : Adzuna ou Jooble apportent des offres chaque matin (clé gratuite). Voir « Sources d'offres » plus bas. Sans elles, les alertes Gmail et le copier-coller suffisent." },
+    { id: "sources", label: "Sources d'offres automatiques", state: sources.length ? "ok" : "optional", hint: "Facultatif : Adzuna ou Jooble apportent des offres chaque matin (clé gratuite). Voir l'onglet Sources. Sans elles, les alertes Gmail et le copier-coller suffisent." },
     { id: "legal", label: "Pages légales (éditeur et contact)", state: has("PUBLISHER_NAME", "PUBLISHER_EMAIL") ? "ok" : "optional", hint: "À faire avant d'inviter d'autres personnes : ajoute PUBLISHER_NAME et PUBLISHER_EMAIL dans Vercel. Ils s'affichent dans les mentions légales et la politique de confidentialité." },
   ];
   const todo = checks.filter((c) => c.state === "todo").length;
+
+  const keyRows = describeKeys();
+  const keys = keysSummary(keyRows);
+  const keysToSee = keys.missingRequired + keys.problems;
 
   const sha = process.env.VERCEL_GIT_COMMIT_SHA;
   const links = [
@@ -61,14 +67,125 @@ export default async function Admin() {
       : null,
   ].filter((l): l is { label: string; href: string } => Boolean(l && l.href));
 
-  return (
-    <>
-      <PageTitle
-        title="Administration"
-        sub={sha ? `Version en ligne : ${sha.slice(0, 7)}${process.env.VERCEL_GIT_COMMIT_MESSAGE ? `, « ${process.env.VERCEL_GIT_COMMIT_MESSAGE.split("\n")[0].slice(0, 90)} »` : ""}.` : "Cette page n'est visible que par toi."}
-      />
-
-      <Section title="Comptes et usage" id="comptes" aside={overview && <span className="tag">{plural(overview.summary.accounts, "compte", "comptes")}</span>}>
+  const tabs: AdminTab[] = [
+    { id: "installation", label: "Installation", note: todo ? `${todo} à faire` : undefined, warn: todo > 0, panel: (
+      <>
+      <Section title="Ce qui est en place" aside={<span className={`tag ${todo ? "tag-warn" : "tag-good"}`}>{todo ? `${todo} à faire` : "Tout est en place"}</span>}>
+        <ul className="list">
+          {checks.map((c) => (
+            <li key={c.id} className="flex items-start gap-3 px-4 py-3">
+              {c.state === "ok" ? <CircleCheck size={20} className="mt-0.5 shrink-0 text-good" /> : c.state === "todo" ? <CircleAlert size={20} className="mt-0.5 shrink-0 text-bad" /> : <Circle size={20} className="mt-0.5 shrink-0 text-muted" />}
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{c.label}</p>
+                {c.state !== "ok" && c.hint && <p className="text-sm text-muted">{c.hint}</p>}
+                {c.id === "ai" && ai.configured && <div className="mt-2"><AiTest /></div>}
+              </div>
+            </li>
+          ))}
+        </ul>
+        {!dbOk && (
+          <div className="mt-4 rounded-2xl border border-marigold/60 bg-marigold/10 p-4">
+            <p className="font-semibold">Mettre la base à jour (une fois, 1 minute)</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+              <li>Clique sur « Copier le script ».</li>
+              <li>Ouvre Supabase, puis <strong>SQL Editor</strong> et <strong>New query</strong>. Désactive la traduction automatique de Chrome sur cette page.</li>
+              <li>Colle, puis clique sur <strong>Run</strong>. Le résultat attendu est « Success ».</li>
+            </ol>
+            <div className="mt-3"><CopySql sql={MIGRATION_SQL} /></div>
+          </div>
+        )}
+      </Section>
+      {links.length > 0 && (
+        <Section title="Liens utiles">
+          <ul className="list">
+            {links.map((l) => (
+              <li key={l.href}>
+                <a className="link flex items-center gap-2 px-4 py-2" href={l.href} target="_blank" rel="noreferrer">
+                  <ExternalLink size={16} aria-hidden /> {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      </>
+    ) },
+    { id: "cles", label: "Clés", note: keysToSee ? `${keysToSee} à voir` : undefined, warn: keysToSee > 0, panel: (
+      <Section
+        title="Variables d'environnement"
+        aside={<span className={`tag ${keys.missingRequired ? "tag-bad" : keys.problems ? "tag-warn" : "tag-good"}`}>{keys.missingRequired ? `${keys.missingRequired} indispensable${keys.missingRequired > 1 ? "s" : ""} manquante${keys.missingRequired > 1 ? "s" : ""}` : keys.problems ? `${keys.problems} à corriger` : "Rien d'anormal"}</span>}
+      >
+        <p className="mb-4 max-w-[65ch] text-sm text-muted">
+          Ici, une clé est « présente » ou « absente » : sa valeur n'est jamais affichée (seuls quelques réglages sans secret montrent la leur). Pour en ajouter ou en corriger une :
+          Vercel, Settings, Environment Variables, puis Redeploy (les variables <code>NEXT_PUBLIC_</code> ne changent qu'au déploiement). Ne colle jamais une clé dans un chat.
+        </p>
+        {KEY_GROUPS.map((g) => (
+          <div key={g} className="mb-5">
+            <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
+              {g}
+              {g === "IA" && <span className={`tag ${keys.aiKeys ? "tag-good" : "tag-bad"}`}>{keys.aiKeys ? plural(keys.aiKeys, "clé d'IA", "clés d'IA") : "aucune clé d'IA"}</span>}
+            </h3>
+            <ul className="list">
+              {rowsOfGroup(keyRows, g).map((r) => (
+                <li key={r.name} className="flex items-start gap-3 px-4 py-2.5">
+                  {r.state === "ok" ? <CircleCheck size={18} aria-hidden className="mt-0.5 shrink-0 text-good" /> : r.required ? <CircleAlert size={18} aria-hidden className="mt-0.5 shrink-0 text-bad" /> : <Circle size={18} aria-hidden className="mt-0.5 shrink-0 text-muted" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="break-all font-mono text-sm font-semibold">{r.name}</p>
+                    <p className="text-sm text-muted">{r.role}</p>
+                    {r.problem && <p className="text-sm text-bad">À corriger : {r.problem}.</p>}
+                  </div>
+                  <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                    {r.value && <span className="tag max-w-[16rem] truncate font-mono" title={r.value}>{r.value}</span>}
+                    <span className={`tag ${r.state === "ok" ? (r.problem ? "tag-warn" : "tag-good") : r.required ? "tag-bad" : ""}`}>{r.state === "ok" ? "Présente" : r.required ? "Manquante" : "Absente"}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </Section>
+    ) },
+    { id: "sources", label: "Sources", panel: (
+      <>
+      <Section title="Sources d'offres automatiques" aside={<span className={`tag ${sources.length ? "tag-good" : ""}`}>{sources.length ? `${sources.length} branchée${sources.length > 1 ? "s" : ""}` : "Aucune"}</span>}>
+        <p className="max-w-[65ch]">
+          JobPilot marche sans source automatique : les alertes emploi lues dans Gmail arrivent notées dans Recommandées, et tu peux envoyer n'importe quelle annonce ou page de résultats en un clic avec le favori (France Travail, Indeed, LinkedIn…), ou coller son lien ou son texte.
+          Si tu veux en plus des offres chaque matin pour tous les comptes, branche une source gratuite :
+        </p>
+        <ul className="list mt-4">
+          <li className="px-4 py-3">
+            <p className="font-semibold">Adzuna {sources.some((s) => s.id === "adzuna") ? <span className="tag tag-good ml-2">Branché</span> : <span className="tag ml-2">Non branché</span>}</p>
+            <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-muted">
+              <li>Crée un compte gratuit sur <a className="link" href="https://developer.adzuna.com" target="_blank" rel="noreferrer">developer.adzuna.com</a>.</li>
+              <li>Copie l'« Application ID » et l'« Application Key ».</li>
+              <li>Dans Vercel (Settings, Environment Variables), ajoute <code>ADZUNA_APP_ID</code> et <code>ADZUNA_APP_KEY</code>, puis fais Redeploy. Ne colle jamais ces clés dans un chat.</li>
+            </ol>
+            <p className="mt-1 text-sm text-muted">Le quota gratuit est partagé par tous les comptes : vérifie-le sur le site d'Adzuna.</p>
+          </li>
+          <li className="px-4 py-3">
+            <p className="font-semibold">Jooble {sources.some((s) => s.id === "jooble") ? <span className="tag tag-good ml-2">Branché</span> : <span className="tag ml-2">Non branché</span>}</p>
+            <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-muted">
+              <li>Demande une clé gratuite sur <a className="link" href="https://jooble.org/api/about" target="_blank" rel="noreferrer">jooble.org/api/about</a> (elle arrive par email). Chaque pays a son site Jooble et sa propre clé : pour la France, choisis la France (fr.jooble.org) si le site te le propose.</li>
+              <li>Dans Vercel, ajoute <code>JOOBLE_API_KEY</code> avec la clé seule (sans guillemets ni espace), puis fais Redeploy. JobPilot essaie fr.jooble.org puis jooble.org.</li>
+              <li>Clique sur « Tester les sources » : le message dit quels sites ont répondu, et jamais la clé.</li>
+            </ol>
+          </li>
+        </ul>
+        {sources.length > 0 && (
+          <div className="mt-4">
+            <SourcesTest />
+            <p className="mt-2 max-w-[62ch] text-sm text-muted">Envoie une vraie requête à chaque source branchée (elle compte sur le quota gratuit partagé) : une clé refusée ou un quota atteint s'affiche ici, avant que les comptes ne le remarquent.</p>
+          </div>
+        )}
+        <p className="mt-4 max-w-[65ch] text-sm text-muted">
+          France Travail n'est pas branché : son API « Offres d'emploi » est réservée aux organismes qui en font la demande. Ses offres passent par le favori, les alertes Gmail ou le copier-coller.
+        </p>
+      </Section>
+      </>
+    ) },
+    { id: "comptes", label: "Comptes et usage", panel: (
+      <>
+      <Section title="Comptes et usage de l'IA" aside={overview && <span className="tag">{plural(overview.summary.accounts, "compte", "comptes")}</span>}>
         {!service && (
           <p className="max-w-[62ch] text-muted">
             Pour voir les comptes et l'usage de l'IA, ajoute <code>SUPABASE_SERVICE_ROLE_KEY</code> dans Vercel (Settings, Environment Variables), puis fais Redeploy. Ne colle jamais cette clé dans un chat.
@@ -146,81 +263,17 @@ export default async function Admin() {
           </>
         )}
       </Section>
+      </>
+    ) },
+  ];
 
-      <Section title="Installation" id="installation" aside={<span className={`tag ${todo ? "tag-warn" : "tag-good"}`}>{todo ? `${todo} à faire` : "Tout est en place"}</span>}>
-        <ul className="list">
-          {checks.map((c) => (
-            <li key={c.id} className="flex items-start gap-3 px-4 py-3">
-              {c.state === "ok" ? <CircleCheck size={20} className="mt-0.5 shrink-0 text-good" /> : c.state === "todo" ? <CircleAlert size={20} className="mt-0.5 shrink-0 text-bad" /> : <Circle size={20} className="mt-0.5 shrink-0 text-muted" />}
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">{c.label}</p>
-                {c.state !== "ok" && c.hint && <p className="text-sm text-muted">{c.hint}</p>}
-                {c.id === "ai" && ai.configured && <div className="mt-2"><AiTest /></div>}
-              </div>
-            </li>
-          ))}
-        </ul>
-        {!dbOk && (
-          <div className="mt-4 rounded-2xl border border-marigold/60 bg-marigold/10 p-4">
-            <p className="font-semibold">Mettre la base à jour (une fois, 1 minute)</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
-              <li>Clique sur « Copier le script ».</li>
-              <li>Ouvre Supabase, puis <strong>SQL Editor</strong> et <strong>New query</strong>. Désactive la traduction automatique de Chrome sur cette page.</li>
-              <li>Colle, puis clique sur <strong>Run</strong>. Le résultat attendu est « Success ».</li>
-            </ol>
-            <div className="mt-3"><CopySql sql={MIGRATION_SQL} /></div>
-          </div>
-        )}
-      </Section>
-
-      <Section title="Sources d'offres" id="sources" aside={<span className={`tag ${sources.length ? "tag-good" : ""}`}>{sources.length ? `${sources.length} branchée${sources.length > 1 ? "s" : ""}` : "Aucune"}</span>}>
-        <p className="max-w-[65ch]">
-          JobPilot marche sans source automatique : les alertes emploi lues dans Gmail arrivent notées dans Recommandées, et tu peux envoyer n'importe quelle annonce ou page de résultats en un clic avec le favori (France Travail, Indeed, LinkedIn…), ou coller son lien ou son texte.
-          Si tu veux en plus des offres chaque matin pour tous les comptes, branche une source gratuite :
-        </p>
-        <ul className="list mt-4">
-          <li className="px-4 py-3">
-            <p className="font-semibold">Adzuna {sources.some((s) => s.id === "adzuna") ? <span className="tag tag-good ml-2">Branché</span> : <span className="tag ml-2">Non branché</span>}</p>
-            <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-muted">
-              <li>Crée un compte gratuit sur <a className="link" href="https://developer.adzuna.com" target="_blank" rel="noreferrer">developer.adzuna.com</a>.</li>
-              <li>Copie l'« Application ID » et l'« Application Key ».</li>
-              <li>Dans Vercel (Settings, Environment Variables), ajoute <code>ADZUNA_APP_ID</code> et <code>ADZUNA_APP_KEY</code>, puis fais Redeploy. Ne colle jamais ces clés dans un chat.</li>
-            </ol>
-            <p className="mt-1 text-sm text-muted">Le quota gratuit est partagé par tous les comptes : vérifie-le sur le site d'Adzuna.</p>
-          </li>
-          <li className="px-4 py-3">
-            <p className="font-semibold">Jooble {sources.some((s) => s.id === "jooble") ? <span className="tag tag-good ml-2">Branché</span> : <span className="tag ml-2">Non branché</span>}</p>
-            <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-muted">
-              <li>Demande une clé gratuite sur <a className="link" href="https://jooble.org/api/about" target="_blank" rel="noreferrer">jooble.org/api/about</a> (elle arrive par email). Chaque pays a son site Jooble et sa propre clé : pour la France, choisis la France (fr.jooble.org) si le site te le propose.</li>
-              <li>Dans Vercel, ajoute <code>JOOBLE_API_KEY</code> avec la clé seule (sans guillemets ni espace), puis fais Redeploy. JobPilot essaie fr.jooble.org puis jooble.org.</li>
-              <li>Clique sur « Tester les sources » : le message dit quels sites ont répondu, et jamais la clé.</li>
-            </ol>
-          </li>
-        </ul>
-        {sources.length > 0 && (
-          <div className="mt-4">
-            <SourcesTest />
-            <p className="mt-2 max-w-[62ch] text-sm text-muted">Envoie une vraie requête à chaque source branchée (elle compte sur le quota gratuit partagé) : une clé refusée ou un quota atteint s'affiche ici, avant que les comptes ne le remarquent.</p>
-          </div>
-        )}
-        <p className="mt-4 max-w-[65ch] text-sm text-muted">
-          France Travail n'est pas branché : son API « Offres d'emploi » est réservée aux organismes qui en font la demande. Ses offres passent par le favori, les alertes Gmail ou le copier-coller.
-        </p>
-      </Section>
-
-      {links.length > 0 && (
-        <Section title="Liens utiles">
-          <ul className="list">
-            {links.map((l) => (
-              <li key={l.href}>
-                <a className="link flex items-center gap-2 px-4 py-3" href={l.href} target="_blank" rel="noreferrer">
-                  <ExternalLink size={16} aria-hidden /> {l.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-    </>
+  return (
+    <div className="admin-dense">
+      <PageTitle
+        title="Administration"
+        sub={sha ? `Version en ligne : ${sha.slice(0, 7)}${process.env.VERCEL_GIT_COMMIT_MESSAGE ? `, « ${process.env.VERCEL_GIT_COMMIT_MESSAGE.split("\n")[0].slice(0, 90)} »` : ""}.` : "Cette page n'est visible que par toi."}
+      />
+      <AdminTabs tabs={tabs} initial="installation" />
+    </div>
   );
 }

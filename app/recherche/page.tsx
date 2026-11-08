@@ -17,6 +17,7 @@ import { Combobox, type Opt } from "@/components/ui/combobox";
 import { ZonePicker } from "@/components/zone-picker";
 import { ChipGroup } from "@/components/ui/chip-group";
 import { OtherBoards } from "@/components/other-boards";
+import { CompanyDirectory } from "@/components/company-directory";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 
@@ -46,6 +47,7 @@ export default function Recherche() {
   const router = useRouter();
   const { toast, confirm } = useFeedback();
   const [targets, setTargets] = useState<string[]>([]);
+  const [sectors, setSectors] = useState<string[]>([]); // secteurs du profil : ils orientent l'annuaire d'entreprises
   const [c, setC] = useState<SearchCriteria>(DEFAULT);
   const [zone, setZone] = useState<SearchZone | null>(FRANCE);
   const [quota, setQuota] = useState(DEFAULT_DAILY_QUOTA);
@@ -94,6 +96,7 @@ export default function Recherche() {
       const p = data?.data as Profile | undefined;
       setTargets(p?.targets?.map((x) => x.title).filter(Boolean) ?? []);
       const pref = p?.preferences;
+      setSectors(pref?.sectors ?? []);
       setQuota(Math.max(1, Math.min(MAX_DAILY_QUOTA, pref?.daily_quota ?? DEFAULT_DAILY_QUOTA)));
       const crit = pref?.criteria;
       if (crit?.roles?.length) {
@@ -346,6 +349,8 @@ export default function Recherche() {
       )}
 
       <OtherBoards roles={roles} zone={zone} days={c.publishedWithin} auto={auto} />
+
+      <CompanyDirectory roles={roles} sectors={sectors} />
 
       {auto && (
         <Section title="Explorer le web">

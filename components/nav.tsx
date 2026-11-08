@@ -4,7 +4,7 @@ export { Logo };
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Sun, Inbox, Plus, Columns3, BarChart3, Search, UserRound, Settings, FileText, ScanSearch, Menu, X, Zap, LogOut, ShieldCheck } from "lucide-react";
+import { Sun, Inbox, Plus, Columns3, BarChart3, Search, UserRound, Settings, FileText, ScanSearch, Menu, X, Zap, LogOut, ShieldCheck, ChevronDown, Lock } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { followupDue } from "@/lib/followup";
 import { openPalette } from "./palette";
@@ -23,6 +23,12 @@ const SECONDARY = [
   { href: "/mon-cv", label: "Mon CV", icon: ScanSearch },
   { href: "/profil", label: "Profil maître", icon: UserRound },
   { href: "/parametres", label: "Réglages", icon: Settings },
+];
+
+/** Bureau : le groupe « Réglages » (s'ouvre au clic, pas au survol : tactile, clavier et lecteurs d'écran). Sur mobile, la feuille « Plus » garde ses entrées à plat. */
+const SETTINGS_KIDS = [
+  { href: "/parametres", label: "Mes réglages", icon: Settings },
+  { href: "/confidentialite", label: "Confidentialité", icon: Lock },
 ];
 
 function active(path: string, href: string) {
@@ -76,6 +82,11 @@ function useSignOut() {
 export function Nav({ admin = false }: { admin?: boolean }) {
   const path = usePathname();
   const secondary = admin ? [...SECONDARY, { href: "/admin", label: "Administration", icon: ShieldCheck }] : SECONDARY;
+  // Bureau : « Réglages » regroupe Mes réglages, Confidentialité et (pour l'admin) Administration ; il s'ouvre tout seul quand on est sur l'une de ces pages
+  const settingsKids = admin ? [...SETTINGS_KIDS, { href: "/admin", label: "Administration", icon: ShieldCheck }] : SETTINGS_KIDS;
+  const inSettings = settingsKids.some((k) => active(path, k.href));
+  const [groupOpen, setGroupOpen] = useState(inSettings);
+  useEffect(() => { if (inSettings) setGroupOpen(true); }, [inSettings]);
   const signOut = useSignOut();
   const badges = useBadges(path);
   const [more, setMore] = useState(false);
@@ -90,13 +101,13 @@ export function Nav({ admin = false }: { admin?: boolean }) {
   }, [more]);
   if (path.startsWith("/bienvenue")) return null;
 
-  const item = (href: string, label: string, Icon: typeof Sun, badge?: BadgeKey) => {
+  const item = (href: string, label: string, Icon: typeof Sun, badge?: BadgeKey, sub = false) => {
     const on = active(path, href);
     return (
       <Link key={href} href={href} aria-current={on ? "page" : undefined}
-        className={`relative flex items-center gap-3 rounded-xl px-3 py-2 text-[0.94rem] transition-colors ${on ? "bg-chrome-2 font-semibold text-white" : "text-chrome-ink hover:bg-chrome-2/60 hover:text-white"}`}>
-        {on && <span className="absolute -left-4 top-2 bottom-2 w-1 rounded-r-full bg-marigold" aria-hidden />}
-        <Icon size={18} /> {label}
+        className={`relative flex items-center gap-3 rounded-xl px-3 ${sub ? "py-1.5 text-[0.9rem]" : "py-2 text-[0.94rem]"} transition-colors ${on ? "bg-chrome-2 font-semibold text-white" : "text-chrome-ink hover:bg-chrome-2/60 hover:text-white"}`}>
+        {on && !sub && <span className="absolute -left-4 top-2 bottom-2 w-1 rounded-r-full bg-marigold" aria-hidden />}
+        <Icon size={sub ? 16 : 18} /> {label}
         {badge && <Badge n={badges[badge]} tone={badge} />}
       </Link>
     );
@@ -119,7 +130,17 @@ export function Nav({ admin = false }: { admin?: boolean }) {
           <Zap size={16} /> Tri rapide des offres
         </Link>
         <nav className="mt-auto flex flex-col gap-0.5 border-t border-white/10 pt-4" aria-label="Compte">
-          {secondary.map((m) => item(m.href, m.label, m.icon))}
+          {SECONDARY.filter((m) => m.href !== "/parametres").map((m) => item(m.href, m.label, m.icon))}
+          <div>
+            <button type="button" onClick={() => setGroupOpen((o) => !o)} aria-expanded={groupOpen} aria-controls="nav-reglages"
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[0.94rem] transition-colors ${inSettings && !groupOpen ? "bg-chrome-2 font-semibold text-white" : "text-chrome-ink hover:bg-chrome-2/60 hover:text-white"}`}>
+              <Settings size={18} /> Réglages
+              <ChevronDown size={16} aria-hidden className={`ml-auto transition-transform ${groupOpen ? "rotate-180" : ""}`} />
+            </button>
+            <div id="nav-reglages" className={groupOpen ? "ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-2" : "hidden"}>
+              {settingsKids.map((k) => item(k.href, k.label, k.icon, undefined, true))}
+            </div>
+          </div>
           <ThemeToggle withLabel className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2 text-[0.94rem] text-chrome-ink hover:bg-chrome-2/60 hover:text-white" />
           <button onClick={signOut} className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-[0.94rem] text-chrome-ink hover:bg-chrome-2/60 hover:text-white">
             <LogOut size={18} /> Se déconnecter
