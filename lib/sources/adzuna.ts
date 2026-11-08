@@ -1,6 +1,7 @@
 import { HttpError } from "../supabase/server";
 import { splitRoles } from "../job-families";
 import { deptName } from "../departements";
+import { httpUrlOrNull } from "../fetch-offer";
 import { KEYWORD_CONTRACTS, STANDARD_CONTRACTS, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
 
 /**
@@ -70,7 +71,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
   return settled
     .map((r) => (r.status === "fulfilled" ? r.value : []))
     .flat()
-    .filter((o) => o.id != null && o.redirect_url && o.title)
+    .filter((o) => o.id != null && httpUrlOrNull(o.redirect_url) && o.title) // le lien vient d'un tiers et finit dans un href : http(s) seulement (jamais javascript:)
     .filter((o) => (seen.has(String(o.id)) ? false : (seen.add(String(o.id)), true)))
     .map((o): JobOffer => {
       const predicted = String(o.salary_is_predicted ?? "0") === "1";
@@ -88,7 +89,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
         experience: "",
         years: null,
         date: o.created ?? "",
-        url: o.redirect_url!,
+        url: httpUrlOrNull(o.redirect_url)!,
         description: stripTags(o.description ?? ""),
       };
     });

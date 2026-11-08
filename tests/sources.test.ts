@@ -72,6 +72,16 @@ reset(); plugAdzuna(); plugJooble();
   ok("les deux sources sont rapportées", r.sources.length === 2 && r.sources.every((s) => s.ok));
   ok("offres triées de la plus récente à la plus ancienne", r.offers.every((o, i, a) => i === 0 || a[i - 1].date >= o.date));
 }
+
+// ---------- Un lien qui n'est pas http(s) (javascript:, data:) n'entre jamais : il finirait dans un href ----------
+reset(); plugAdzuna(); plugJooble();
+{
+  q.adz.push(adz(az(41, "Data Analyst", "Acme", { redirect_url: "javascript:alert(1)" }), az(42, "Analyste BI", "Beta", { redirect_url: "data:text/html,<b>x</b>" }), az(43, "Data Scientist", "Gamma")));
+  q.jb.push(joo(jb(51, "Data Engineer", "Delta", { link: "JavaScript:alert(1)" }), jb(52, "Business Analyst", "Epsilon", { link: "vbscript:x" }), jb(53, "Consultant BI", "Zeta")));
+  const r = await searchAll(crit);
+  ok("lien javascript:, data: ou vbscript: écarté, liens https gardés (Adzuna et Jooble)", r.offers.map((o) => o.key).sort().join() === "az:43,jb:53", r.offers.map((o) => o.key).join());
+  ok("toute adresse gardée est http(s)", r.offers.every((o) => /^https?:\/\//i.test(o.url)));
+}
 reset();
 {
   // Entreprise inconnue chez une source : on compare le lieu
