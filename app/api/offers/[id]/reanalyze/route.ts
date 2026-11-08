@@ -21,7 +21,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     let text = String(offer.raw_text ?? "").trim();
     if (text.length < 300 && offer.url) {
       const read = await readOfferWithReader(offer.url);
-      if (read.gone) throw new HttpError(410, goneMessage(false));
+      if (read.gone) throw new HttpError(410, goneMessage(false, read.why));
       text = read.text ?? text;
     }
     if (text.length < 150) throw new HttpError(422, "Je n'ai plus le texte de cette annonce : colle-le dans « Analyser une offre ».");

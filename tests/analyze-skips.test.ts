@@ -16,7 +16,7 @@ ok("410 : annonce retirée", skipKind(410) === "gone");
 ok("400 et 422 : annonce illisible", skipKind(400) === "unreadable" && skipKind(422) === "unreadable");
 ok("autre code, ou pas de réponse (0) : échec passager, à relancer", skipKind(500) === "failed" && skipKind(0) === "failed" && skipKind(502) === "failed");
 ok("429, 503 et 401 n'arrivent jamais ici (arrêt de la file avant) : ils ne sont pas rangés comme « retirée »", skipKind(429) !== "gone" && skipKind(503) !== "gone" && skipKind(401) !== "gone");
-ok("les trois causes ont leur phrase", Object.keys(SKIP_WHY).sort().join() === "failed,gone,unreadable" && SKIP_WHY.gone === "annonce plus disponible");
+ok("les quatre causes ont leur phrase (dont « texte déjà collé », découvert à la mise à jour du bilan)", Object.keys(SKIP_WHY).sort().join() === "failed,gone,kept,unreadable" && SKIP_WHY.gone === "annonce plus disponible");
 
 // ---------- La raison notée à la suppression d'une annonce disparue ----------
 ok("« expiree » est une raison connue de la suppression (= « Offre plus disponible »)", deletionReason(GONE_REASON) === "expiree" && REJECT_REASONS.some((r) => r.id === GONE_REASON && r.label === "Offre plus disponible"));

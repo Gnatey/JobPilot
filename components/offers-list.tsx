@@ -89,6 +89,7 @@ export function OffersList({ items, selection }: { items: ListItem[]; selection?
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{it.title}</p>
                   <p className="truncate text-sm text-muted">{it.sub}</p>
+                  {it.hasText && <p className="truncate text-xs font-semibold text-good">Texte collé, prête à analyser</p>}
                 </div>
                 <div className="hidden shrink-0 text-right text-sm sm:block">
                   <p>{it.state ?? <span className="text-muted">À décider</span>}</p>

@@ -33,7 +33,7 @@ export function OffersWorkspace({ items, lines }: { items: ListItem[]; lines: Ch
       {lines.length > 0 && (
         <>
           <AnalyzeAll count={lines.length} ref={analyze} locked={running === "check"} onBusy={(b) => setRunning(b ? "analyze" : null)} />
-          <CheckAds lines={lines} ref={check} locked={running === "analyze"} onBusy={(b) => setRunning(b ? "check" : null)} />
+          <CheckAds lines={lines} ref={check} locked={running === "analyze"} onBusy={(b) => setRunning(b ? "check" : null)} onAnalyze={(ids) => { scrollUp(); analyze.current?.start(ids); }} />
         </>
       )}
       <OfferDups items={dupItems} />

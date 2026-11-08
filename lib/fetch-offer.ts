@@ -2,23 +2,34 @@ import * as cheerio from "cheerio";
 import { safeGet } from "./safe-fetch";
 import { readViaReader } from "./offer-reader";
 
-/** Phrases qu'un site affiche quand une annonce est retirée, pourvue ou expirée. */
+/**
+ * Phrases qu'un site affiche quand une annonce est retirée, pourvue ou expirée. Mots entiers et formes accordées seulement (« expirée », « pourvue »,
+ * « retirée »…), collées à « offre / annonce / poste » : « supprimer les doublons », « archivage », « candidat pourvu d'un diplôme », « le contrat expire »
+ * ou « clôture comptable » n'en sont PAS (7 novembre : des annonces en ligne étaient classées « disparues » pour ces mots du texte).
+ */
+const NOUN = "(?:offre|annonce|poste|emploi)";
+const AUX = "(?:(?:est|a|a été|a bien été|a déjà été|est déjà|est désormais|est maintenant|vient d['’]être)\\s+)?";
 const GONE_RE = new RegExp(
   [
-    "n['’]est plus (?:disponible|en ligne|active|publi[ée]e|visible|accessible|valable|d['’]actualit[ée])",
-    "(?:offre|annonce|poste)[^.\\n]{0,30}(?:expir[ée]e?|cl[oô]tur[ée]e?|pourvue?|archiv[ée]e?|supprim[ée]e?|retir[ée]e?)",
-    "(?:offre|annonce|page|poste)[^.\\n]{0,20}n['’]existe plus",
-    "(?:offre|annonce) introuvable",
-    "no longer (?:available|accepting applications|open)",
-    "(?:job|position|posting|listing|offer)[^.\\n]{0,30}(?:has )?(?:expired|been (?:filled|removed|closed|deleted))",
-    "this (?:job|position) is (?:closed|unavailable)",
+    "\\bn['’]est plus (?:disponible|en ligne|active|publi[ée]e|visible|accessible|valable|à pourvoir|d['’]actualit[ée])(?![\\p{L}])",
+    `\\b${NOUN}(?:\\s+d['’]emploi)?\\s+${AUX}(?:expir(?:é|ée|ee)|pourvue?(?!\\s+(?:d['’]|de\\b|en\\b|par\\b))|cl[oô]tur(?:é|ée|ee)|archiv(?:é|ée|ee)|supprim(?:é|ée|ee)|retir(?:é|ée|ee)|désactiv(?:é|ée|ee))(?![\\p{L}])`,
+    "\\b(?:offre|annonce|page|poste)\\b[^.\\n]{0,20}\\bn['’]existe plus\\b",
+    "\\b(?:offre|annonce|page) introuvable\\b",
+    "\\bno longer (?:available|accepting applications|open)\\b",
+    "\\b(?:job|position|posting|listing|offer|vacancy|opening)\\s+(?:(?:has|is|was)\\s+)?(?:expired|been\\s+(?:filled|removed|closed|deleted)|filled|closed|unavailable)\\b",
   ].join("|"),
-  "i"
+  "iu"
 );
+
+/** La phrase qui annonce que l'offre n'existe plus (la première, dans le début de la page), sinon null. Un pied de page ne compte pas. */
+export function goneNotice(text: string): string | null {
+  const m = GONE_RE.exec(text.slice(0, 1000));
+  return m ? m[0].replace(/\s+/g, " ").trim().slice(0, 90) : null;
+}
 
 /** Le texte lu annonce-t-il que l'offre n'existe plus ? On ne regarde que le début de la page : un pied de page ne compte pas. */
 export function looksGone(text: string): boolean {
-  return GONE_RE.test(text.slice(0, 1000));
+  return goneNotice(text) !== null;
 }
 
 export type OfferRead = {
@@ -26,6 +37,8 @@ export type OfferRead = {
   text: string | null;
   /** L'annonce n'existe plus (page supprimée, ou le site le dit). Faux = en ligne OU impossible à savoir. */
   gone: boolean;
+  /** Quand `gone` : la preuve, en une phrase (« le site répond « page introuvable » (404) », « la page dit « … » »), pour que la personne la juge. */
+  why?: string;
 };
 
 type Getter = (url: string, opts: { headers: Record<string, string>; timeoutMs: number }) => Promise<{ status: number; body: string }>;
@@ -37,7 +50,7 @@ type Getter = (url: string, opts: { headers: Record<string, string>; timeoutMs: 
  * `text` vaut null et `gone` reste faux (on ne devine pas) ; l'app demande alors de coller le texte de l'offre.
  * La lecture passe par safeGet : jamais d'adresse interne, redirections contrôlées, taille limitée.
  */
-export async function readOffer(url: string, get: Getter = safeGet, now = Date.now()): Promise<OfferRead> {
+export async function readOffer(url: string, get: Getter = safeGet): Promise<OfferRead> {
   // Un lien de connexion automatique n'est jamais ouvert par l'app : ce serait se connecter au compte de la personne (et brûler le jeton)
   if (isSignInLink(url)) return { text: null, gone: false };
   try {
@@ -49,22 +62,21 @@ export async function readOffer(url: string, get: Getter = safeGet, now = Date.n
       timeoutMs: 12_000,
     });
     // 404 / 410 : la page n'existe plus. Les autres refus (403, 429, 999…) sont des blocages de robot : on ne conclut rien.
-    if (res.status === 404 || res.status === 410) return { text: null, gone: true };
+    if (res.status === 404) return { text: null, gone: true, why: "le site répond « page introuvable » (404)" };
+    if (res.status === 410) return { text: null, gone: true, why: "le site répond « annonce supprimée » (410)" };
     if (res.status < 200 || res.status >= 300) return { text: null, gone: false };
     const html = res.body;
     const $ = cheerio.load(html);
 
     // Données structurées JobPosting (schema.org) si présentes : la source la plus propre
     let ld = "";
-    let expired = false;
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
         const json = JSON.parse($(el).text());
         const items = Array.isArray(json) ? json : json["@graph"] ?? [json];
         for (const it of items) {
           if (it?.["@type"] === "JobPosting") {
-            const until = Date.parse(String(it.validThrough ?? ""));
-            if (!Number.isNaN(until) && until < now - 864e5) expired = true; // date limite dépassée de plus d'un jour
+            // `validThrough` (date limite) n'est PAS une preuve : beaucoup de sites la laissent dépassée sur une annonce toujours en ligne
             const desc = cheerio.load(String(it.description ?? "")).text();
             ld += `${it.title ?? ""}\nEntreprise : ${it.hiringOrganization?.name ?? ""}\nLieu : ${
               it.jobLocation?.address?.addressLocality ?? it.jobLocation?.[0]?.address?.addressLocality ?? ""
@@ -79,8 +91,8 @@ export async function readOffer(url: string, get: Getter = safeGet, now = Date.n
     const text = main.replace(/\s+\n/g, "\n").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 
     // Une page « offre expirée » est courte : on la reconnaît avant de la jeter comme illisible
-    const gone = expired || looksGone(`${$("title").text()}\n${text}`);
-    if (gone) return { text: null, gone: true };
+    const notice = goneNotice(`${$("title").text()}\n${text}`);
+    if (notice) return { text: null, gone: true, why: `la page dit « ${notice} »` };
 
     if (ld.trim().length > 200) return { text: ld, gone: false };
     if (text.length < 300 || /sign in|se connecter|captcha|access denied/i.test(text.slice(0, 400))) return { text: null, gone: false };
@@ -107,8 +119,8 @@ export async function fetchOfferText(url: string): Promise<string | null> {
 }
 
 /** Message affiché quand on découvre qu'une annonce n'existe plus (`classed` : elle vient d'être rangée dans les Écartées). */
-export const goneMessage = (classed: boolean) =>
-  `Cette offre n'est plus disponible : l'annonce a été retirée ou a expiré.${classed ? " Je l'ai classée dans les Écartées (« Offre plus disponible »)." : ""} Si elle est en fait toujours en ligne, colle son texte et je l'analyse.`;
+export const goneMessage = (classed: boolean, why?: string) =>
+  `Cette offre n'est plus disponible : l'annonce a été retirée ou a expiré${why ? ` (${why})` : ""}.${classed ? " Je l'ai classée dans les Écartées (« Offre plus disponible »)." : ""} Si elle est en fait toujours en ligne, colle son texte et je l'analyse.`;
 
 /** Sites qui refusent la lecture automatique de leurs annonces : on le dit par leur nom plutôt que par un message générique. */
 export const BLOCKING_SITES = ["LinkedIn", "Indeed", "Glassdoor"];

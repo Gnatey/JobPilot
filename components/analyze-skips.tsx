@@ -6,11 +6,12 @@ import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 import { OfferRowDelete } from "@/components/offer-row-delete";
 import { GONE_REASON, bulkMessage, firstOf, groupBySite, groupSkips, linkOf, pasteHref, selectedSkips, siteAdvice, type Skip } from "@/lib/analyze-skips";
+import { syncSkips, type LineState } from "@/lib/skip-sync";
 
 type Check = { on: boolean; set: (on: boolean) => void };
 
 /** Une ligne du bilan : le poste, un lien pour ouvrir l'annonce et vérifier, la corbeille. */
-function Row({ s, onRemoved, check, paste }: { s: Skip; onRemoved: (ids: string[]) => void; check?: Check; paste?: boolean }) {
+function Row({ s, onRemoved, check, paste }: { s: Skip; onRemoved: (ids: string[]) => void; check?: Check; paste?: "paste" | "view" }) {
   const link = linkOf(s.url);
   return (
     <li className="flex items-center gap-2 py-1">
@@ -20,15 +21,19 @@ function Row({ s, onRemoved, check, paste }: { s: Skip; onRemoved: (ids: string[
           aria-label={`Inclure dans la suppression : ${s.title}`}
         />
       )}
-      <span className="min-w-0 flex-1 break-words text-ink">{s.title}</span>
+      <span className="min-w-0 flex-1 break-words text-ink">
+        {s.title}
+        {s.why && <span className="block text-xs text-muted">Preuve : {s.why}</span>}
+      </span>
       {link ? (
         <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm shrink-0" aria-label={`Ouvrir l'annonce : ${s.title}`} title="Ouvrir l'annonce">
           <ExternalLink size={16} aria-hidden /> <span className="hidden sm:inline">Annonce</span>
         </a>
       ) : <span className="shrink-0 text-xs text-muted">pas de lien</span>}
       {paste && (
-        <a href={pasteHref(s.appId, s.url)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm shrink-0" aria-label={`Coller le texte de l'annonce : ${s.title}`} title="Coller le texte de l'annonce">
-          <ClipboardPaste size={16} aria-hidden /> <span className="hidden sm:inline">Coller le texte</span>
+        <a href={pasteHref(s.appId, s.url)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm shrink-0"
+          aria-label={`${paste === "view" ? "Voir le texte collé" : "Coller le texte de l'annonce"} : ${s.title}`} title={paste === "view" ? "Voir le texte collé" : "Coller le texte de l'annonce"}>
+          <ClipboardPaste size={16} aria-hidden /> <span className="hidden sm:inline">{paste === "view" ? "Voir le texte" : "Coller le texte"}</span>
         </a>
       )}
       <OfferRowDelete kind="app" id={s.appId} label={s.title} fixedReason={s.kind === "gone" ? GONE_REASON : undefined} onDeleted={() => onRemoved([s.appId])} />
@@ -41,11 +46,19 @@ function Row({ s, onRemoved, check, paste }: { s: Skip; onRemoved: (ids: string[
  * l'annonce pour vérifier. Les annonces plus disponibles sont cochées d'office : on ouvre les liens, on décoche celles qu'on veut garder,
  * puis « Supprimer » les retire d'un coup d'Offres & CV et de Suivi (jamais une ligne envoyée : le serveur refuse). La raison notée est
  * « Offre plus disponible », neutre pour le tri.
+ * Le bilan est un instantané, mais « Coller le texte » s'ouvre dans un autre onglet : à l'affichage, puis à chaque retour sur cet onglet, il demande
+ * l'état actuel des lignes (lib/skip-sync.ts). Une ligne analysée depuis, supprimée ou passée dans Suivi en sort ; une ligne qui porte maintenant un
+ * texte collé quitte « illisibles » et « disparues » pour « Texte déjà collé, prêtes à analyser » (jamais cochée pour suppression).
+ * `onAnalyze` : lance l'analyse de ces lignes-là (même file, mêmes arrêts que « Tout analyser »).
  */
-export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (ids: string[]) => void }) {
+export function SkipReport({ skips, onRemoved, onAnalyze }: { skips: Skip[]; onRemoved: (ids: string[]) => void; onAnalyze?: (ids: string[]) => void }) {
   const router = useRouter();
   const { toast } = useFeedback();
-  const g = groupSkips(skips);
+  const [kept, setKept] = useState<Set<string>>(new Set()); // lignes qui portent un texte collé
+  const live = useRef({ skips, onRemoved });
+  live.current = { skips, onRemoved };
+  const shown = skips.map((s): Skip => (kept.has(s.appId) ? { ...s, kind: "kept" } : s));
+  const g = groupSkips(shown);
   const [keep, setKeep] = useState<Set<string>>(new Set()); // décochées : à garder
   const [more, setMore] = useState<{ failed: boolean; sites: Record<string, boolean> }>({ failed: false, sites: {} });
   const [open, setOpen] = useState(false);
@@ -58,6 +71,36 @@ export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (id
     const el = dlg.current;
     if (open && el && !el.open) el.showModal();
   }, [open]);
+
+  // Mise à jour d'après l'état réel des lignes : à l'affichage, puis au retour sur l'onglet (jamais plus d'une fois toutes les 1,5 s)
+  useEffect(() => {
+    let off = false;
+    let running = false;
+    let last = 0;
+    async function sync() {
+      if (running || off || Date.now() - last < 1500 || !live.current.skips.length) return;
+      running = true;
+      try {
+        const r = await syncSkips(live.current.skips, async (ids) => {
+          const res = await fetch("/api/offers/lines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ app_ids: ids }) }).catch(() => null);
+          if (!res?.ok) return null; // lecture ratée : on ne retire rien
+          const j = (await res.json().catch(() => null)) as { lines?: LineState[] } | null;
+          return Array.isArray(j?.lines) ? j.lines : null;
+        });
+        if (off) return;
+        setKept(new Set(r.kept));
+        if (r.drop.length) { live.current.onRemoved(r.drop); refreshBadges(); router.refresh(); }
+      } finally {
+        running = false;
+        last = Date.now();
+      }
+    }
+    void sync();
+    const back = () => { if (document.visibilityState === "visible") void sync(); };
+    document.addEventListener("visibilitychange", back);
+    window.addEventListener("focus", back);
+    return () => { off = true; document.removeEventListener("visibilitychange", back); window.removeEventListener("focus", back); };
+  }, [router]);
 
   function close() {
     if (busy) return;
@@ -95,6 +138,20 @@ export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (id
 
   return (
     <div className="mt-3 space-y-4">
+      {g.kept.length > 0 && (
+        <section aria-label="Texte déjà collé, prêtes à analyser">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="min-w-0 flex-1 basis-60 font-semibold text-ink">Texte déjà collé : prêtes à analyser ({g.kept.length})</h3>
+            {onAnalyze && (
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => onAnalyze(g.kept.map((s) => s.appId))}>
+                Analyser {g.kept.length > 1 ? `ces ${g.kept.length} lignes` : "cette ligne"}
+              </button>
+            )}
+          </div>
+          <p className="text-muted">Le texte de ces annonces est déjà sur la ligne : elles ne sont plus illisibles. L'analyse le lit sans rouvrir le site (2 actions IA chacune).</p>
+          <ul className="mt-1 divide-y divide-line">{g.kept.map((s) => <Row key={s.appId} s={s} onRemoved={onRemoved} paste="view" />)}</ul>
+        </section>
+      )}
       {g.gone.length > 0 && (
         <section aria-label="Annonces plus disponibles">
           <div className="flex flex-wrap items-center gap-2">
@@ -115,7 +172,7 @@ export function SkipReport({ skips, onRemoved }: { skips: Skip[]; onRemoved: (id
           <section key={site} aria-label={`Annonces illisibles : ${site}`}>
             <h3 className="font-semibold text-ink">Annonces illisibles : {site} ({items.length})</h3>
             <p className="text-muted">{siteAdvice(site)}</p>
-            <ul className="mt-1 divide-y divide-line">{v.shown.map((s) => <Row key={s.appId} s={s} onRemoved={onRemoved} paste />)}</ul>
+            <ul className="mt-1 divide-y divide-line">{v.shown.map((s) => <Row key={s.appId} s={s} onRemoved={onRemoved} paste="paste" />)}</ul>
             {v.hidden > 0 && <button type="button" className="btn btn-ghost btn-sm mt-1" onClick={() => setMore((m) => ({ ...m, sites: { ...m.sites, [site]: true } }))}>Voir les {v.hidden} autres</button>}
           </section>
         );

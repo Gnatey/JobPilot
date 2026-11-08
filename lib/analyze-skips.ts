@@ -4,9 +4,10 @@
  * l'écran est components/analyze-skips.tsx.
  */
 
-export type SkipKind = "gone" | "unreadable" | "failed";
+/** `kept` : la ligne porte maintenant un texte collé (découvert à la mise à jour du bilan, lib/skip-sync.ts) : elle n'est plus illisible, elle est prête à analyser. */
+export type SkipKind = "gone" | "unreadable" | "failed" | "kept";
 /** `site` : le site de l'annonce d'après son adresse (« Indeed », « HelloWork »…), pour ranger les lignes illisibles par site. */
-export type Skip = { appId: string; title: string; url: string | null; kind: SkipKind; site: string };
+export type Skip = { appId: string; title: string; url: string | null; kind: SkipKind; site: string; /** Annonce disparue : la preuve, en une phrase. */ why?: string };
 
 /** Raison notée quand on supprime une annonce disparue : la même que « Offre plus disponible » dans la liste des raisons (neutre : ne dit rien de tes goûts). */
 export const GONE_REASON = "expiree";
@@ -18,6 +19,7 @@ export const SKIP_WHY: Record<SkipKind, string> = {
   gone: "annonce plus disponible",
   unreadable: "annonce illisible : ouvre sa fiche et colle le texte",
   failed: "n'a pas pu être analysée, à relancer",
+  kept: "texte déjà collé, prête à analyser",
 };
 
 /** Adresse à ouvrir : http(s) seulement (jamais javascript: ni data:), sinon null. */
@@ -32,7 +34,10 @@ export function linkOf(raw: string | null | undefined): string | null {
 }
 
 export function groupSkips(skips: Skip[]): Record<SkipKind, Skip[]> {
-  return { gone: skips.filter((s) => s.kind === "gone"), unreadable: skips.filter((s) => s.kind === "unreadable"), failed: skips.filter((s) => s.kind === "failed") };
+  return {
+    gone: skips.filter((s) => s.kind === "gone"), unreadable: skips.filter((s) => s.kind === "unreadable"),
+    failed: skips.filter((s) => s.kind === "failed"), kept: skips.filter((s) => s.kind === "kept"),
+  };
 }
 
 /** Les lignes rangées par site, le site le plus fourni d'abord (puis par ordre alphabétique). */

@@ -29,7 +29,8 @@ export function chunk<T>(list: T[], n: number): T[][] {
   return out;
 }
 
-export type CheckResult = { id: string; verdict: Verdict; site: string };
+/** `why` : pour une annonce « disparue », la preuve en une phrase (« le site répond « page introuvable » (404) »…), affichée dans le bilan pour que la personne la juge. */
+export type CheckResult = { id: string; verdict: Verdict; site: string; why?: string };
 export type CheckTally = Record<Verdict, number>;
 
 export const tally = (results: Pick<CheckResult, "verdict">[]): CheckTally => {

@@ -11,7 +11,7 @@ import { runChecks } from "@/lib/check-run";
 
 /** Une offre « À trier » à vérifier : de quoi lire son lien et l'afficher dans le bilan. */
 export type CheckReco = { id: string; title: string | null; company: string | null; url: string | null };
-type Gone = { id: string; title: string; company: string; url: string | null };
+type Gone = { id: string; title: string; company: string; url: string | null; why?: string };
 type Run = { total: number; done: number; results: CheckResult[]; gone: Gone[]; stopped: string | null; finished: boolean };
 
 /**
@@ -43,7 +43,7 @@ export function CheckRecos({ recos, onRejected, onRestored }: { recos: CheckReco
     });
     const gone: Gone[] = goneIds(results).map((id) => {
       const r = byId.get(id);
-      return { id, title: r?.title || "Offre", company: r?.company || "", url: r?.url ?? null };
+      return { id, title: r?.title || "Offre", company: r?.company || "", url: r?.url ?? null, why: results.find((x) => x.id === id)?.why };
     });
     setBusy(false);
     setRun({ total: ids.length, done: results.length, results, gone, stopped, finished: true });
@@ -100,7 +100,7 @@ export function CheckRecos({ recos, onRejected, onRestored }: { recos: CheckReco
                       return (
                         <li key={g.id} className="flex items-start gap-3 py-2">
                           <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-marigold)]" checked={!unchecked.has(g.id)} onChange={() => toggle(g.id)} aria-label={`Écarter : ${g.title}`} />
-                          <p className="min-w-0 flex-1"><span className="font-semibold">{g.title}</span>{g.company && <span className="text-muted">, {g.company}</span>}</p>
+                          <p className="min-w-0 flex-1"><span className="font-semibold">{g.title}</span>{g.company && <span className="text-muted">, {g.company}</span>}{g.why && <span className="block text-xs text-muted">Preuve : {g.why}</span>}</p>
                           {href && <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-ghost hit"><ExternalLink size={16} /> Annonce</a>}
                         </li>
                       );

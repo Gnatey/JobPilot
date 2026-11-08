@@ -22,6 +22,8 @@ export type ListItem = {
   at: string;
   /** Nombre de CV générés pour l'offre. */
   cv: number;
+  /** Ligne « À analyser » qui porte déjà le texte de l'annonce (collé ou gardé) : elle n'est plus « illisible », l'analyse le lira. */
+  hasText?: boolean;
 };
 
 export const FILTERS = [

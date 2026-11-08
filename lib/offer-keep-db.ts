@@ -52,6 +52,25 @@ async function storeText(supabase: SupabaseClient, user: User, appId: string, te
   return old ? "replaced" : "added";
 }
 
+/**
+ * Range le texte COLLÉ pour une analyse SUR la ligne, avant de dépenser de l'IA : si l'analyse échoue ensuite (IA saturée, limite du jour atteinte), le texte
+ * reste sur la ligne au lieu d'être perdu (« le texte reste là, il ne va pas aller autre part »). Ne lève JAMAIS d'erreur et ne bloque rien : texte trop
+ * court, ligne introuvable, déjà analysée ou déjà envoyée, table absente (base pas encore à jour) → rien n'est rangé et on le dit par `false`. Renvoie
+ * `true` quand le texte est bien sur la ligne.
+ */
+export async function rememberLineText(supabase: SupabaseClient, user: User, appId: string, text: string): Promise<boolean> {
+  try {
+    if (text.trim().length < MIN_TEXT) return false;
+    const { data } = await supabase.from("applications").select(LINE_COLS).eq("id", appId).maybeSingle();
+    const line = data as LineRow | null;
+    if (!line || line.offer_id || !loose(line)) return false;
+    const state = await storeText(supabase, user, appId, text.trim());
+    return state === "added" || state === "replaced" || state === "same";
+  } catch {
+    return false;
+  }
+}
+
 /** « Garder » depuis une ligne d'Offres & CV ouverte (`?app=…`) : le texte va sur CETTE ligne, quelle que soit l'adresse. */
 export async function keepOnLine(supabase: SupabaseClient, user: User, appId: string, text: string): Promise<KeepResult> {
   const { data } = await supabase.from("applications").select(LINE_COLS).eq("id", appId).maybeSingle();

@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
-import { buildQueue } from "@/lib/analyze-queue";
+import { buildQueue, noSourceLine } from "@/lib/analyze-queue";
 import { AI_COST, dailyBudget, isOwner, usedToday } from "@/lib/quota";
 import { fetchAll } from "@/lib/paged";
 
@@ -26,7 +26,8 @@ export async function GET() {
     const { items, skipped, blocked } = buildQueue((apps ?? []).map((a) => ({ ...a, has_text: withText.has(a.id as string) })), recos ?? []);
     const cap = isOwner(user.email) ? null : dailyBudget();
     const possible = cap == null || used == null ? null : Math.max(0, Math.floor((cap - used) / AI_COST.offer));
-    // `skippedIds` : pour « Analyser la sélection », qui ne compte que les lignes cochées
-    return { items, skipped: skipped.length, skippedIds: skipped.map((s) => s.id), blocked, budget: { cap, used, possible } };
+    // `skippedIds` : pour « Analyser la sélection », qui ne compte que les lignes cochées ; `skippedLines` : les mêmes lignes sans lien ni texte, pour les LISTER dans le bilan
+    // (avant, seul leur nombre s'affichait : on ne savait pas lesquelles ouvrir)
+    return { items, skipped: skipped.length, skippedIds: skipped.map((s) => s.id), skippedLines: skipped.map(noSourceLine), blocked, budget: { cap, used, possible } };
   });
 }

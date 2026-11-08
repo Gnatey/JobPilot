@@ -9,7 +9,7 @@ import { removeSkips, skipKind, type Skip } from "@/lib/analyze-skips";
 import { restrictQueue } from "@/lib/selection";
 import type { QueueBlocked, QueueItem } from "@/lib/analyze-queue";
 
-type Run = { total: number; done: number; ok: number; estimated: number; current: string; skipped: Skip[]; stopped: string | null; finished: boolean; possible: number | null; noSource: number };
+type Run = { total: number; done: number; ok: number; estimated: number; current: string; skipped: Skip[]; stopped: string | null; finished: boolean; possible: number | null };
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,25 +37,25 @@ export function AnalyzeAll({ count, ref, locked = false, onBusy }: { count: numb
     cancel.current = false;
     setBusy(true);
     onBusy?.(true);
-    setRun({ total: 0, done: 0, ok: 0, estimated: 0, current: "Je prépare la liste…", skipped: [], stopped: null, finished: false, possible: null, noSource: 0 });
+    setRun({ total: 0, done: 0, ok: 0, estimated: 0, current: "Je prépare la liste…", skipped: [], stopped: null, finished: false, possible: null });
     const q = await fetch("/api/offers/queue").then((r) => r.json()).catch(() => null);
     if (!q || q.error) {
       setBusy(false); setRun(null); onBusy?.(false);
       return toast(q?.error ?? "Connexion interrompue, réessaie.", { tone: "err" });
     }
-    const cut = restrictQueue({ items: q.items as QueueItem[], blocked: (q.blocked ?? []) as QueueBlocked[], skippedIds: (q.skippedIds ?? []) as string[], skipped: Number(q.skipped) || 0 }, only);
+    const cut = restrictQueue({ items: q.items as QueueItem[], blocked: (q.blocked ?? []) as QueueBlocked[], skippedIds: (q.skippedIds ?? []) as string[], skipped: Number(q.skipped) || 0, skippedLines: (q.skippedLines ?? []) as QueueBlocked[] }, only);
     const items = cut.items;
-    const noSource = cut.noSource; // lignes sans lien ni texte : jamais analysables d'ici
     const possible = (q.budget?.possible ?? null) as number | null;
-    // Lignes d'un site qui refuse la lecture (Indeed), sans texte ni extrait : jamais tentées, listées d'office dans le bilan
-    const blocked: Skip[] = cut.blocked.map((b) => ({ appId: b.app_id, title: `${b.title}${b.company ? `, ${b.company}` : ""}`, url: b.url, kind: "unreadable", site: b.site }));
+    // Lignes jamais tentées, listées d'office dans le bilan : celles d'un site qui refuse la lecture (Indeed) sans texte ni extrait, et celles sans lien ni texte
+    // (« Sans lien » : il n'y a rien à lire, il faut coller l'annonce)
+    const blocked: Skip[] = [...cut.blocked, ...cut.noSourceLines].map((b) => ({ appId: b.app_id, title: `${b.title}${b.company ? `, ${b.company}` : ""}`, url: b.url, kind: "unreadable", site: b.site }));
     if (!items.length && !blocked.length) {
       setBusy(false); setRun(null); onBusy?.(false);
-      return toast(noSource ? "Ces lignes n'ont ni lien ni texte : ouvre-les une à une pour coller l'annonce." : "Rien à analyser.", { tone: "info" });
+      return toast(cut.noSource ? "Ces lignes n'ont ni lien ni texte : ouvre-les une à une pour coller l'annonce." : "Rien à analyser.", { tone: "info" });
     }
     if (!items.length || possible === 0) {
       setBusy(false); onBusy?.(false);
-      return setRun({ total: items.length, done: 0, ok: 0, estimated: 0, current: "", skipped: blocked, stopped: items.length ? "Tu as déjà utilisé toutes tes actions IA d'aujourd'hui. Elles repartent de zéro cette nuit : reviens demain." : null, finished: true, possible, noSource });
+      return setRun({ total: items.length, done: 0, ok: 0, estimated: 0, current: "", skipped: blocked, stopped: items.length ? "Tu as déjà utilisé toutes tes actions IA d'aujourd'hui. Elles repartent de zéro cette nuit : reviens demain." : null, finished: true, possible });
     }
 
     let ok = 0, estimated = 0, fails = 0;
@@ -88,7 +88,7 @@ export function AnalyzeAll({ count, ref, locked = false, onBusy }: { count: numb
     }
     setBusy(false);
     onBusy?.(false);
-    setRun({ total: items.length, done: ok + skipped.length - blocked.length, ok, estimated, current: "", skipped, stopped, finished: true, possible, noSource });
+    setRun({ total: items.length, done: ok + skipped.length - blocked.length, ok, estimated, current: "", skipped, stopped, finished: true, possible });
     refreshBadges();
     router.refresh();
   }
@@ -120,10 +120,9 @@ export function AnalyzeAll({ count, ref, locked = false, onBusy }: { count: numb
                 {run.total === 0 ? <strong>Rien à analyser automatiquement.</strong> : <strong>{run.ok} offre{run.ok > 1 ? "s" : ""} analysée{run.ok > 1 ? "s" : ""}</strong>}
                 {run.estimated > 0 && <> dont {run.estimated} avec un pourcentage <em>estimé</em> (extrait seulement)</>}.
               </p>
-              {run.noSource > 0 && <p className="mt-1 text-muted">{run.noSource} autre{run.noSource > 1 ? "s" : ""} ligne{run.noSource > 1 ? "s n'ont" : " n'a"} ni lien ni texte : ouvre-{run.noSource > 1 ? "les" : "la"} une à une pour coller l'annonce.</p>}
               {run.stopped && <p className="mt-1 text-muted">{run.stopped} Clique à nouveau sur « Tout analyser » plus tard : je reprends là où j'en suis.</p>}
               {run.skipped.length > 0 && (
-                <SkipReport skips={run.skipped} onRemoved={(ids) => setRun((r) => r && { ...r, skipped: removeSkips(r.skipped, ids) })} />
+                <SkipReport skips={run.skipped} onRemoved={(ids) => setRun((r) => r && { ...r, skipped: removeSkips(r.skipped, ids) })} onAnalyze={(ids) => { void start(ids); }} />
               )}
             </div>
           )}

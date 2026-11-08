@@ -3,7 +3,7 @@ import { handle } from "@/lib/http";
 import { rateLimit } from "@/lib/rate-limit";
 import { readOffer, detectSource } from "@/lib/fetch-offer";
 import { CHECK_BATCH, verdictOf, type CheckResult } from "@/lib/offer-check";
-import { checkable, checkTarget } from "@/lib/offer-check-read";
+import { checkable, checkTarget, goneWhy } from "@/lib/offer-check-read";
 
 export const maxDuration = 60;
 
@@ -27,7 +27,9 @@ export async function POST(req: Request) {
         const url = (r.url as string | null) ?? null;
         const site = detectSource(url);
         if (!url || !checkable(url)) return { id: r.id as string, verdict: "skipped", site };
-        return { id: r.id as string, verdict: verdictOf(await readOffer(checkTarget(url))), site };
+        const target = checkTarget(url);
+        const read = await readOffer(target);
+        return { id: r.id as string, verdict: verdictOf(read), site, ...(read.gone ? { why: goneWhy(read.why, url, target) } : {}) };
       })
     );
     return { results };

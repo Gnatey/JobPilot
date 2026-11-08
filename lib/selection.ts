@@ -30,15 +30,16 @@ export const pruneSelection = (set: ReadonlySet<string>, valid: Iterable<string>
  * File d'analyse limitée à la sélection : `only` nul = tout (« Tout analyser »). `noSource` : lignes sans lien ni texte parmi celles-ci.
  * Une ligne cochée qui n'est plus dans la file (déjà analysée, supprimée) est simplement absente : rien à signaler.
  */
-export function restrictQueue<I extends { app_id: string }, B extends { app_id: string }>(
-  q: { items: I[]; blocked: B[]; skippedIds: string[]; skipped: number },
+export function restrictQueue<I extends { app_id: string }, B extends { app_id: string }, S extends { app_id: string } = B>(
+  q: { items: I[]; blocked: B[]; skippedIds: string[]; skipped: number; skippedLines?: S[] },
   only: ReadonlySet<string> | null
-): { items: I[]; blocked: B[]; noSource: number } {
-  if (!only) return { items: q.items, blocked: q.blocked, noSource: q.skipped };
+): { items: I[]; blocked: B[]; noSource: number; noSourceLines: S[] } {
+  if (!only) return { items: q.items, blocked: q.blocked, noSource: q.skipped, noSourceLines: q.skippedLines ?? [] };
   return {
     items: q.items.filter((i) => only.has(i.app_id)),
     blocked: q.blocked.filter((b) => only.has(b.app_id)),
     noSource: q.skippedIds.filter((id) => only.has(id)).length,
+    noSourceLines: (q.skippedLines ?? []).filter((l) => only.has(l.app_id)),
   };
 }
 

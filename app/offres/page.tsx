@@ -16,7 +16,7 @@ export const metadata = { title: "Offres & CV" };
 
 export default async function Offres() {
   const { supabase } = await requireUser();
-  const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }, { data: waitingRecos }] = await Promise.all([
+  const [{ data: offers }, { data: apps }, { data: docs }, { data: loose }, { data: waitingRecos }, texts] = await Promise.all([
     // toutes les offres : avec `limit(300)`, une vieille offre « À postuler » disparaissait de cette liste dès que 300 offres plus récentes existaient
     fetchAll((a, b) => supabase.from("offers").select("id, title, company, location, url, score, decision, created_at, analysis->company_type, analysis->estimated").order("created_at", { ascending: false }).order("id").range(a, b)),
     // toutes les lignes, page après page : Supabase coupe sinon à 1 000 sans le dire
@@ -26,7 +26,10 @@ export default async function Offres() {
     fetchAll((a, b) => supabase.from("applications").select("id, title, company, location, url, created_at").eq("status", "a_postuler").is("offer_id", null).order("id").range(a, b)),
     // Offres déjà analysées mais pas encore tranchées dans Recommandées : elles y restent (avec leur score) tant que tu n'as rien décidé
     fetchAll((a, b) => supabase.from("recommendations").select("offer_id").in("status", ["new", "analyzed"]).not("offer_id", "is", null).order("id").range(a, b)),
+    // Lignes qui portent déjà un texte d'annonce collé ou gardé (leurs identifiants seulement) ; table absente (base pas encore à jour) : aucune, sans erreur
+    fetchAll((a, b) => supabase.from("application_texts").select("application_id").order("application_id").range(a, b)),
   ]);
+  const withText = new Set(texts.error ? [] : texts.data.map((t) => t.application_id as string));
   // Une offre peut avoir plusieurs lignes dans Suivi (doublons) : on retient celle qui est la plus avancée
   const byOffer = new Map<string, { status: string }[]>();
   for (const a of apps ?? []) byOffer.set(a.offer_id, [...(byOffer.get(a.offer_id) ?? []), a]);
@@ -49,7 +52,7 @@ export default async function Offres() {
       key: a.id, kind: "app", href: `/offres/nouvelle?auto=1&app=${a.id}${a.url ? `&url=${encodeURIComponent(a.url)}` : "&needtext=1"}`, ad: httpUrlOrNull(a.url), score: null, title: a.title as string, company: (a.company as string | null) ?? "",
       sub: [a.company, a.location].filter(Boolean).join(", "),
       state: statusLabel("a_postuler"),
-      meta: `À analyser, ${fmtDate(a.created_at)}`, at: a.created_at as string, cv: 0,
+      meta: `À analyser, ${fmtDate(a.created_at)}`, at: a.created_at as string, cv: 0, hasText: withText.has(a.id as string),
     })),
   ].sort((a, b) => b.at.localeCompare(a.at));
 

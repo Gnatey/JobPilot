@@ -18,6 +18,10 @@ export const NOT_READABLE_SITES: readonly string[] = ["Indeed"];
 /** Ligne mise de côté d'office : site connu pour refuser la lecture, et rien à analyser (ni texte, ni extrait). */
 export type QueueBlocked = { app_id: string; title: string; company: string; url: string | null; site: string };
 
+/** Ligne sans lien, sans texte ni extrait (`skipped`) mise sous la forme d'une ligne du bilan : site « Sans lien ». */
+export const NO_SOURCE_SITE = "Sans lien";
+export const noSourceLine = (a: QueueApp): QueueBlocked => ({ app_id: a.id, title: a.title || "Poste ?", company: a.company || "", url: null, site: NO_SOURCE_SITE });
+
 export type QueueItem = {
   app_id: string;
   reco_id: string | null;

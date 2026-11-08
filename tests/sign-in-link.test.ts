@@ -55,13 +55,16 @@ ok("vide, absent ou illisible : non", !isSignInLink(null) && !isSignInLink("") &
 ok("un lien de connexion n'est pas vérifiable (jamais ouvert)", !checkable(magic));
 {
   const tracked = "https://emails.hellowork.com/clic/abc/" + Buffer.from("https://www.hellowork.com/fr-fr/emplois/777.html?utm=1").toString("base64url");
-  ok("un lien de suivi HelloWork est ramené à l'adresse réelle de l'annonce", checkTarget(tracked) === "https://www.hellowork.com/fr-fr/emplois/777.html?utm=1" && checkTarget(tracked) === untrackUrl(tracked));
+  ok("un lien de suivi HelloWork est ramené à l'adresse réelle de l'annonce, sans paramètres de suivi", checkTarget(tracked) === "https://www.hellowork.com/fr-fr/emplois/777.html" && untrackUrl(tracked).startsWith("https://www.hellowork.com/fr-fr/emplois/777.html"));
   ok("…et reste vérifiable", checkable(tracked));
+  // Un lien de suivi qui ne mène pas à une annonce (désinscription, liste d'offres) : un « introuvable » n'y prouverait rien, on ne le lit pas
+  const other = "https://emails.hellowork.com/clic/abc/" + Buffer.from("https://www.hellowork.com/fr-fr/candidat/alertes/desinscription?id=1").toString("base64url");
+  ok("un lien de suivi qui ne mène pas à une annonce n'est pas vérifiable", !checkable(other));
   ok("une adresse ordinaire n'est pas modifiée", checkTarget("https://exemple.fr/o/1") === "https://exemple.fr/o/1");
 }
 for (const f of ["app/api/offers/check/route.ts", "app/api/recommendations/check/route.ts"]) {
   const c = src(f);
-  ok(`${f} lit l'adresse décodée (checkTarget) et non le lien de suivi`, /readOffer\(checkTarget\(url\)\)/.test(c));
+  ok(`${f} lit l'adresse décodée (checkTarget) et non le lien de suivi`, /const target = checkTarget\(url\)/.test(c) && /readOffer\(target\)/.test(c));
 }
 
 // ---------- « Déjà vue » ne dit rien des goûts ----------

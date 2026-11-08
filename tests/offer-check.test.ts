@@ -11,7 +11,7 @@ const html = (title: string, body: string) => `<html><head><title>${title}</titl
 const ad = "Nous recherchons un data analyst pour rejoindre notre équipe. Missions : construire des tableaux de bord, fiabiliser les données, accompagner les métiers. Profil : SQL, Power BI, rigueur. ".repeat(3);
 
 // ---------- Verdicts : « disparue » seulement sur preuve ----------
-ok("page 404 : disparue", verdictOf(await readOffer("https://exemple.fr/o/1", page(404))) === "gone");
+ok("page 404 : disparue, avec la preuve", verdictOf(await readOffer("https://exemple.fr/o/1", page(404))) === "gone" && /404/.test((await readOffer("https://exemple.fr/o/1", page(404))).why ?? ""));
 ok("page 410 : disparue", verdictOf(await readOffer("https://exemple.fr/o/1", page(410))) === "gone");
 ok("403 (le site bloque les robots) : inconnue, JAMAIS disparue", verdictOf(await readOffer("https://exemple.fr/o/1", page(403))) === "unknown");
 ok("429 et 999 : inconnues", verdictOf(await readOffer("https://exemple.fr/o/1", page(429))) === "unknown" && verdictOf(await readOffer("https://exemple.fr/o/1", page(999))) === "unknown");
@@ -23,7 +23,8 @@ ok("une annonce lisible : en ligne", verdictOf(await readOffer("https://exemple.
 ok("page de connexion ou page vide : inconnue (on ne devine pas)", verdictOf(await readOffer("https://exemple.fr/o/1", page(200, html("Connexion", "Sign in to continue")))) === "unknown");
 const past = new Date(Date.now() - 10 * 864e5).toISOString().slice(0, 10);
 const ld = (until: string) => `<html><head><script type="application/ld+json">${JSON.stringify({ "@type": "JobPosting", title: "Data analyst", validThrough: until, description: ad, hiringOrganization: { name: "Acme" } })}</script></head><body><main>${ad}</main></body></html>`;
-ok("date limite dépassée dans les données de l'annonce : disparue", verdictOf(await readOffer("https://exemple.fr/o/1", page(200, ld(past)))) === "gone");
+// La date limite seule n'est PLUS une preuve (7 novembre) : beaucoup de sites la laissent dépassée sur une annonce toujours en ligne, et elle faisait classer « disparues » des offres lisibles
+ok("date limite dépassée dans les données mais l'annonce se lit : en ligne (jamais disparue sur la date seule)", verdictOf(await readOffer("https://exemple.fr/o/1", page(200, ld(past)))) === "online");
 ok("date limite à venir : en ligne", verdictOf(await readOffer("https://exemple.fr/o/1", page(200, ld(new Date(Date.now() + 20 * 864e5).toISOString().slice(0, 10))))) === "online");
 
 // ---------- Quels liens lit-on ? ----------

@@ -20,7 +20,7 @@ type Run = { total: number; done: number; results: CheckResult[]; gone: Skip[]; 
  * « Tout analyser » (liens à ouvrir pour vérifier, cases à décocher, « Supprimer les N cochées »). Un site qui bloque la lecture ne prouve rien :
  * ses lignes sont comptées « impossibles à vérifier », jamais « disparues ».
  */
-export function CheckAds({ lines, ref, locked = false, onBusy }: { lines: CheckLine[]; ref?: Ref<CheckHandle>; locked?: boolean; onBusy?: (busy: boolean) => void }) {
+export function CheckAds({ lines, ref, locked = false, onBusy, onAnalyze }: { lines: CheckLine[]; ref?: Ref<CheckHandle>; locked?: boolean; onBusy?: (busy: boolean) => void; onAnalyze?: (ids: string[]) => void }) {
   const router = useRouter();
   const { toast } = useFeedback();
   const [run, setRun] = useState<Run | null>(null);
@@ -55,7 +55,7 @@ export function CheckAds({ lines, ref, locked = false, onBusy }: { lines: CheckL
     }
     const gone: Skip[] = results
       .filter((r) => r.verdict === "gone")
-      .map((r) => ({ appId: r.id, title: byId.get(r.id)?.title ?? "Annonce", url: byId.get(r.id)?.url ?? null, kind: "gone", site: r.site }));
+      .map((r) => ({ appId: r.id, title: byId.get(r.id)?.title ?? "Annonce", url: byId.get(r.id)?.url ?? null, kind: "gone", site: r.site, why: r.why }));
     // Les lignes qu'on n'a pas pu lire (site qui bloque, pas de lien, lien de connexion) : listées avec leur lien pour vérifier à la main, jamais déclarées disparues
     const unclear = unclearSkips(results, byId);
     setBusy(false);
@@ -92,7 +92,7 @@ export function CheckAds({ lines, ref, locked = false, onBusy }: { lines: CheckL
               <p><strong>{checkSummary(t, Boolean(run.stopped))}</strong></p>
               {run.stopped && <p className="mt-1 text-muted">{run.stopped}</p>}
               {run.gone.length + run.unclear.length > 0 && (
-                <SkipReport skips={[...run.gone, ...run.unclear]} onRemoved={(ids) => setRun((r) => r && { ...r, gone: removeSkips(r.gone, ids), unclear: removeSkips(r.unclear, ids) })} />
+                <SkipReport skips={[...run.gone, ...run.unclear]} onRemoved={(ids) => setRun((r) => r && { ...r, gone: removeSkips(r.gone, ids), unclear: removeSkips(r.unclear, ids) })} onAnalyze={onAnalyze} />
               )}
             </div>
           )}

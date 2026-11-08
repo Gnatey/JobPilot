@@ -6,7 +6,7 @@ import { readOfferWithReader, goneMessage, detectSource, normalizeJobUrl, unread
 import { markRecoGone } from "@/lib/offer-ops";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { recoText } from "@/lib/reco-text";
-import { readLineText } from "@/lib/offer-keep-db";
+import { readLineText, rememberLineText } from "@/lib/offer-keep-db";
 import type { OfferAnalysis } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -22,6 +22,10 @@ export async function POST(req: Request) {
     let text = (body.text?.trim() || "").slice(0, 30000);
     let extract = ""; // simple extrait de liste ou d'alerte : l'annonce n'a pas été lue en entier
     let partial = false;
+
+    // Texte collé pour une ligne « À analyser » : on le range SUR la ligne tout de suite. Si l'analyse échoue ensuite (IA saturée, limite du jour), il reste là,
+    // et la ligne n'est plus « illisible » (voir lib/skip-sync.ts)
+    const pasted = Boolean(text && body.app_id && (await rememberLineText(supabase, user, body.app_id, text)));
 
     // Texte gardé sur la ligne « À analyser » (« Garder pour plus tard ») : il passe avant tout, sans relire un site souvent bloqué
     if (!text && body.app_id) text = (await readLineText(supabase, body.app_id)).slice(0, 30000);
@@ -52,7 +56,7 @@ export async function POST(req: Request) {
       // Annonce retirée : inutile de dépenser de l'IA dessus, et on la range pour qu'elle ne revienne pas dans À trier
       if (read.gone) {
         if (body.reco_id) await markRecoGone(supabase, body.reco_id);
-        throw new HttpError(410, goneMessage(Boolean(body.reco_id)));
+        throw new HttpError(410, goneMessage(Boolean(body.reco_id), read.why));
       }
       text = read.text ?? "";
     }
@@ -64,37 +68,43 @@ export async function POST(req: Request) {
     if (!text && url) throw new HttpError(422, unreadableMessage(url));
     if (text.length < 150) throw new HttpError(400, "Le texte de l'offre est trop court : colle l'annonce complète.");
 
-    await spendAi(supabase, user, AI_COST.offer);
-    const profile = await getProfile(supabase, user);
-    const extracted = await extractOffer(text, url);
-    const analysis: OfferAnalysis = { ...(await analyzeOffer(profile, extracted)), ...(partial ? { estimated: true } : {}) };
+    try {
+      await spendAi(supabase, user, AI_COST.offer);
+      const profile = await getProfile(supabase, user);
+      const extracted = await extractOffer(text, url);
+      const analysis: OfferAnalysis = { ...(await analyzeOffer(profile, extracted)), ...(partial ? { estimated: true } : {}) };
 
-    const fields = {
-      title: extracted.title,
-      company: extracted.company,
-      location: extracted.location,
-      contract: extracted.contract,
-      raw_text: text.slice(0, 30000),
-      extracted,
-      analysis,
-      score: analysis.score,
-    };
-    let offerId: string;
-    if (upgradeId) {
-      const { error } = await supabase.from("offers").update(fields).eq("id", upgradeId);
-      if (error) throw error;
-      offerId = upgradeId;
-    } else {
-      const { data, error } = await supabase
-        .from("offers")
-        .insert({ user_id: user.id, url, source: body.source ?? detectSource(url), external_id: body.external_id ?? null, ...fields })
-        .select("id")
-        .single();
-      if (error) throw error;
-      offerId = data.id as string;
+      const fields = {
+        title: extracted.title,
+        company: extracted.company,
+        location: extracted.location,
+        contract: extracted.contract,
+        raw_text: text.slice(0, 30000),
+        extracted,
+        analysis,
+        score: analysis.score,
+      };
+      let offerId: string;
+      if (upgradeId) {
+        const { error } = await supabase.from("offers").update(fields).eq("id", upgradeId);
+        if (error) throw error;
+        offerId = upgradeId;
+      } else {
+        const { data, error } = await supabase
+          .from("offers")
+          .insert({ user_id: user.id, url, source: body.source ?? detectSource(url), external_id: body.external_id ?? null, ...fields })
+          .select("id")
+          .single();
+        if (error) throw error;
+        offerId = data.id as string;
+      }
+      await link(supabase, body, offerId, analysis.score, analysis.recommended_variant);
+      return { id: offerId, estimated: partial || undefined };
+    } catch (e) {
+      // Limite du jour, IA saturée… : le texte collé est resté sur la ligne, on le dit
+      if (pasted && e instanceof HttpError && e.status !== 401) e.message = `${e.message} Le texte que tu as collé est gardé sur la ligne : tu pourras relancer l'analyse plus tard.`;
+      throw e;
     }
-    await link(supabase, body, offerId, analysis.score, analysis.recommended_variant);
-    return { id: offerId, estimated: partial || undefined };
   });
 }
 

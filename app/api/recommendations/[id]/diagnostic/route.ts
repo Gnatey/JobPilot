@@ -32,7 +32,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       const read = await readOfferWithReader(reco.url);
       if (read.gone) {
         await markRecoGone(supabase, id);
-        throw new HttpError(410, goneMessage(true));
+        throw new HttpError(410, goneMessage(true, read.why));
       }
       text = read.text ?? "";
     }
