@@ -3,7 +3,9 @@ import type { Profile, SavedCriteria, DayList } from "./types";
 import type { SearchCriteria } from "./sources";
 import { searchAll, hasSource } from "./sources";
 import { today } from "./format";
-import { RECO_COLS, toReco, type RecoRow } from "./reco-query";
+import { toReco, type RecoRow } from "./reco-query";
+import { recoCols } from "./posted-db";
+import { recoWhen, whenMs } from "./posted";
 import { computeLearning } from "./learning";
 import { fitCheck, roleAffinity, titleMatchesRoles } from "./fit";
 import { CONTRACT_CODE, DEFAULT_DAILY_QUOTA, MAX_DAILY_QUOTA, MAX_TARGET_ROLES, normalizeZone, zoneDepartments } from "./onboarding";
@@ -78,15 +80,15 @@ type Pooled = { id: string; score: number };
 /** Offres déjà reçues qui correspondent aux critères, meilleures d'abord. Aucune IA. */
 async function pool(supabase: SupabaseClient, userId: string, profile: Profile, crit: SavedCriteria, skip: Set<string>): Promise<Pooled[]> {
   const learning = await computeLearning(supabase, userId);
-  const { data } = await supabase.from("recommendations").select(RECO_COLS).eq("user_id", userId).in("status", ["new", "analyzed"]).eq("senior", false)
+  const { data } = await supabase.from("recommendations").select(await recoCols(supabase)).eq("user_id", userId).in("status", ["new", "analyzed"]).eq("senior", false)
     .order("quick_score", { ascending: false }).limit(800);
   const oldest = Date.now() - (Number(crit.publishedWithin) + 1) * 864e5;
   const exclude = (crit.exclude ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
   const out: Pooled[] = [];
   for (const row of (data ?? []) as unknown as RecoRow[]) {
     if (skip.has(row.id)) continue;
-    const t = row.received_at ? Date.parse(row.received_at) : NaN;
-    if (!Number.isNaN(t) && t < oldest) continue;
+    const t = whenMs(recoWhen(row)); // date de publication sur le site quand on la connaît, sinon date d'arrivée ; sans date : on garde
+    if (Number.isFinite(t) && t < oldest) continue;
     const r = toReco(row, profile, learning, true);
     if (r.senior) continue;
     const blob = `${row.title ?? ""} ${row.snippet ?? ""}`.toLowerCase();

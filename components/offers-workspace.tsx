@@ -13,7 +13,7 @@ import { checkedLabel, pruneSelection, setMany, toggleId } from "@/lib/selection
  * On coche des lignes « À analyser » dans la liste, et une barre collée en bas propose « Analyser la sélection » (2 actions IA par offre) ou
  * « Vérifier les liens » (sans IA). Seul le choix des lignes change : la file, les arrêts et le bilan sont ceux de « Tout analyser ».
  */
-export function OffersWorkspace({ items, lines }: { items: ListItem[]; lines: CheckLine[] }) {
+export function OffersWorkspace({ items, lines, offerLines = [] }: { items: ListItem[]; lines: CheckLine[]; offerLines?: CheckLine[] }) {
   const analyze = useRef<AnalyzeHandle>(null);
   const check = useRef<CheckHandle>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -25,16 +25,16 @@ export function OffersWorkspace({ items, lines }: { items: ListItem[]; lines: Ch
     toggle: (id) => setPicked((s) => toggleId(s, id)),
     setMany: (list, on) => setPicked((s) => setMany(s, list, on)),
   };
+  // « Vérifier les annonces » porte sur les lignes « À analyser » ET sur les offres déjà analysées (une annonce peut disparaître après son analyse)
+  const checkLines = useMemo(() => [...lines, ...offerLines], [lines, offerLines]);
   const dupItems = useMemo(() => items.map((it) => ({ ...it, company: it.company ?? "" })), [items]);
   const scrollUp = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   return (
     <>
-      {lines.length > 0 && (
-        <>
-          <AnalyzeAll count={lines.length} ref={analyze} locked={running === "check"} onBusy={(b) => setRunning(b ? "analyze" : null)} />
-          <CheckAds lines={lines} ref={check} locked={running === "analyze"} onBusy={(b) => setRunning(b ? "check" : null)} onAnalyze={(ids) => { scrollUp(); analyze.current?.start(ids); }} />
-        </>
+      {lines.length > 0 && <AnalyzeAll count={lines.length} ref={analyze} locked={running === "check"} onBusy={(b) => setRunning(b ? "analyze" : null)} />}
+      {checkLines.length > 0 && (
+        <CheckAds lines={checkLines} ref={check} locked={running === "analyze"} onBusy={(b) => setRunning(b ? "check" : null)} onAnalyze={(ids) => { scrollUp(); analyze.current?.start(ids); }} />
       )}
       <OfferDups items={dupItems} />
       <OffersList items={items} selection={lines.length > 0 ? selection : undefined} />

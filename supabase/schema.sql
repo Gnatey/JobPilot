@@ -315,3 +315,9 @@ create table if not exists application_texts (
 alter table application_texts enable row level security;
 drop policy if exists "own rows" on application_texts;
 create policy "own rows" on application_texts for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ===== Date de publication des annonces (mise à jour 7) =====
+-- La date à laquelle l'annonce a été publiée SUR LE SITE d'emploi (et non celle de son arrivée dans JobPilot), quand le site la donne :
+-- elle permet de trier « les plus récentes » ou « les plus anciennes » selon l'âge réel de l'annonce. Colonne additive, vide par défaut.
+-- Tant que ce bloc n'est pas lancé, tout fonctionne comme avant (le tri se fait sur la date d'arrivée).
+alter table recommendations add column if not exists posted_at timestamptz;

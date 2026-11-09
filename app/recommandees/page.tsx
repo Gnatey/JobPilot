@@ -3,7 +3,8 @@ import { getProfile } from "@/lib/profile";
 import { computeLearning } from "@/lib/learning";
 import { ensureFit } from "@/lib/fit-stock";
 import { archiveOld } from "@/lib/reco-age-db";
-import { RECO_COLS, toReco, olderThanLoaded, type RecoRow } from "@/lib/reco-query";
+import { toReco, olderThanLoaded, type RecoRow } from "@/lib/reco-query";
+import { recoCols } from "@/lib/posted-db";
 import { PageTitle } from "@/components/ui/page-title";
 import { SyncButton } from "@/components/sync-button";
 import { RecoList } from "@/components/reco-list";
@@ -13,7 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function Recommandees() {
   const { supabase, user } = await requireUser();
-  const sel = () => supabase.from("recommendations").select(RECO_COLS);
+  const cols = await recoCols(supabase); // avec la date de publication quand la base est à jour (mise à jour 7)
+  const sel = () => supabase.from("recommendations").select(cols);
   const profile = await getProfile(supabase, user);
   await ensureFit(supabase, user.id, profile).catch(() => null); // profil ou recherche modifiés : les offres déjà reçues sont revues une fois
   await archiveOld(supabase, user.id); // offres non décidées depuis plus de 3 semaines : rangées dans Masquées (« Garder dans ma liste » les remet)

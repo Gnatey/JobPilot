@@ -1,7 +1,8 @@
 import { requireUser } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { computeLearning } from "@/lib/learning";
-import { RECO_COLS, toReco, type RecoRow } from "@/lib/reco-query";
+import { toReco, type RecoRow } from "@/lib/reco-query";
+import { recoCols } from "@/lib/posted-db";
 import { ensureFit } from "@/lib/fit-stock";
 import { archiveOld } from "@/lib/reco-age-db";
 import { today } from "@/lib/format";
@@ -20,10 +21,11 @@ export default async function Tri({ searchParams }: { searchParams: Promise<{ jo
   await ensureFit(supabase, user.id, profile).catch(() => null);
   await archiveOld(supabase, user.id);
   const learning = await computeLearning(supabase, user.id);
+  const cols = await recoCols(supabase);
 
   const day = jour && profile.preferences.day?.date === today() ? profile.preferences.day : null;
   if (day) {
-    const { data } = await supabase.from("recommendations").select(RECO_COLS).in("id", day.ids.slice(0, 300));
+    const { data } = await supabase.from("recommendations").select(cols).in("id", day.ids.slice(0, 300));
     const rows = (data ?? []) as unknown as RecoRow[];
     const order = new Map(day.ids.map((id, i) => [id, i]));
     const todo = rows.filter((r) => r.status === "new" || r.status === "analyzed").sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
@@ -31,7 +33,7 @@ export default async function Tri({ searchParams }: { searchParams: Promise<{ jo
     return <TriageDeck initial={recos} day={{ total: day.ids.length, accepted: rows.filter((r) => r.status === "accepted").length, quota: profile.preferences.daily_quota ?? DEFAULT_DAILY_QUOTA }} />;
   }
 
-  const { data } = await supabase.from("recommendations").select(RECO_COLS).in("status", ["new", "analyzed"]).eq("senior", false).order("received_at", { ascending: false }).limit(80);
-  const recos = sortRecos(((data ?? []) as unknown as RecoRow[]).map((r) => toReco(r, profile, learning, true)), "date"); // les plus récentes d'abord (le pré-score ne sépare presque rien)
+  const { data } = await supabase.from("recommendations").select(cols).in("status", ["new", "analyzed"]).eq("senior", false).order("received_at", { ascending: false }).limit(80);
+  const recos = sortRecos(((data ?? []) as unknown as RecoRow[]).map((r) => toReco(r, profile, learning, true)), "date"); // les plus récemment publiées d'abord (date du site quand on la connaît, sinon date d'arrivée ; le pré-score ne sépare presque rien)
   return <TriageDeck initial={recos} />;
 }

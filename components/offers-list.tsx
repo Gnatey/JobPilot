@@ -6,7 +6,7 @@ import { ExternalLink, Search, X } from "lucide-react";
 import { ScorePill } from "@/components/ui/score";
 import { Empty } from "@/components/ui/page-title";
 import { OfferRowDelete } from "@/components/offer-row-delete";
-import { PAGE_SIZE, TOOLS_FROM, filterCounts, nextBatch, selectItems, visibleFilters, type FilterId, type ListItem } from "@/lib/offers-filter";
+import { ITEM_SORTS, PAGE_SIZE, TOOLS_FROM, filterCounts, nextBatch, selectItems, sortItems, visibleFilters, type FilterId, type ItemSort, type ListItem } from "@/lib/offers-filter";
 
 /** Sélection des lignes « À analyser » (cases à cocher). Sans elle, la liste est en lecture seule comme avant. */
 export type Selection = { ids: ReadonlySet<string>; toggle: (id: string) => void; setMany: (ids: string[], on: boolean) => void };
@@ -16,8 +16,9 @@ export function OffersList({ items, selection }: { items: ListItem[]; selection?
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterId>("all");
   const [shown, setShown] = useState(PAGE_SIZE);
+  const [sort, setSort] = useState<ItemSort>("date"); // récentes d'abord : date de publication sur le site quand on la connaît
   const counts = useMemo(() => filterCounts(items), [items]);
-  const rows = useMemo(() => selectItems(items, q, filter), [items, q, filter]);
+  const rows = useMemo(() => sortItems(selectItems(items, q, filter), sort), [items, q, filter, sort]);
   const filters = visibleFilters(counts, filter);
   const tools = items.length >= TOOLS_FROM;
   const active = q.trim() !== "" || filter !== "all";
@@ -30,6 +31,7 @@ export function OffersList({ items, selection }: { items: ListItem[]; selection?
   // Une nouvelle recherche ou un autre filtre repart des 30 premières lignes
   const search = (v: string) => { setQ(v); setShown(PAGE_SIZE); };
   const pick = (f: FilterId) => { setFilter(f); setShown(PAGE_SIZE); };
+  const order = (v: ItemSort) => { setSort(v); setShown(PAGE_SIZE); };
   const reset = () => { setQ(""); setFilter("all"); setShown(PAGE_SIZE); };
 
   return (
@@ -40,6 +42,9 @@ export function OffersList({ items, selection }: { items: ListItem[]; selection?
             <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
             <input type="search" className="field !pl-10" placeholder="Rechercher un poste, une entreprise, une ville…" value={q} onChange={(e) => search(e.target.value)} aria-label="Rechercher dans Offres & CV" />
           </label>
+          <select className="field w-full sm:w-56" aria-label="Trier par" value={sort} onChange={(e) => order(e.target.value as ItemSort)}>
+            {ITEM_SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
           {filters.length > 0 && (
             <div className="flex w-full flex-wrap rounded-3xl border border-line bg-surface p-0.5 sm:w-auto" role="group" aria-label="Filtrer les offres">
               {filters.map((f) => (
@@ -57,7 +62,7 @@ export function OffersList({ items, selection }: { items: ListItem[]; selection?
         <p className="mb-3 text-sm text-muted" role="status" aria-live="polite">
           {tools && (active
             ? <>{rows.length} {rows.length > 1 ? "offres correspondent" : "offre correspond"} sur {items.length}. <button type="button" className="link hit font-semibold" onClick={reset}>Tout afficher</button></>
-            : <>{items.length} offres à traiter.</>)}
+            : <>{items.length} offres à traiter. « Publiée » : date du site ; « reçue » : date de l'alerte e-mail ; « ajoutée » : date de l'ajout dans JobPilot.</>)}
           {selection && pickable.length > 0 && (
             <>
               {tools ? " " : ""}

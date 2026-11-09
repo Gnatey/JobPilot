@@ -37,19 +37,23 @@ export function reconcile(skips: Skip[], states: LineState[]): { drop: string[];
 }
 
 /**
- * Interroge l'état des lignes du bilan, par paquets. Un paquet dont la lecture échoue (`null`) n'est PAS conclu : on ne retire jamais une ligne
- * parce qu'une requête a raté.
+ * Interroge l'état des lignes du bilan, par paquets (les candidatures d'un côté, les offres déjà analysées de l'autre : `target` dit lesquelles). Un paquet
+ * dont la lecture échoue (`null`) n'est PAS conclu : on ne retire jamais une ligne parce qu'une requête a raté. Une offre n'a que deux états : elle existe
+ * encore (« todo ») ou elle a été supprimée (absente de la réponse).
  */
-export async function syncSkips(skips: Skip[], fetchStates: (ids: string[]) => Promise<LineState[] | null>): Promise<{ drop: string[]; kept: string[] }> {
+export async function syncSkips(skips: Skip[], fetchStates: (ids: string[], target: "app" | "offer") => Promise<LineState[] | null>): Promise<{ drop: string[]; kept: string[] }> {
   const drop: string[] = [];
   const kept: string[] = [];
-  for (let i = 0; i < skips.length; i += SYNC_CHUNK) {
-    const part = skips.slice(i, i + SYNC_CHUNK);
-    const states = await fetchStates(part.map((s) => s.appId));
-    if (!states) continue;
-    const r = reconcile(part, states);
-    drop.push(...r.drop);
-    kept.push(...r.kept);
+  for (const target of ["app", "offer"] as const) {
+    const own = skips.filter((s) => (s.target ?? "app") === target);
+    for (let i = 0; i < own.length; i += SYNC_CHUNK) {
+      const part = own.slice(i, i + SYNC_CHUNK);
+      const states = await fetchStates(part.map((s) => s.appId), target);
+      if (!states) continue;
+      const r = reconcile(part, states);
+      drop.push(...r.drop);
+      kept.push(...r.kept);
+    }
   }
   return { drop, kept };
 }

@@ -30,7 +30,7 @@ export function chunk<T>(list: T[], n: number): T[][] {
 }
 
 /** `why` : pour une annonce « disparue », la preuve en une phrase (« le site répond « page introuvable » (404) »…), affichée dans le bilan pour que la personne la juge. */
-export type CheckResult = { id: string; verdict: Verdict; site: string; why?: string };
+export type CheckResult = { id: string; verdict: Verdict; site: string; why?: string; /** Date de publication lue sur la page (ISO), quand elle y est : sert au tri par date de publication. */ posted?: string };
 export type CheckTally = Record<Verdict, number>;
 
 export const tally = (results: Pick<CheckResult, "verdict">[]): CheckTally => {
@@ -51,6 +51,12 @@ export function checkSummary(t: CheckTally, stopped = false): string {
   return `${parts.join(", ")}${stopped ? " (vérification arrêtée avant la fin)" : ""}.`;
 }
 
+/** « 3 dates de publication relevées » : ce que la lecture a rapporté en plus (rien si aucune page ne donnait sa date). */
+export function postedNote(results: Pick<CheckResult, "posted">[]): string {
+  const n = results.filter((r) => r.posted).length;
+  return n ? `${n} date${n > 1 ? "s" : ""} de publication relevée${n > 1 ? "s" : ""} sur les pages lues : le tri par date en tient compte.` : "";
+}
+
 /** Nom du « site » des lignes sans lien, dans le bilan (au lieu de « texte »). */
 export const NO_LINK_SITE = "Sans lien";
 
@@ -58,8 +64,9 @@ export const NO_LINK_SITE = "Sans lien";
  * Les lignes dont la vérification n'a rien prouvé (site qui bloque la lecture, pas de lien, lien de connexion), rangées comme les annonces illisibles
  * du bilan de « Tout analyser » : un lien pour ouvrir l'annonce, « Coller le texte », la corbeille. JAMAIS cochées pour suppression : seule une preuve (« gone ») coche.
  */
-export function unclearSkips(results: CheckResult[], lines: Map<string, { title: string; url: string | null }>): Skip[] {
+export function unclearSkips(results: CheckResult[], lines: Map<string, { title: string; url: string | null; kind?: "app" | "offer" }>): Skip[] {
   return results
-    .filter((r) => r.verdict === "unknown" || r.verdict === "skipped")
+    // Une offre déjà analysée n'a rien à « coller » : elle est comptée dans le bilan (« impossibles à vérifier »), pas listée avec un conseil qui ne la concerne pas
+    .filter((r) => (r.verdict === "unknown" || r.verdict === "skipped") && lines.get(r.id)?.kind !== "offer")
     .map((r) => ({ appId: r.id, title: lines.get(r.id)?.title ?? "Annonce", url: lines.get(r.id)?.url ?? null, kind: "unreadable" as const, site: r.site === "texte" ? NO_LINK_SITE : r.site }));
 }

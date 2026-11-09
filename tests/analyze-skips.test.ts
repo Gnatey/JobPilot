@@ -89,7 +89,7 @@ ok("rien supprimé : on le dit", /^Aucune ligne supprimée \(2 échecs\)/.test(b
   ok("la suppression en lot passe par la route de suppression d'une ligne, avec la raison « Offre plus disponible »", /\/api\/applications\/\$\{list\[i\]\.appId\}/.test(ui) && /method: "DELETE"/.test(ui) && /reason: GONE_REASON/.test(ui));
   ok("une confirmation précède la suppression en lot, et elle rappelle de vérifier les liens", /<dialog/.test(ui) && /As-tu ouvert les liens/.test(ui) && /définitive/.test(ui));
   ok("une session expirée arrête le lot", /res\?\.status === 401/.test(ui));
-  ok("chaque ligne a sa corbeille ; pour une annonce disparue la fenêtre ne redemande pas de raison", /<OfferRowDelete kind="app"/.test(ui) && /fixedReason=\{s\.kind === "gone" \? GONE_REASON : undefined\}/.test(ui) && /\{!fixedReason && \(/.test(row));
+  ok("chaque ligne a sa corbeille ; pour une annonce disparue la fenêtre ne redemande pas de raison", /<OfferRowDelete kind=\{isOfferSkip\(s\) \? "offer" : "app"\}/.test(ui) && /fixedReason=\{s\.kind === "gone" \? GONE_REASON : undefined\}/.test(ui) && /\{!fixedReason && \(/.test(row));
   ok("la corbeille prévient le bilan après une suppression réussie", /onDeleted\?\.\(\)/.test(row));
   ok("les lignes déjà envoyées restent protégées côté serveur", /!isRemovableToApply\(app\)/.test(read("app/api/applications/[id]/route.ts")) && /409/.test(read("app/api/applications/[id]/route.ts")));
 }

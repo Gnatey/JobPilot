@@ -7,7 +7,19 @@
 /** `kept` : la ligne porte maintenant un texte collé (découvert à la mise à jour du bilan, lib/skip-sync.ts) : elle n'est plus illisible, elle est prête à analyser. */
 export type SkipKind = "gone" | "unreadable" | "failed" | "kept";
 /** `site` : le site de l'annonce d'après son adresse (« Indeed », « HelloWork »…), pour ranger les lignes illisibles par site. */
-export type Skip = { appId: string; title: string; url: string | null; kind: SkipKind; site: string; /** Annonce disparue : la preuve, en une phrase. */ why?: string };
+export type Skip = {
+  /** Identifiant de la ligne : une candidature « À analyser » (`target` « app », par défaut) ou une offre déjà analysée (`target` « offer »). */
+  appId: string; title: string; url: string | null; kind: SkipKind; site: string;
+  /** Annonce disparue : la preuve, en une phrase. */
+  why?: string;
+  /** « offer » : offre déjà analysée (vérifiée par « Vérifier les annonces ») : on la supprime par son identifiant d'offre, et il n'y a rien à coller. */
+  target?: "app" | "offer";
+  /** Offre analysée : nombre de CV générés pour elle (ils partent avec elle si on la supprime). */
+  cv?: number;
+};
+
+/** Cette ligne est-elle une offre déjà analysée ? */
+export const isOfferSkip = (s: Pick<Skip, "target">): boolean => s.target === "offer";
 
 /** Raison notée quand on supprime une annonce disparue : la même que « Offre plus disponible » dans la liste des raisons (neutre : ne dit rien de tes goûts). */
 export const GONE_REASON = "expiree";

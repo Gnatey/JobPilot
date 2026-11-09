@@ -1,3 +1,5 @@
+import { hasPostedColumn } from "./posted-db";
+import { parsePosted } from "./posted";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 import { fetchMeta, gmailEmail, listJobEmails } from "./gmail";
@@ -205,14 +207,17 @@ export async function runSavedSearches(supabase: SupabaseClient, userId: string)
  * Renvoie le nombre de nouvelles offres visibles dans À trier.
  */
 export async function storeSearchOffers(supabase: SupabaseClient, userId: string, profile: Profile, learning: Learning, offers: JobOffer[], sc: SearchCriteria): Promise<number> {
+  const withPosted = await hasPostedColumn(supabase); // date de publication du site, rangée à part quand la base est à jour (mise à jour 7)
   const rows = offers.map((o) => {
+    const posted = parsePosted(o.date); // date de la source (Adzuna : création, Jooble : mise à jour), jamais une date inventée ni illisible
     const q = quickScore(profile, o.title, `${o.experience} ${o.description}`, learning, o.company);
     const fit = fitCheck(profile, { title: o.title, text: `${o.experience} ${o.description}` }, { roles: [...splitRoles(sc.keywords), ...criteriaRoles(profile)], contracts: sc.contracts });
     return {
       status: fit.ok ? "new" : "filtered", reject_reason: fit.ok ? null : fit.reason,
       user_id: userId, origin: "search", source: o.source, dedupe_key: o.key,
       title: o.title, company: o.company, location: o.location, url: o.url,
-      snippet: o.description.slice(0, 4000), quick_score: q.score, matched: q.matched, senior: q.senior, received_at: o.date || new Date().toISOString(),
+      snippet: o.description.slice(0, 4000), quick_score: q.score, matched: q.matched, senior: q.senior, received_at: posted ?? new Date().toISOString(),
+      ...(withPosted && posted ? { posted_at: posted } : {}),
     };
   }).filter((r) => r.quick_score >= 30);
   if (!rows.length) return 0;

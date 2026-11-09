@@ -12,6 +12,7 @@ import { CalendarButton } from "@/components/calendar-button";
 import { SuiviCalendar } from "@/components/suivi-calendar";
 import { useFeedback } from "@/components/ui/feedback";
 import { ReasonChips } from "@/components/reason-chips";
+import { SuiviDups } from "@/components/suivi-dups";
 import { refreshBadges } from "@/components/nav";
 import { STATUSES, CHANNELS, statusLabel, templateLabel, variantLabel, type Application, type StatusId } from "@/lib/types";
 import { followupOn, followupDue, canDraftFollowup, isFollowupStatus } from "@/lib/followup";
@@ -172,6 +173,8 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
           <button className="btn btn-sm" onClick={archiveGhosted}>Classer sans suite</button>
         </div>
       )}
+
+      <SuiviDups apps={apps} onOpen={(a) => setViewing(a)} onChanged={reload} />
 
       {!apps.length ? (
         <Empty icon={<FileText />} action={<button className="btn btn-primary" onClick={() => setEditing({ ...blank })}><Plus size={16} /> Ajouter une candidature</button>}>

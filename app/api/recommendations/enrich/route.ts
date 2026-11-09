@@ -5,6 +5,8 @@ import { computeLearning } from "@/lib/learning";
 import { quickScore } from "@/lib/quick-score";
 import { tidyText, usableJobText } from "@/lib/reco-text";
 import { READING } from "@/lib/reco-import";
+import { hasPostedColumn } from "@/lib/posted-db";
+import { postedFromText } from "@/lib/posted";
 
 export const maxDuration = 30;
 
@@ -26,14 +28,17 @@ export async function POST(req: Request) {
     if (!items.length) return { updated: [] };
 
     const [profile, learning] = await Promise.all([getProfile(supabase, user), computeLearning(supabase, user.id)]);
-    const { data: rows } = await supabase.from("recommendations").select("id, title, company, location, offer_id, status").in("id", items.map((i) => i.id)).eq("user_id", user.id);
+    const withPosted = await hasPostedColumn(supabase);
+    const { data: rows } = await supabase.from("recommendations").select("id, title, company, location, offer_id, status, origin").in("id", items.map((i) => i.id)).eq("user_id", user.id);
 
     const updated: { id: string; score: number; senior: boolean; analyzed: boolean }[] = [];
     for (const r of rows ?? []) {
       const text = items.find((i) => i.id === r.id)?.text;
       if (!text) continue;
       const q = quickScore(profile, r.title ?? "", `${text} ${r.location ?? ""}`, learning, r.company ?? "");
-      const patch = { snippet: text, quick_score: q.score, matched: q.matched, senior: q.senior };
+      // Date de publication écrite en tête de la page (« Publiée il y a 3 jours », ligne LinkedIn « Il y a 3 jours ») : lue, jamais devinée ; une date déjà donnée par une source de recherche n'est pas touchée
+      const posted = withPosted && r.origin !== "search" ? postedFromText(text) : null;
+      const patch = { snippet: text, quick_score: q.score, matched: q.matched, senior: q.senior, ...(posted ? { posted_at: posted } : {}) };
       await supabase.from("recommendations").update(r.status === READING ? { ...patch, status: "new" } : patch).eq("id", r.id).eq("user_id", user.id);
       updated.push({ id: r.id, score: q.score, senior: q.senior, analyzed: !!r.offer_id });
     }

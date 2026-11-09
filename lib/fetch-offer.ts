@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import { safeGet } from "./safe-fetch";
 import { readViaReader } from "./offer-reader";
+import { parsePosted, postedFromText } from "./posted";
 
 /**
  * Phrases qu'un site affiche quand une annonce est retirée, pourvue ou expirée. Mots entiers et formes accordées seulement (« expirée », « pourvue »,
@@ -39,7 +40,11 @@ export type OfferRead = {
   gone: boolean;
   /** Quand `gone` : la preuve, en une phrase (« le site répond « page introuvable » (404) », « la page dit « … » »), pour que la personne la juge. */
   why?: string;
+  /** Date de publication de l'annonce SUR LE SITE (horodatage ISO), quand la page la donne : JSON-LD `datePosted`, balise `itemprop`, ou mention « Publiée il y a 3 jours ». Jamais devinée. */
+  posted?: string;
 };
+
+const found = (posted: string | null): { posted?: string } => (posted ? { posted } : {});
 
 type Getter = (url: string, opts: { headers: Record<string, string>; timeoutMs: number }) => Promise<{ status: number; body: string }>;
 
@@ -70,12 +75,14 @@ export async function readOffer(url: string, get: Getter = safeGet): Promise<Off
 
     // Données structurées JobPosting (schema.org) si présentes : la source la plus propre
     let ld = "";
+    let posted: string | null = null;
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
         const json = JSON.parse($(el).text());
         const items = Array.isArray(json) ? json : json["@graph"] ?? [json];
         for (const it of items) {
           if (it?.["@type"] === "JobPosting") {
+            posted ??= parsePosted(it.datePosted);
             // `validThrough` (date limite) n'est PAS une preuve : beaucoup de sites la laissent dépassée sur une annonce toujours en ligne
             const desc = cheerio.load(String(it.description ?? "")).text();
             ld += `${it.title ?? ""}\nEntreprise : ${it.hiringOrganization?.name ?? ""}\nLieu : ${
@@ -86,6 +93,7 @@ export async function readOffer(url: string, get: Getter = safeGet): Promise<Off
       } catch {}
     });
 
+    posted ??= parsePosted($('[itemprop="datePosted"]').first().attr("content") ?? $('[itemprop="datePosted"]').first().attr("datetime") ?? $('[itemprop="datePosted"]').first().text());
     $("script, style, noscript, nav, footer, header, svg, iframe, form").remove();
     const main = $("main").text() || $("article").text() || $("body").text();
     const text = main.replace(/\s+\n/g, "\n").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -94,9 +102,9 @@ export async function readOffer(url: string, get: Getter = safeGet): Promise<Off
     const notice = goneNotice(`${$("title").text()}\n${text}`);
     if (notice) return { text: null, gone: true, why: `la page dit « ${notice} »` };
 
-    if (ld.trim().length > 200) return { text: ld, gone: false };
+    if (ld.trim().length > 200) return { text: ld, gone: false, ...found(posted ?? postedFromText(text)) };
     if (text.length < 300 || /sign in|se connecter|captcha|access denied/i.test(text.slice(0, 400))) return { text: null, gone: false };
-    return { text, gone: false };
+    return { text, gone: false, ...found(posted ?? postedFromText(text)) };
   } catch {
     return { text: null, gone: false };
   }
@@ -111,7 +119,7 @@ export async function readOfferWithReader(url: string, get?: Getter, reader: (ur
   if (direct.text || direct.gone) return direct;
   if (isSignInLink(url)) return direct; // jamais envoyé à un prestataire : l'adresse porte un jeton de connexion
   const text = await reader(url);
-  return text ? { text, gone: false } : direct;
+  return text ? { text, gone: false, ...found(postedFromText(text)) } : direct;
 }
 
 export async function fetchOfferText(url: string): Promise<string | null> {

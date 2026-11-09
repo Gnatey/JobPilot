@@ -5,7 +5,7 @@ import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 import { bulkDecision } from "@/components/reco-actions";
 import { linkOf, GONE_REASON } from "@/lib/analyze-skips";
-import { checkSummary, tally, type CheckResult } from "@/lib/offer-check";
+import { checkSummary, postedNote, tally, type CheckResult } from "@/lib/offer-check";
 import { goneIds, rejectedMessage } from "@/lib/reco-check";
 import { runChecks } from "@/lib/check-run";
 
@@ -15,13 +15,13 @@ type Gone = { id: string; title: string; company: string; url: string | null; wh
 type Run = { total: number; done: number; results: CheckResult[]; gone: Gone[]; stopped: string | null; finished: boolean };
 
 /**
- * « Vérifier les annonces » dans Recommandées : lit les liens des offres « À trier » SANS IA (aucune action IA dépensée) pour repérer celles qui ne
+ * « Vérifier les annonces » dans Recommandées : lit les liens des offres « À trier » (analysées ou non : une annonce peut disparaître après son analyse) SANS IA (aucune action IA dépensée) pour repérer celles qui ne
  * sont plus en ligne. Six offres par requête, une requête après l'autre. Rien n'est écarté tout seul : les annonces disparues sont listées avec leur lien
  * (à ouvrir pour vérifier), cochées d'office (on décoche celles à garder), puis « Écarter les N cochées » les range dans Écartées avec la raison
  * « Offre plus disponible » (neutre pour l'apprentissage, « Annuler » les remet). Un site qui bloque la lecture ne prouve rien : ses offres sont comptées
  * « impossibles à vérifier », jamais « disparues ».
  */
-export function CheckRecos({ recos, onRejected, onRestored }: { recos: CheckReco[]; onRejected: (ids: string[]) => void; onRestored: (ids: string[]) => void }) {
+export function CheckRecos({ recos, onRejected, onRestored, onPosted }: { recos: CheckReco[]; onRejected: (ids: string[]) => void; onRestored: (ids: string[]) => void; onPosted?: (found: { id: string; posted: string }[]) => void }) {
   const { toast } = useFeedback();
   const [run, setRun] = useState<Run | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,6 +47,9 @@ export function CheckRecos({ recos, onRejected, onRestored }: { recos: CheckReco
     });
     setBusy(false);
     setRun({ total: ids.length, done: results.length, results, gone, stopped, finished: true });
+    // Dates de publication lues sur les pages (déjà rangées par le serveur) : la liste se retrie tout de suite
+    const found = results.filter((r): r is CheckResult & { posted: string } => typeof r.posted === "string").map((r) => ({ id: r.id, posted: r.posted }));
+    if (found.length) onPosted?.(found);
   }
 
   async function removeChecked() {
@@ -90,6 +93,7 @@ export function CheckRecos({ recos, onRejected, onRestored }: { recos: CheckReco
           {run?.finished && t && (
             <div className="mt-3 border-t border-line pt-3 text-sm" role="status" aria-live="polite">
               <p><strong>{checkSummary(t, Boolean(run.stopped))}</strong></p>
+              {postedNote(run.results) && <p className="mt-1 text-muted">{postedNote(run.results)}</p>}
               {run.stopped && <p className="mt-1 text-muted">{run.stopped}</p>}
               {run.gone.length > 0 && (
                 <div className="mt-3">

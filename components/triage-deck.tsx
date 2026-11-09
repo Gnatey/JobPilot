@@ -7,7 +7,7 @@ import { useRecoDecision } from "./reco-actions";
 import { useFeedback } from "./ui/feedback";
 import { OTHER_REASON, REJECT_REASONS } from "@/lib/types";
 import { OtherNote } from "@/components/reason-chips";
-import { ago } from "@/lib/format";
+import { recoWhen, whenLabel } from "@/lib/posted";
 import type { Reco } from "./reco-list";
 
 type Leaving = "left" | "right" | "skip" | null;
@@ -163,7 +163,7 @@ export function TriageDeck({ initial, day }: { initial: Reco[]; day?: DayInfo })
                 <div className="min-w-0 flex-1 pt-1">
                   <h1 className="heading text-[1.35rem] leading-tight">{cur.title}</h1>
                   <p className="mt-1 text-muted">{[cur.company, cur.location].filter(Boolean).join(", ")}</p>
-                  <p className="mt-0.5 text-sm text-muted">{[cur.source, ago(cur.received_at)].filter(Boolean).join(", ")}{cur.years != null ? `, ${cur.years === 0 ? "débutant accepté" : `${cur.years} an${cur.years > 1 ? "s" : ""} demandé${cur.years > 1 ? "s" : ""}`}` : ""}</p>
+                  <p className="mt-0.5 text-sm text-muted">{[cur.source, whenLabel(recoWhen(cur))].filter(Boolean).join(", ")}{cur.years != null ? `, ${cur.years === 0 ? "débutant accepté" : `${cur.years} an${cur.years > 1 ? "s" : ""} demandé${cur.years > 1 ? "s" : ""}`}` : ""}</p>
                 </div>
               </div>
 

@@ -4,6 +4,8 @@ import { getProfile } from "@/lib/profile";
 import { quickScore } from "@/lib/quick-score";
 import { computeLearning } from "@/lib/learning";
 import { httpUrlOrNull } from "@/lib/fetch-offer";
+import { hasPostedColumn } from "@/lib/posted-db";
+import { parsePosted } from "@/lib/posted";
 
 type Item = { key?: string; id?: string; source?: string; title?: string; company?: string; location?: string; url?: string; description?: string; experience?: string; date?: string };
 
@@ -18,16 +20,19 @@ export async function POST(req: Request) {
     const { items } = (await req.json().catch(() => ({}))) as { items?: Item[] };
     if (!Array.isArray(items) || !items.length) throw new HttpError(400, "Aucune offre à ranger.");
     const [profile, learning] = await Promise.all([getProfile(supabase, user), computeLearning(supabase, user.id)]);
+    const withPosted = await hasPostedColumn(supabase);
     const rows = items.slice(0, 100).flatMap((o) => {
       const key = clip(o.key, 120) || (o.id ? `ft:${clip(o.id, 100)}` : ""); // anciens écrans : identifiant France Travail nu
       const url = httpUrlOrNull(o.url);
       if (!KEY.test(key) || !clip(o.title, 300) || !url) return [];
       const description = clip(o.description, 4000);
+      const posted = parsePosted(o.date); // date de la source : lue ou rien (une date illisible faisait échouer le rangement)
       const q = quickScore(profile, clip(o.title, 300), `${clip(o.experience, 200)} ${description}`, learning, clip(o.company, 200));
       return [{
         user_id: user.id, origin: "search", source: clip(o.source, 40) || SOURCE_BY_PREFIX[key.slice(0, 2)], dedupe_key: key,
         title: clip(o.title, 300), company: clip(o.company, 200), location: clip(o.location, 200), url, snippet: description,
-        quick_score: q.score, matched: q.matched, senior: q.senior, received_at: clip(o.date, 40) || new Date().toISOString(),
+        quick_score: q.score, matched: q.matched, senior: q.senior, received_at: posted ?? new Date().toISOString(),
+        ...(withPosted && posted ? { posted_at: posted } : {}),
       }];
     });
     if (!rows.length) throw new HttpError(400, "Offre illisible : relance la recherche.");

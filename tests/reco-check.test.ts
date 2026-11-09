@@ -13,7 +13,7 @@ const reco = (id: string, over: Record<string, unknown> = {}) => ({ id, status: 
 
 // ---------- Quelles offres sont vérifiées ----------
 const list = [reco("a"), reco("b", { status: "analyzed", offer_id: "o1" }), reco("c", { url: null }), reco("d", { url: "javascript:alert(1)" }), reco("e", { url: "ftp://x/y" }), reco("f", { status: "accepted" }), reco("g", { offer_id: "o2" }), reco("h", { url: "http://ok.fr/1" })];
-ok("seules les offres « À trier » jamais analysées, avec un lien http(s), sont vérifiées", checkCandidates(list).map((r) => r.id).join(",") === "a,h");
+ok("toutes les offres « À trier », analysées ou non, avec un lien http(s), sont vérifiées (une offre analysée peut avoir disparu depuis)", checkCandidates(list).map((r) => r.id).join(",") === "a,b,g,h");
 ok("aucune offre : liste vide, sans erreur", checkCandidates([]).length === 0);
 
 // ---------- Verdicts ----------
@@ -70,9 +70,9 @@ const ids = (n: number) => Array.from({ length: n }, (_, i) => `r${i}`);
 const route = src("app/api/recommendations/check/route.ts");
 ok("route : limite de requêtes appelée juste après requireUser (même seau que la vérification d'Offres & CV)", /requireUser\(\);\s*await rateLimit\(supabase, "checkAds"\)/.test(route));
 ok("route : les adresses viennent de la base, jamais du corps de la requête", /from\("recommendations"\)\.select\("id, url"\)/.test(route) && !/body\.url|body\.urls|\.url\s*\?\?\s*body/.test(route));
-ok("route : seulement les offres « new » jamais analysées, et 6 identifiants au plus", /\.eq\("status", "new"\)\.is\("offer_id", null\)/.test(route) && /slice\(0, CHECK_BATCH\)/.test(route));
+ok("route : les offres « À trier » (new ou analyzed), et 6 identifiants au plus", /\.in\("status", \["new", "analyzed"\]\)/.test(route) && !/\.is\("offer_id", null\)/.test(route) && /slice\(0, CHECK_BATCH\)/.test(route));
 ok("route : lecture directe seulement (jamais le lecteur de secours, jamais d'IA)", /readOffer\(/.test(route) && !/readOfferWithReader|structured\(|spendAi|checkQuota/.test(route));
-ok("route : rien n'est modifié (aucune écriture en base)", !/\.(update|insert|delete|upsert)\(/.test(route));
+ok("route : rien n'est écarté ni supprimé (seule la date de publication lue passe par rememberPosted, sans écraser)", !/\.(update|insert|delete|upsert)\(/.test(route) && /rememberPosted\(/.test(route));
 const comp = src("components/check-recos.tsx");
 ok("écran : écarter passe par la raison « expiree » (jamais une suppression), avec « Annuler »", /bulkDecision\(ids, "reject", GONE_REASON\)/.test(comp) && /label: "Annuler"/.test(comp) && !/method: "DELETE"/.test(comp));
 ok("écran : le lien « Annonce » n'ouvre que du http(s) (linkOf) avec noopener", /linkOf\(g\.url\)/.test(comp) && /rel="noopener noreferrer"/.test(comp));

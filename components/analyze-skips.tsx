@@ -5,7 +5,7 @@ import { ClipboardPaste, ExternalLink, Loader2 } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
 import { OfferRowDelete } from "@/components/offer-row-delete";
-import { GONE_REASON, bulkMessage, firstOf, groupBySite, groupSkips, linkOf, pasteHref, selectedSkips, siteAdvice, type Skip } from "@/lib/analyze-skips";
+import { GONE_REASON, bulkMessage, firstOf, groupBySite, groupSkips, isOfferSkip, linkOf, pasteHref, selectedSkips, siteAdvice, type Skip } from "@/lib/analyze-skips";
 import { syncSkips, type LineState } from "@/lib/skip-sync";
 
 type Check = { on: boolean; set: (on: boolean) => void };
@@ -24,19 +24,20 @@ function Row({ s, onRemoved, check, paste }: { s: Skip; onRemoved: (ids: string[
       <span className="min-w-0 flex-1 break-words text-ink">
         {s.title}
         {s.why && <span className="block text-xs text-muted">Preuve : {s.why}</span>}
+        {isOfferSkip(s) && <span className="block text-xs text-muted">Offre déjà analysée{s.cv ? ` : ${s.cv} CV supprimé${s.cv > 1 ? "s" : ""} avec elle` : ""}</span>}
       </span>
       {link ? (
         <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm shrink-0" aria-label={`Ouvrir l'annonce : ${s.title}`} title="Ouvrir l'annonce">
           <ExternalLink size={16} aria-hidden /> <span className="hidden sm:inline">Annonce</span>
         </a>
       ) : <span className="shrink-0 text-xs text-muted">pas de lien</span>}
-      {paste && (
+      {paste && !isOfferSkip(s) && (
         <a href={pasteHref(s.appId, s.url)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm shrink-0"
           aria-label={`${paste === "view" ? "Voir le texte collé" : "Coller le texte de l'annonce"} : ${s.title}`} title={paste === "view" ? "Voir le texte collé" : "Coller le texte de l'annonce"}>
           <ClipboardPaste size={16} aria-hidden /> <span className="hidden sm:inline">{paste === "view" ? "Voir le texte" : "Coller le texte"}</span>
         </a>
       )}
-      <OfferRowDelete kind="app" id={s.appId} label={s.title} fixedReason={s.kind === "gone" ? GONE_REASON : undefined} onDeleted={() => onRemoved([s.appId])} />
+      <OfferRowDelete kind={isOfferSkip(s) ? "offer" : "app"} id={s.appId} label={s.title} fixedReason={s.kind === "gone" ? GONE_REASON : undefined} onDeleted={() => onRemoved([s.appId])} />
     </li>
   );
 }
@@ -81,8 +82,8 @@ export function SkipReport({ skips, onRemoved, onAnalyze }: { skips: Skip[]; onR
       if (running || off || Date.now() - last < 1500 || !live.current.skips.length) return;
       running = true;
       try {
-        const r = await syncSkips(live.current.skips, async (ids) => {
-          const res = await fetch("/api/offers/lines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ app_ids: ids }) }).catch(() => null);
+        const r = await syncSkips(live.current.skips, async (ids, target) => {
+          const res = await fetch("/api/offers/lines", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(target === "offer" ? { offer_ids: ids } : { app_ids: ids }) }).catch(() => null);
           if (!res?.ok) return null; // lecture ratée : on ne retire rien
           const j = (await res.json().catch(() => null)) as { lines?: LineState[] } | null;
           return Array.isArray(j?.lines) ? j.lines : null;
@@ -116,7 +117,7 @@ export function SkipReport({ skips, onRemoved, onAnalyze }: { skips: Skip[]; onR
     let failed = 0;
     for (let i = 0; i < list.length; i++) {
       setStep(i + 1);
-      const res = await fetch(`/api/applications/${list[i].appId}`, {
+      const res = await fetch(isOfferSkip(list[i]) ? `/api/offers/${list[i].appId}` : `/api/applications/${list[i].appId}`, {
         method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: GONE_REASON }),
       }).catch(() => null);
       if (res?.ok) deleted.push(list[i].appId);
@@ -200,6 +201,12 @@ export function SkipReport({ skips, onRemoved, onAnalyze }: { skips: Skip[]; onR
               Ces lignes seront supprimées d'Offres & CV et de Suivi, avec la raison « Offre plus disponible ». Cette action est définitive.
               Une candidature déjà envoyée n'est jamais supprimée ici.
             </p>
+            {chosen.some(isOfferSkip) && (
+              <p className="mt-2 text-sm text-muted">
+                {chosen.filter(isOfferSkip).length} {chosen.filter(isOfferSkip).length > 1 ? "offres déjà analysées" : "offre déjà analysée"} : l'analyse
+                {chosen.some((s) => (s.cv ?? 0) > 0) ? ` et les ${chosen.reduce((n, s) => n + (isOfferSkip(s) ? s.cv ?? 0 : 0), 0)} CV générés` : " et les documents"} partent avec {chosen.filter(isOfferSkip).length > 1 ? "elles" : "elle"}.
+              </p>
+            )}
             <p className="mt-2 text-sm text-muted">As-tu ouvert les liens pour vérifier ? Annule et décoche celles que tu veux garder.</p>
             <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
               {busy && <><Loader2 size={16} className="animate-spin text-muted" aria-label="Suppression en cours" /><span className="text-sm text-muted">{step} / {chosen.length}</span></>}

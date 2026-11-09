@@ -12,6 +12,7 @@ import { refreshBadges } from "./nav";
 import { rejectLabel, rejectLabelInline } from "@/lib/types";
 import { PRE_FILTERS } from "@/lib/quick-score";
 import { fmtDate } from "@/lib/format";
+import { WHEN_HELP, recoWhen, whenLabel } from "@/lib/posted";
 import { FIT_LABELS, isFitReason } from "@/lib/fit";
 import { OLD_LABEL, OLD_REASON } from "@/lib/reco-age";
 import { SORT_OPTIONS, sortRecos, type RecoSort } from "@/lib/reco-sort";
@@ -22,7 +23,7 @@ import { GONE_REASON as GONE } from "@/lib/analyze-skips";
 export type Reco = {
   id: string; title: string | null; company: string | null; location: string | null; url: string | null;
   source: string | null; origin: string | null; status: string; reject_reason: string | null;
-  received_at: string | null; offer_id: string | null; score: number; ai: boolean; matched: string[];
+  received_at: string | null; posted_at?: string | null; offer_id: string | null; score: number; ai: boolean; matched: string[];
   senior: boolean; years: number | null; penalties: string[]; read?: boolean; excerpt?: string;
 };
 
@@ -43,7 +44,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
   const [fitOnly, setFitOnly] = useState(true);
   const [minScore, setMinScore] = useState(0);
   const [source, setSource] = useState("");
-  const [sort, setSort] = useState<RecoSort>("date"); // le pré-score ne sépare presque rien (tout est entre 0 et 49) : par défaut, les plus récentes d'abord
+  const [sort, setSort] = useState<RecoSort>("date"); // le pré-score ne sépare presque rien (tout est entre 0 et 49) : par défaut, les plus récemment publiées d'abord
   const [q, setQ] = useState("");
   const [items, setItems] = useState(recos);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -155,6 +156,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
           recos={checkList}
           onRejected={(ids) => setItems((xs) => xs.map((x) => (ids.includes(x.id) ? { ...x, status: "rejected", reject_reason: GONE } : x)))}
           onRestored={(ids) => setItems((xs) => xs.map((x) => (ids.includes(x.id) ? { ...x, status: x.offer_id ? "analyzed" : "new", reject_reason: null } : x)))}
+          onPosted={(found) => setItems((xs) => xs.map((x) => { const f = found.find((p) => p.id === x.id); return f && !x.posted_at ? { ...x, posted_at: f.posted } : x; }))}
         />
       )}
 
@@ -181,6 +183,16 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
               {fitOnly && hiddenSenior > 0 && <span className="text-muted"> : {hiddenSenior} offre{hiddenSenior > 1 ? "s" : ""} trop senior{hiddenSenior > 1 ? "s" : ""} masquée{hiddenSenior > 1 ? "s" : ""}</span>}
             </span>
           </label>
+          {shown.length > 0 && (
+            <p className="text-xs text-muted sm:col-span-4">
+              {(() => {
+                const n = { posted: 0, received: 0, added: 0 };
+                for (const r of shown) { const w = recoWhen(r); if (w.at) n[w.kind]++; }
+                const parts = [n.posted ? `${n.posted} publiée${n.posted > 1 ? "s" : ""} (date du site)` : "", n.received ? `${n.received} reçue${n.received > 1 ? "s" : ""} (date de l'e-mail d'alerte)` : "", n.added ? `${n.added} ajoutée${n.added > 1 ? "s" : ""} (date de la prise dans JobPilot)` : ""].filter(Boolean);
+                return parts.length ? <>Dates : {parts.join(", ")}. Le tri se fait sur la date de publication quand le site la donne. « Vérifier les annonces » la relève sur les pages qui l'indiquent.</> : null;
+              })()}
+            </p>
+          )}
           {belowMin.length > 0 && (
             <div className="sm:col-span-4">
               <button className="btn btn-sm" onClick={clearBelow}><Eraser size={15} /> Écarter les {belowMin.length} offres {minScore >= 70 ? "qui ne sont pas des bonnes pistes" : "peu probables"}</button>
@@ -216,7 +228,7 @@ export function RecoList({ recos, rest = NO_REST, rules, decided, reasons }: { r
                   <p className="font-semibold leading-snug">{r.title}</p>
                   <p className="text-sm text-muted">{[r.company, r.location].filter(Boolean).join(", ")}</p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {r.source}{r.origin === "email" ? " (alerte email)" : ""}, {fmtDate(r.received_at)}
+                    {r.source}{r.origin === "email" ? " (alerte email)" : ""}{(() => { const w = recoWhen(r); const label = whenLabel(w); return label ? <>, <span title={WHEN_HELP[w.kind]}>{label}</span> ({fmtDate(w.at)})</> : <>, {fmtDate(r.received_at)}</>; })()}
                     {r.years != null ? `, ${r.years === 0 ? "débutant accepté" : `${r.years} an${r.years > 1 ? "s" : ""} demandé${r.years > 1 ? "s" : ""}`}` : ""}
                   </p>
                   {r.matched.length > 0 && (

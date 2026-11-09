@@ -10,6 +10,8 @@ export const RECO_COLS = "id, title, company, location, url, source, origin, sni
 export type RecoRow = {
   id: string; title: string | null; company: string | null; location: string | null; url: string | null; source: string | null; origin: string | null;
   snippet: string | null; status: string; reject_reason: string | null; received_at: string | null; offer_id: string | null; senior: boolean;
+  /** Date de publication sur le site (colonne `posted_at`, mise à jour 7 de la base) : absente tant que la base n'est pas à jour. */
+  posted_at?: string | null;
   offers: { score: number | null } | null;
 };
 
@@ -23,7 +25,7 @@ export function toReco(r: RecoRow, profile: Profile, learning: Learning, withExc
   const q = quickScore(profile, r.title ?? "", `${r.snippet ?? ""} ${r.location ?? ""}`, learning, r.company ?? "");
   return {
     id: r.id, title: r.title, company: r.company, location: r.location, url: r.url, source: r.source, origin: r.origin,
-    status: r.status, reject_reason: r.reject_reason, received_at: r.received_at, offer_id: r.offer_id,
+    status: r.status, reject_reason: r.reject_reason, received_at: r.received_at, posted_at: r.posted_at ?? null, offer_id: r.offer_id,
     score: r.offers?.score ?? q.score, ai: r.offers?.score != null, read: recoText(r).length > 0, matched: q.matched, senior: q.senior || r.senior, years: q.years, penalties: q.penalties,
     ...(withExcerpt && r.snippet ? { excerpt: clean(r.snippet).slice(0, 320) } : {}),
   };

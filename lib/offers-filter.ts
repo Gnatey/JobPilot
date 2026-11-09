@@ -18,8 +18,10 @@ export type ListItem = {
   /** Étape de la candidature (« À postuler »…), ou null : offre analysée à la main, pas encore tranchée (« À décider »). */
   state: string | null;
   meta: string;
-  /** Date de création (tri, plus récent d'abord). */
+  /** Date qui sert au tri : publication sur le site, sinon arrivée de l'alerte, sinon ajout (lib/offers-when.ts). */
   at: string;
+  /** De quelle sorte est cette date : « publiée », « reçue » ou « ajoutée » (lib/posted.ts). */
+  atKind?: "posted" | "received" | "added";
   /** Nombre de CV générés pour l'offre. */
   cv: number;
   /** Ligne « À analyser » qui porte déjà le texte de l'annonce (collé ou gardé) : elle n'est plus « illisible », l'analyse le lira. */
@@ -77,3 +79,30 @@ export function visibleFilters(counts: Record<FilterId, number>, active: FilterI
 
 /** Combien de lignes le prochain « Voir les N autres » ajoute. */
 export const nextBatch = (total: number, shown: number) => Math.max(0, Math.min(PAGE_SIZE, total - shown));
+
+/** Ordre de la liste : date de publication (récentes d'abord), plus anciennes d'abord, ou meilleur score (sans score : à la fin). */
+export type ItemSort = "date" | "old" | "score";
+export const ITEM_SORTS: { id: ItemSort; label: string }[] = [
+  { id: "date", label: "Les plus récentes d'abord" },
+  { id: "old", label: "Les plus anciennes d'abord" },
+  { id: "score", label: "Meilleur score d'abord" },
+];
+
+const ms = (s: string) => { const t = Date.parse(s); return Number.isFinite(t) ? t : -Infinity; };
+
+/** Copie triée. À égalité, le meilleur score (sauf en tri par score : la plus récente), puis l'identifiant, pour un ordre stable. */
+export function sortItems<T extends Pick<ListItem, "key" | "at" | "score">>(items: T[], mode: ItemSort): T[] {
+  const score = (x: T) => x.score ?? -1;
+  const newest = (a: T, b: T) => (ms(a.at) === ms(b.at) ? 0 : ms(b.at) - ms(a.at));
+  const oldest = (a: T, b: T) => {
+    const x = ms(a.at), y = ms(b.at);
+    if (x === y) return 0;
+    if (x === -Infinity) return 1;
+    if (y === -Infinity) return -1;
+    return x - y;
+  };
+  const byScore = (a: T, b: T) => score(b) - score(a);
+  const date = mode === "old" ? oldest : newest;
+  const [first, second] = mode === "score" ? [byScore, date === oldest ? newest : date] : [date, byScore];
+  return [...items].sort((a, b) => first(a, b) || second(a, b) || a.key.localeCompare(b.key));
+}
