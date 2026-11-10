@@ -240,6 +240,7 @@ export const DIRECTORY: Entry[] = [
   e("JobTeaser", BOARD, "https://www.jobteaser.com/fr/job-search/list", EVERYTHING, "", "stage alternance premier emploi jeunes diplômés"),
   e("La bonne alternance", BOARD, "https://labonnealternance.apprentissage.beta.gouv.fr/", EVERYTHING, "", "alternance apprentissage"),
   e("1jeune1solution", BOARD, "https://www.1jeune1solution.gouv.fr/", EVERYTHING, "", "jeunes stage alternance emploi"),
+  e("PMEjob", BOARD, "https://www.pmejob.fr/", EVERYTHING, "", "PME PMI petites et moyennes entreprises"),
 
   // --- fin de la liste ---
 ];
