@@ -75,9 +75,21 @@ const CANON: Record<string, string> = {
 };
 const canon = (w: string) => CANON[w] ?? w;
 
-/** Mots du titre (2 lettres conservées : « BI », « IA »), sans mots vides, formes voisines unifiées. */
+/**
+ * Expressions longues et leur sigle (11 novembre, Juliana : « consultant SI » ne sortait presque rien) : « SI » n'était reconnu que s'il était écrit tel quel,
+ * donc « Consultant Système d'Information » était jugé sans rapport avec la recherche « consultant SI » et masqué comme « éloigné ».
+ * Appliqué sur le texte déjà sans accents ni majuscules.
+ */
+const ACRONYMS: [RegExp, string][] = [
+  [/(?<![a-z0-9])systemes?\s+d\W{0,2}\s*informations?(?![a-z0-9])/g, " si "],
+  [/(?<![a-z0-9])business\s+intelligence(?![a-z0-9])/g, " bi "],
+  [/(?<![a-z0-9])intelligence\s+artificielle(?![a-z0-9])/g, " ia "],
+];
+
+/** Mots du titre (2 lettres conservées : « BI », « IA »), sans mots vides, formes voisines unifiées, expressions longues ramenées à leur sigle. */
 export function titleTokens(s: string): string[] {
-  return strip(s).split(/[^a-z0-9+#]+/).filter((w) => w.length >= 2 && !STOP.has(w)).map(canon);
+  const t = ACRONYMS.reduce((acc, [re, short]) => acc.replace(re, short), strip(s));
+  return t.split(/[^a-z0-9+#]+/).filter((w) => w.length >= 2 && !STOP.has(w)).map(canon);
 }
 const distinctive = (ws: string[]) => ws.filter((w) => !GENERIC.has(w));
 

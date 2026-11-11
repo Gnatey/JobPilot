@@ -9,7 +9,11 @@ export type SearchCriteria = {
   remoteOnly?: boolean;
   exclude?: string; // mots à exclure
   maxYears?: number | null; // masque les offres qui exigent plus d'années d'expérience
+  page?: number; // 1 par défaut ; « Voir la suite » demande la page suivante de chaque source (MAX_PAGE au plus)
 };
+
+/** Pages qu'on peut lire par source (« Voir la suite ») : au-delà, les offres sont trop anciennes ou sans rapport, et le quota gratuit des sources est limité. */
+export const MAX_PAGE = 5;
 
 /** Une offre, dans le même format quelle que soit la source. */
 export type JobOffer = {

@@ -2,7 +2,7 @@ import { HttpError } from "../supabase/server";
 import { splitRoles } from "../job-families";
 import { deptName } from "../departements";
 import { httpUrlOrNull } from "../fetch-offer";
-import { KEYWORD_CONTRACTS, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
+import { KEYWORD_CONTRACTS, MAX_PAGE, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
 import { stripTags } from "./adzuna";
 
 /**
@@ -58,6 +58,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
   const special = c.contracts.filter((x) => x in KEYWORD_CONTRACTS);
   const plain = c.contracts.some((x) => !(x in KEYWORD_CONTRACTS)) || !special.length;
   const suffixes = [...(plain ? [""] : []), ...special.map((k) => ` ${KEYWORD_CONTRACTS[k]}`)];
+  const page = Math.max(1, Math.min(MAX_PAGE, Math.round(c.page ?? 1) || 1));
   const roles = splitRoles(c.keywords);
   const places = c.cities?.length ? c.cities.slice(0, 5) : c.departments.length ? c.departments.slice(0, 5).map(deptName) : [""];
   const jobs = (roles.length ? roles : [""])
@@ -69,7 +70,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
     fetch(`${host}/api/${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "JobPilot" },
-      body: JSON.stringify({ keywords: `${role}${suffix}`.trim().slice(0, 120), location: where || "France", radius: "26", page: "1", datecreatedfrom: from }),
+      body: JSON.stringify({ keywords: `${role}${suffix}`.trim().slice(0, 120), location: where || "France", radius: "26", page: String(page), datecreatedfrom: from }),
       signal: AbortSignal.timeout(15_000),
     });
 

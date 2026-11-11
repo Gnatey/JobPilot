@@ -1,4 +1,4 @@
-import type { SearchCriteria } from "./types";
+import { MAX_PAGE, type SearchCriteria } from "./types";
 
 const CONTRACTS = ["CDI", "CDD", "MIS", "LIB", "ALT", "STG"];
 const SINCE = ["1", "3", "7", "14", "31"];
@@ -18,5 +18,6 @@ export function sanitizeCriteria(raw: unknown): SearchCriteria {
     remoteOnly: r.remoteOnly === true,
     exclude: String(r.exclude ?? "").slice(0, 200),
     maxYears: years,
+    page: typeof r.page === "number" && Number.isFinite(r.page) ? Math.max(1, Math.min(MAX_PAGE, Math.round(r.page))) : 1,
   };
 }

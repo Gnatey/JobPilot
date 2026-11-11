@@ -2,7 +2,7 @@ import { HttpError } from "../supabase/server";
 import { splitRoles } from "../job-families";
 import { deptName } from "../departements";
 import { httpUrlOrNull } from "../fetch-offer";
-import { KEYWORD_CONTRACTS, STANDARD_CONTRACTS, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
+import { KEYWORD_CONTRACTS, MAX_PAGE, STANDARD_CONTRACTS, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
 
 /**
  * Adzuna : agrégateur d'offres avec une API gratuite (clé sur developer.adzuna.com).
@@ -42,6 +42,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
   if (standard.length || !special.length) variants.push({ suffix: "", filter: onlyCdi ? { permanent: "1" } : noCdi ? { contract: "1" } : undefined });
   for (const k of special) variants.push({ suffix: ` ${KEYWORD_CONTRACTS[k]}` });
 
+  const page = Math.max(1, Math.min(MAX_PAGE, Math.round(c.page ?? 1) || 1));
   const roles = splitRoles(c.keywords);
   const places = c.cities?.length ? c.cities.slice(0, 5) : c.departments.length ? c.departments.slice(0, 5).map(deptName) : [""];
   const jobs = (roles.length ? roles : [""])
@@ -54,7 +55,7 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
     if (what) params.set("what", what.slice(0, 120));
     if (where) params.set("where", where);
     for (const [k, v] of Object.entries(filter ?? {})) params.set(k, v);
-    const res = await fetch(`${base}/v1/api/jobs/fr/search/1?${params}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(`${base}/v1/api/jobs/fr/search/${page}?${params}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
     if (res.status === 401 || res.status === 403) throw new HttpError(502, "Adzuna : clé refusée (à vérifier dans Administration › Sources d'offres).");
     if (res.status === 429) throw new HttpError(502, "Adzuna : quota de requêtes atteint pour le moment.");
     if (!res.ok) throw new HttpError(502, `Adzuna : recherche refusée (${res.status})`);

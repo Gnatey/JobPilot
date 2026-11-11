@@ -6,6 +6,7 @@ import { jooble } from "./jooble";
 import type { JobOffer, SearchCriteria, SearchOpts, Source } from "./types";
 
 export type { JobOffer, SearchCriteria } from "./types";
+export { MAX_PAGE } from "./types";
 export { externalId } from "./types";
 
 /** Sources d'offres branchées par clé (facultatives). Les alertes Gmail et le copier-coller marchent toujours. */
@@ -24,24 +25,33 @@ function sameOffer(o: JobOffer) {
   return `${norm(o.title)}|${norm(unknown ? o.location : o.company)}`;
 }
 
-/** Filtres communs : mots exclus, télétravail, années demandées, ancienneté. */
-export function filterOffers(list: JobOffer[], c: SearchCriteria): JobOffer[] {
+/** Pourquoi une offre lue a été écartée d'office (11 novembre : la personne ne voyait pas pourquoi « consultant SI » ne sortait presque rien). */
+export type Dropped = { exclude: number; remote: number; years: number; contract: number; old: number };
+const NONE: Dropped = { exclude: 0, remote: 0, years: 0, contract: 0, old: 0 };
+
+/** Filtres communs : mots exclus, télétravail, années demandées, contrats non demandés, ancienneté. Compte aussi ce qui est écarté, par cause (la première qui s'applique). */
+export function filterOffersWithReport(list: JobOffer[], c: SearchCriteria): { kept: JobOffer[]; dropped: Dropped } {
   const exclude = (c.exclude ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
   const oldest = Date.now() - (Number(c.publishedWithin || 14) + 1) * 864e5;
-  return list.filter((o) => {
+  const dropped: Dropped = { ...NONE };
+  const drop = (cause: keyof Dropped) => { dropped[cause]++; return false; };
+  const kept = list.filter((o) => {
     const blob = `${o.title} ${o.description}`.toLowerCase();
-    if (exclude.some((w) => blob.includes(w))) return false;
-    if (c.remoteOnly && !/t[ée]l[ée]travail|remote|distanciel|hybride/.test(blob)) return false;
+    if (exclude.some((w) => blob.includes(w))) return drop("exclude");
+    if (c.remoteOnly && !/t[ée]l[ée]travail|remote|distanciel|hybride/.test(blob)) return drop("remote");
     const years = o.years ?? requiredYears(blob);
-    if (c.maxYears != null && years != null && years > c.maxYears) return false;
+    if (c.maxYears != null && years != null && years > c.maxYears) return drop("years");
     // Alternance et stage n'apparaissent que si la personne les a demandés
     const kinds = detectContracts(`${o.title} ${o.contract}`, o.description);
-    if (kinds.length && !kinds.some((k) => c.contracts.includes(k === "stage" ? "STG" : "ALT"))) return false;
+    if (kinds.length && !kinds.some((k) => c.contracts.includes(k === "stage" ? "STG" : "ALT"))) return drop("contract");
     const t = Date.parse(o.date);
-    if (!Number.isNaN(t) && t < oldest) return false;
+    if (!Number.isNaN(t) && t < oldest) return drop("old");
     return true;
   });
+  return { kept, dropped };
 }
+
+export const filterOffers = (list: JobOffer[], c: SearchCriteria): JobOffer[] => filterOffersWithReport(list, c).kept;
 
 export type SourceReport = { id: string; label: string; ok: boolean; count: number; error?: string };
 
@@ -70,7 +80,7 @@ export async function probeSources(): Promise<SourceStatus[]> {
 }
 
 /** Interroge toutes les sources branchées en parallèle ; une source en panne n'empêche pas les autres. */
-export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{ offers: JobOffer[]; sources: SourceReport[] }> {
+export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{ offers: JobOffer[]; sources: SourceReport[]; read: number; dropped: Dropped }> {
   const active = activeSources();
   if (!active.length) throw new HttpError(501, NO_SOURCE);
   const settled = await Promise.allSettled(active.map((s) => s.search(c, opts)));
@@ -84,5 +94,7 @@ export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{
   const merged = settled
     .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
     .filter((o) => (seen.has(sameOffer(o)) ? false : (seen.add(sameOffer(o)), true)));
-  return { offers: filterOffers(merged, c).sort((a, b) => b.date.localeCompare(a.date)), sources };
+  const { kept, dropped } = filterOffersWithReport(merged, c);
+  // `read` : offres lues par les sources (doublons entre sources déjà retirés), avant les filtres communs
+  return { offers: kept.sort((a, b) => b.date.localeCompare(a.date)), sources, read: merged.length, dropped };
 }

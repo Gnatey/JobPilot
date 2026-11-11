@@ -8,7 +8,8 @@ import { PageTitle, Section, Empty } from "@/components/ui/page-title";
 import { ScorePill, isClose } from "@/components/ui/score";
 import { type Profile, type SavedCriteria, type SearchZone } from "@/lib/types";
 import { ReasonChips } from "@/components/reason-chips";
-import type { SearchCriteria } from "@/lib/sources/types";
+import { MAX_PAGE, type SearchCriteria } from "@/lib/sources/types";
+import { explainSearch } from "@/lib/search-why";
 import { fmtDate, plural, today } from "@/lib/format";
 import { deptName } from "@/lib/departements";
 import { CONTRACT_CODE, DEFAULT_DAILY_QUOTA, MAX_DAILY_QUOTA, zoneDepartments } from "@/lib/onboarding";
@@ -28,6 +29,8 @@ type Result = {
 };
 type Saved = { id: string; name: string; criteria: SearchCriteria; auto: boolean };
 type SourceReport = { id: string; label: string; ok: boolean; count: number; error?: string };
+type Dropped = { exclude: number; remote: number; years: number; contract: number; old: number };
+const NO_DROP: Dropped = { exclude: 0, remote: 0, years: 0, contract: 0, old: 0 };
 type DayStats = { total: number; left: number; yes: number; no: number };
 
 const CONTRACTS = [{ id: "CDI", label: "CDI" }, { id: "CDD", label: "CDD" }, { id: "MIS", label: "Intérim" }, { id: "LIB", label: "Freelance" }, { id: "ALT", label: "Alternance" }, { id: "STG", label: "Stage" }];
@@ -69,6 +72,13 @@ export default function Recherche() {
   const [done, setDone] = useState<Record<string, string>>({});
   const [sources, setSources] = useState<{ id: string; label: string }[] | null>(null); // sources d'offres branchées (null = pas encore connu)
   const [report, setReport] = useState<SourceReport[]>([]);
+  // « Voir la suite » : pages déjà lues, ce qu'elles ont donné en tout, et les critères de la première page (le formulaire a pu changer depuis)
+  const [pages, setPages] = useState(1);
+  const [read, setRead] = useState(0);
+  const [dropped, setDropped] = useState<Dropped>(NO_DROP);
+  const [lastCrit, setLastCrit] = useState<SearchCriteria | null>(null);
+  const [exhausted, setExhausted] = useState(false);
+  const [moreBusy, setMoreBusy] = useState(false);
   const auto = (sources?.length ?? 0) > 0;
 
   const roles = splitRoles(c.keywords);
@@ -164,7 +174,7 @@ export default function Recherche() {
   }
 
   async function run(given?: SearchCriteria) {
-    const criteria = given ?? criteriaNow();
+    const criteria = { ...(given ?? criteriaNow()), page: 1 };
     if (!splitRoles(criteria.keywords).length) return setErr("Choisis au moins un poste.");
     setBusy(true);
     setErr(null);
@@ -173,8 +183,32 @@ export default function Recherche() {
     if (r.error) return setErr(r.error);
     setResults(r.results);
     setReport(r.sources ?? []);
+    setRead(r.read ?? 0);
+    setDropped(r.dropped ?? NO_DROP);
+    setPages(1);
+    setLastCrit(criteria);
+    setExhausted(!(r.sources ?? []).some((s: SourceReport) => s.ok && s.count > 0));
     setDone({});
     setShowFar(false);
+  }
+
+  /** « Voir la suite » : la page suivante de chaque source, avec les critères de la première page ; les offres déjà vues ne reviennent pas. */
+  async function runMore() {
+    if (!lastCrit || !results || pages >= MAX_PAGE) return;
+    setMoreBusy(true);
+    setErr(null);
+    const r = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...lastCrit, page: pages + 1 }) }).then((r) => r.json()).catch(() => ({ error: "Connexion interrompue, réessaie." }));
+    setMoreBusy(false);
+    if (r.error) return setErr(r.error);
+    const seen = new Set(results.map((x) => x.key));
+    const fresh = (r.results as Result[]).filter((x) => !seen.has(x.key));
+    setResults([...results, ...fresh].sort((a, b) => b.quick_score - a.quick_score));
+    setReport((prev) => prev.map((s) => { const n = (r.sources as SourceReport[] | undefined)?.find((x) => x.id === s.id); return n ? { ...s, count: s.count + n.count, ok: s.ok || n.ok, error: n.ok ? undefined : n.error } : s; }));
+    setRead((x) => x + (r.read ?? 0));
+    setDropped((d) => { const n: Dropped = r.dropped ?? NO_DROP; return { exclude: d.exclude + n.exclude, remote: d.remote + n.remote, years: d.years + n.years, contract: d.contract + n.contract, old: d.old + n.old }; });
+    setPages(pages + 1);
+    // Une page sans aucune offre lue : les sources n'ont plus rien à donner pour ces critères
+    setExhausted(!(r.sources ?? []).some((s: SourceReport) => s.ok && s.count > 0) || pages + 1 >= MAX_PAGE);
   }
 
   async function store(items: Result[]) {
@@ -218,6 +252,14 @@ export default function Recherche() {
 
   const far = results?.filter((r) => r.fit_reason).length ?? 0;
   const shown = results ? results.filter((r) => showFar || !r.fit_reason) : [];
+  // Encadré « Pourquoi si peu d'offres ? » : les comptes réels de la recherche et les réglages qu'elle portait
+  const why = results && lastCrit
+    ? explainSearch({
+        sources: report, read, dropped, far, shown: shown.length, pages,
+        criteria: lastCrit,
+        zone: lastCrit.cities?.length ? lastCrit.cities.join(", ") : lastCrit.departments.map(deptName).join(", "),
+      })
+    : [];
 
   return (
     <>
@@ -375,7 +417,13 @@ export default function Recherche() {
               <span>Afficher aussi {plural(far, "offre éloignée", "offres éloignées")} de mes postes {!showFar && <span className="text-muted">(masquée{far > 1 ? "s" : ""})</span>}</span>
             </label>
           )}
-          {!shown.length ? <Empty>Aucune offre. Élargis la zone, la période ou les mots-clés.</Empty> : (
+          {!shown.length ? (
+            far > 0 ? (
+              <Empty action={<button type="button" className="btn btn-sm" onClick={() => setShowFar(true)}>{far > 1 ? `Afficher les ${far} offres éloignées` : "Afficher l'offre éloignée"}</button>}>
+                Aucune offre proche de tes postes, mais {plural(far, "offre éloignée est masquée", "offres éloignées sont masquées")}.
+              </Empty>
+            ) : <Empty>Aucune offre. Élargis la zone, la période ou les mots-clés, ou lis la suite des sources.</Empty>
+          ) : (
             <ul className="list">
               {shown.map((o) => (
                 <li key={o.key} className="px-4 py-3">
@@ -407,6 +455,27 @@ export default function Recherche() {
                 </li>
               ))}
             </ul>
+          )}
+          {lastCrit && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {!exhausted ? (
+                <>
+                  <button type="button" className="btn" disabled={moreBusy || busy} onClick={runMore}>
+                    {moreBusy ? <><Loader2 size={16} className="animate-spin" /> Lecture…</> : <><Plus size={16} /> Voir la suite des offres</>}
+                  </button>
+                  <p className="text-sm text-muted">Lit la page suivante de chaque source (page {pages + 1} sur {MAX_PAGE} au plus).</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted">Les sources n'ont rien d'autre pour ces critères{pages >= MAX_PAGE ? ` (${MAX_PAGE} pages lues, c'est le maximum)` : ""}.</p>
+              )}
+            </div>
+          )}
+          {why.length > 0 && shown.length < 20 && (
+            <details className="mt-4 rounded-xl bg-surface p-4 text-sm" open={!shown.length}>
+              <summary className="cursor-pointer font-semibold">Pourquoi si peu d'offres ?</summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5">{why.map((l) => <li key={l}>{l}</li>)}</ul>
+              <p className="mt-2 text-muted">Pour en voir plus : retire un de ces réglages, choisis « Afficher aussi… », ou clique sur « Voir la suite des offres ».</p>
+            </details>
           )}
         </Section>
       )}

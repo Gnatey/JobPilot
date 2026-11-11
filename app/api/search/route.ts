@@ -32,6 +32,9 @@ export async function POST(req: Request) {
     }
     return {
       sources: found.sources,
+      read: found.read, // offres lues par les sources avant les filtres communs
+      dropped: found.dropped, // et ce que ces filtres ont écarté, par cause (encadré « Pourquoi si peu d'offres ? »)
+      page: criteria.page ?? 1,
       results: found.offers
         .map((o) => {
           const q = quickScore(profile, o.title, `${o.experience} ${o.description}`, learning, o.company);
