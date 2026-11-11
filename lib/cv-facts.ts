@@ -1,4 +1,4 @@
-import { parsePeriod } from "./cv-format";
+import { parsePeriod, recentFirst } from "./cv-format";
 import { sameCompany, stemsOf } from "./cv-guard";
 import { normText } from "./profile-fix";
 import type { CvDoc, Education, Experience, Profile } from "./types";
@@ -11,6 +11,11 @@ import type { CvDoc, Education, Experience, Profile } from "./types";
  * une date, un nom d'entreprise ou un niveau de langue. Ici, tout cela est remis tel que le profil l'écrit.
  * Seul ce qu'on ne peut pas remettre (un diplôme ou une certification absents du profil, une entreprise inconnue) est signalé dans
  * « notes_for_candidate ». Corriger une erreur de l'IA ne fait aucune note : le CV est juste, c'est tout.
+ *
+ * Les EXPÉRIENCES suivent la même règle (10 novembre : sur un CV « Data Power BI », l'IA n'avait gardé qu'ORANO et laissé de côté la SNCF, la plus
+ * récente ; le prompt lui disait de « choisir » et rien ne remettait ce qu'elle retirait) : une entreprise du profil, avec au moins une réalisation,
+ * qui ne figure pas sur le CV est remise avec ses réalisations du profil (mot pour mot, les plus proches de l'offre d'abord), puis le tout est remis
+ * du plus récent au plus ancien. Au plus `MAX_EXPERIENCES` expériences au total (une page) : les plus récentes d'abord.
  */
 
 const YEAR = /(?:19|20)\d{2}/g;
@@ -125,6 +130,25 @@ const share = (a: string, b: string) => {
 
 const GROUNDED = 0.6;
 
+/** Expériences au total sur un CV d'une page : au-delà, les plus anciennes ne sont pas remises. */
+export const MAX_EXPERIENCES = 4;
+/** Puces d'une expérience remise : celles du profil qui parlent le plus de l'offre. */
+const RESTORED_BULLETS = 3;
+
+type CvExperience = CvDoc["experiences"][number];
+
+/** Les réalisations du profil pour une expérience remise : les plus proches de l'offre d'abord (à égalité, l'ordre du profil), sans les reformuler. */
+function restoredBullets(p: Experience, offerText: string): string[] {
+  const want = stemsOf(offerText);
+  return (p.achievements ?? [])
+    .map((a, i) => ({ t: String(a?.text ?? "").trim(), i }))
+    .filter((a) => a.t)
+    .map((a) => ({ ...a, hit: [...stemsOf(a.t)].filter((x) => want.has(x)).length }))
+    .sort((a, b) => b.hit - a.hit || a.i - b.i)
+    .slice(0, RESTORED_BULLETS)
+    .map((a) => a.t);
+}
+
 export type FactsReport = {
   /** Formations du profil que l'IA avait laissées de côté (remises). */
   restored: string[];
@@ -136,11 +160,13 @@ export type FactsReport = {
   inventedCerts: string[];
   /** Entreprises du CV qui ne sont dans aucune expérience du profil (laissées, signalées). */
   unknownCompanies: string[];
+  /** Expériences du profil absentes du CV (remises), écrites « Entreprise (poste) ». */
+  missingExperiences: string[];
   languages: boolean;
 };
 
 export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: FactsReport } {
-  const report: FactsReport = { restored: [], inventedEducation: [], roles: [], dates: [], inventedCerts: [], unknownCompanies: [], languages: false };
+  const report: FactsReport = { restored: [], inventedEducation: [], roles: [], dates: [], inventedCerts: [], unknownCompanies: [], missingExperiences: [], languages: false };
   const notes: string[] = [];
 
   /* Formations : TOUTES celles du profil, avec leurs dates. Un trou entre deux diplômes se voit tout de suite sur un CV. */
@@ -179,6 +205,20 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
     return { ...e, company: best.company.trim() || e.company, role, location: best.location?.trim() || e.location, dates: keepDates ? e.dates : period };
   });
 
+  /* Expériences absentes du CV : une entreprise du profil (avec au moins une réalisation) dont le CV ne parle pas est remise, avec les réalisations du profil. */
+  const offerText = [cv.headline, cv.summary, ...(cv.ats_keywords_used ?? [])].filter(Boolean).join(" ");
+  const inCv = (p: Experience) => experiences.some((e) => sameCompany(p.company, e.company));
+  const gaps = (profile.experiences ?? []).filter((p) => p?.company?.trim() && !inCv(p) && restoredBullets(p, offerText).length > 0);
+  const room = Math.max(0, MAX_EXPERIENCES - experiences.length);
+  const missing = recentFirst(gaps, periodOf).map((i) => gaps[i]).slice(0, room);
+  let allExperiences: CvExperience[] = experiences;
+  if (missing.length) {
+    const added: CvExperience[] = missing.map((p) => ({ company: p.company.trim(), role: (p.role ?? "").trim(), location: (p.location ?? "").trim(), dates: periodOf(p), bullets: restoredBullets(p, offerText) }));
+    for (const p of missing) report.missingExperiences.push(`${p.company.trim()}${p.role?.trim() ? ` (${p.role.trim()})` : ""}`);
+    const merged = [...experiences, ...added];
+    allExperiences = recentFirst(merged, (x) => x.dates).map((i) => merged[i]);
+  }
+
   /* Langues : celles du profil, avec leur niveau. */
   const languages = languagesText(profile.languages);
   if (!sameLanguages(cv.languages ?? "", profile.languages)) report.languages = true;
@@ -194,5 +234,5 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
   }).map(dedupeCert).filter((c) => { const k = normText(c); if (seenCerts.has(k)) return false; seenCerts.add(k); return true; });
 
   const have = cv.notes_for_candidate ?? [];
-  return { cv: { ...cv, education, experiences, languages, certifications, notes_for_candidate: [...have, ...notes.filter((n) => !have.includes(n))] }, report };
+  return { cv: { ...cv, education, experiences: allExperiences, languages, certifications, notes_for_candidate: [...have, ...notes.filter((n) => !have.includes(n))] }, report };
 }

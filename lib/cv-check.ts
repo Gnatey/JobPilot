@@ -7,7 +7,7 @@ import type { CvDoc, Profile } from "./types";
  * Contrôle d'un CV DÉJÀ enregistré (peut-être déjà envoyé) : on le compare au profil maître, avec les mêmes règles que celles
  * qui corrigent un nouveau CV (lib/cv-facts.ts et lib/cv-guard.ts). Sans IA, sans réseau, en lecture seule : rien n'est modifié.
  *
- * - « fix » : un fait qui ne colle pas au profil (formation absente, poste ou dates différents, langue, certification inconnue, réserve écrite dans le CV),
+ * - « fix » : un fait qui ne colle pas au profil (formation ou expérience absente, poste ou dates différents, langue, certification inconnue, réserve écrite dans le CV),
  *   ou un titre de CV qui n'est pas l'intitulé de l'offre (si `offerTitle` est donné).
  * - « read » : à relire (un chiffre ou un résultat que le profil ne dit pas : souvent écrit à la main par la personne, donc à garder si c'est vrai).
  *
@@ -39,6 +39,7 @@ export function checkCv(content: unknown, profile: Profile, offerTitle?: string 
   if (wanted && !isSeniorTitle(wanted) && cv.headline && !sameTitle(cv.headline, wanted)) fix(`Titre du CV ${q(cv.headline)}, l'offre dit ${q(wanted)}`);
   for (const d of facts.restored) fix(`Formation absente du CV : ${q(d)}`);
   for (const d of facts.inventedEducation) fix(`Formation qui ne figure pas dans ton profil : ${q(d)}`);
+  for (const m of facts.missingExperiences) fix(`Expérience absente du CV : ${q(m)}`);
   for (const r of facts.roles) fix(`${r.company} : poste écrit ${q(r.from)}, ton profil dit ${q(r.to)}`);
   for (const d of facts.dates) fix(`${d.company} : dates ${q(d.from)}, ton profil dit ${q(d.to)}`);
   for (const c of facts.unknownCompanies) fix(`Entreprise ${q(c)} : aucune expérience de ton profil ne porte ce nom`);
