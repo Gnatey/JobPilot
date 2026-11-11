@@ -76,6 +76,7 @@ export default function Recherche() {
   const [pages, setPages] = useState(1);
   const [read, setRead] = useState(0);
   const [dropped, setDropped] = useState<Dropped>(NO_DROP);
+  const [variants, setVariants] = useState<string[]>([]);
   const [lastCrit, setLastCrit] = useState<SearchCriteria | null>(null);
   const [exhausted, setExhausted] = useState(false);
   const [moreBusy, setMoreBusy] = useState(false);
@@ -185,6 +186,7 @@ export default function Recherche() {
     setReport(r.sources ?? []);
     setRead(r.read ?? 0);
     setDropped(r.dropped ?? NO_DROP);
+    setVariants(r.variants ?? []);
     setPages(1);
     setLastCrit(criteria);
     setExhausted(!(r.sources ?? []).some((s: SourceReport) => s.ok && s.count > 0));
@@ -206,6 +208,7 @@ export default function Recherche() {
     setReport((prev) => prev.map((s) => { const n = (r.sources as SourceReport[] | undefined)?.find((x) => x.id === s.id); return n ? { ...s, count: s.count + n.count, ok: s.ok || n.ok, error: n.ok ? undefined : n.error } : s; }));
     setRead((x) => x + (r.read ?? 0));
     setDropped((d) => { const n: Dropped = r.dropped ?? NO_DROP; return { exclude: d.exclude + n.exclude, remote: d.remote + n.remote, years: d.years + n.years, contract: d.contract + n.contract, old: d.old + n.old }; });
+    setVariants((v) => [...new Set([...v, ...((r.variants as string[] | undefined) ?? [])])]);
     setPages(pages + 1);
     // Une page sans aucune offre lue : les sources n'ont plus rien à donner pour ces critères
     setExhausted(!(r.sources ?? []).some((s: SourceReport) => s.ok && s.count > 0) || pages + 1 >= MAX_PAGE);
@@ -255,7 +258,7 @@ export default function Recherche() {
   // Encadré « Pourquoi si peu d'offres ? » : les comptes réels de la recherche et les réglages qu'elle portait
   const why = results && lastCrit
     ? explainSearch({
-        sources: report, read, dropped, far, shown: shown.length, pages,
+        sources: report, read, dropped, far, shown: shown.length, pages, variants,
         criteria: lastCrit,
         zone: lastCrit.cities?.length ? lastCrit.cities.join(", ") : lastCrit.departments.map(deptName).join(", "),
       })
@@ -326,8 +329,13 @@ export default function Recherche() {
           </fieldset>
           <fieldset>
             <legend className="heading">Publiées depuis</legend>
-            <ChipGroup keepOne className="mt-2" label="Période" options={SINCE.map((x) => x.label)} value={[SINCE.find((x) => x.id === c.publishedWithin)?.label ?? ""]}
-              onChange={(v) => { const id = SINCE.find((x) => x.label === v[0])?.id; if (id) setC({ ...c, publishedWithin: id as SearchCriteria["publishedWithin"] }); }} />
+            <ChipGroup className="mt-2" label="Période" options={SINCE.map((x) => x.label)} value={SINCE.filter((x) => x.id === c.publishedWithin).map((x) => x.label)}
+              onChange={(v) => { const id = SINCE.find((x) => x.label === v[0])?.id; setC({ ...c, publishedWithin: (id ?? "0") as SearchCriteria["publishedWithin"] }); }} />
+            <p className="mt-1.5 text-sm text-muted">
+              {c.publishedWithin === "0"
+                ? "Aucune période : les sites renvoient les offres les plus récentes d'abord, quelle que soit leur date. « Préparer ma journée » regarde au plus 1 mois."
+                : "Clique à nouveau sur la période choisie pour la retirer."}
+            </p>
           </fieldset>
         </div>
 

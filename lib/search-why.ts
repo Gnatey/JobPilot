@@ -21,7 +21,11 @@ export type WhyInput = {
   zone: string;
   /** Pages lues par source (« Voir la suite »). */
   pages: number;
+  /** Variantes de poste cherchées en plus des mots saisis (les mots saisis avaient rendu peu d'offres : lib/sources/query.ts). */
+  variants?: string[];
 };
+
+const quoted = (l: string[]) => l.map((v) => `« ${v} »`).join(", ");
 
 const n = (count: number, one: string, many: string) => `${count} ${count > 1 ? many : one}`;
 
@@ -44,6 +48,7 @@ export function explainSearch(i: WhyInput): string[] {
     const per = ok.map((s) => `${s.label} : ${n(s.count, "offre lue", "offres lues")}`).join(" ; ");
     lines.push(`${per}${i.pages > 1 ? ` (${i.pages} pages)` : ""}.`);
   }
+  if (i.variants?.length) lines.push(`Tes mots ayant rendu peu d'offres, j'ai aussi cherché ${quoted(i.variants)}.`);
   const dropped = droppedPhrases(i.dropped, i.criteria.maxYears);
   const droppedTotal = Object.values(i.dropped).reduce((a, b) => a + b, 0);
   if (droppedTotal) lines.push(`Écartées d'office : ${droppedTotal} (${dropped.join(", ")}).`);
@@ -69,24 +74,27 @@ export function explainSearch(i: WhyInput): string[] {
 export type DayWhy = {
   sourcesOn: boolean;
   web: { searched: boolean; error?: string };
-  /** Période choisie en jours (« 31 » = le maximum proposé). */
+  /** Période choisie en jours (« 31 » = le maximum proposé, « 0 » = période décochée : la liste du jour s'arrête alors à 1 mois). */
   period: string;
   maxYears?: number | null;
   /** Lues par les sources avant les filtres communs, et écartées d'office. */
   read: number;
   dropped: Dropped;
   stats: StoreStats | null;
+  /** Variantes de poste cherchées en plus des mots saisis. */
+  variants?: string[];
 };
 
 export function explainDay(i: DayWhy): string {
   if (!i.sourcesOn) return " Aucune source de recherche automatique n'est branchée : les nouvelles offres viennent de tes alertes Gmail.";
   if (i.web.error) return ` La recherche web a échoué (${i.web.error}).`;
   // La période maximale proposée est 1 mois : ne pas la conseiller quand elle est déjà choisie
-  const tail = i.period === "31"
+  const tail = i.period === "31" || i.period === "0"
     ? " Retire un réglage (zone, contrat, années max) ou ajoute un poste voisin, puis réessaie."
     : " Élargis la période (jusqu'à 1 mois), retire un réglage (zone, contrat, années max) ou ajoute un poste voisin, puis réessaie.";
   if (!i.web.searched || !i.stats) return tail;
-  if (i.read === 0) return ` Les sources n'ont renvoyé aucune offre pour ces mots-clés dans cette zone et cette période.${tail}`;
+  const also = i.variants?.length ? ` Tes mots ayant rendu peu d'offres, j'ai aussi cherché ${quoted(i.variants)}.` : "";
+  if (i.read === 0) return ` Les sources n'ont renvoyé aucune offre pour ces mots-clés dans cette zone et cette période.${also}${tail}`;
   const d = Object.values(i.dropped).reduce((a, b) => a + b, 0);
   const parts: string[] = [];
   if (d) parts.push(`${d} écartée${d > 1 ? "s" : ""} d'office (${droppedPhrases(i.dropped, i.maxYears).join(", ")})`);
@@ -95,5 +103,5 @@ export function explainDay(i: DayWhy): string {
   if (i.stats.senior) parts.push(`${i.stats.senior} au-dessus de ta limite d'expérience`);
   if (i.stats.known) parts.push(`${i.stats.known} déjà connue${i.stats.known > 1 ? "s" : ""} (vue${i.stats.known > 1 ? "s" : ""}, décidée${i.stats.known > 1 ? "s" : ""} ou masquée${i.stats.known > 1 ? "s" : ""} avant)`);
   if (i.stats.fresh) parts.push(`${i.stats.fresh} nouvelle${i.stats.fresh > 1 ? "s" : ""} gardée${i.stats.fresh > 1 ? "s" : ""}`);
-  return ` Les sources ont renvoyé ${i.read} offre${i.read > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" ; ")}` : ""}.${tail}`;
+  return ` Les sources ont renvoyé ${i.read} offre${i.read > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" ; ")}` : ""}.${also}${tail}`;
 }

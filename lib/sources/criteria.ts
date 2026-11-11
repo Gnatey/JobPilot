@@ -1,7 +1,7 @@
 import { MAX_PAGE, type SearchCriteria } from "./types";
 
 const CONTRACTS = ["CDI", "CDD", "MIS", "LIB", "ALT", "STG"];
-const SINCE = ["1", "3", "7", "14", "31"];
+const SINCE = ["0", "1", "3", "7", "14", "31"];
 
 /** Critères reçus du navigateur : on ne garde que des valeurs connues, de longueur raisonnable. */
 export function sanitizeCriteria(raw: unknown): SearchCriteria {

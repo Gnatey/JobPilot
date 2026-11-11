@@ -2,7 +2,8 @@ import { HttpError } from "../supabase/server";
 import { splitRoles } from "../job-families";
 import { deptName } from "../departements";
 import { httpUrlOrNull } from "../fetch-offer";
-import { KEYWORD_CONTRACTS, MAX_PAGE, STANDARD_CONTRACTS, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
+import { runPhased } from "./query";
+import { KEYWORD_CONTRACTS, MAX_PAGE, STANDARD_CONTRACTS, sinceDays, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
 
 /**
  * Adzuna : agrégateur d'offres avec une API gratuite (clé sur developer.adzuna.com).
@@ -42,15 +43,16 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
   if (standard.length || !special.length) variants.push({ suffix: "", filter: onlyCdi ? { permanent: "1" } : noCdi ? { contract: "1" } : undefined });
   for (const k of special) variants.push({ suffix: ` ${KEYWORD_CONTRACTS[k]}` });
 
+  const days = sinceDays(c.publishedWithin);
   const page = Math.max(1, Math.min(MAX_PAGE, Math.round(c.page ?? 1) || 1));
   const roles = splitRoles(c.keywords);
   const places = c.cities?.length ? c.cities.slice(0, 5) : c.departments.length ? c.departments.slice(0, 5).map(deptName) : [""];
-  const jobs = (roles.length ? roles : [""])
-    .flatMap((role) => places.flatMap((where) => variants.map((v) => ({ role, where, ...v }))))
-    .slice(0, opts.maxRequests ?? 12);
+  const jobsFor = (queries: string[]) => queries.flatMap((role) => places.flatMap((where) => variants.map((v) => ({ role, where, ...v }))));
+  type Job = ReturnType<typeof jobsFor>[number];
 
-  const fetchOne = async ({ role, where, suffix, filter }: (typeof jobs)[number]) => {
-    const params = new URLSearchParams({ app_id: id, app_key: key, results_per_page: "50", sort_by: "date", "content-type": "application/json", max_days_old: c.publishedWithin || "14" });
+  const fetchOne = async ({ role, where, suffix, filter }: Job) => {
+    const params = new URLSearchParams({ app_id: id, app_key: key, results_per_page: "50", sort_by: "date", "content-type": "application/json" });
+    if (days != null) params.set("max_days_old", String(days)); // période décochée : aucune limite côté Adzuna
     const what = `${role}${suffix}`.trim();
     if (what) params.set("what", what.slice(0, 120));
     if (where) params.set("where", where);
@@ -63,8 +65,13 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
     return j.results ?? [];
   };
 
-  const settled: PromiseSettledResult<Raw[]>[] = [];
-  for (let i = 0; i < jobs.length; i += 4) settled.push(...(await Promise.allSettled(jobs.slice(i, i + 4).map(fetchOne))));
+  const run = async (jobs: Job[]) => {
+    const out: PromiseSettledResult<Raw[]>[] = [];
+    for (let i = 0; i < jobs.length; i += 4) out.push(...(await Promise.allSettled(jobs.slice(i, i + 4).map(fetchOne))));
+    return out;
+  };
+  // Les mots saisis d'abord ; les variantes (mots utiles seuls, intitulés voisins) seulement s'ils ont rendu peu d'offres
+  const settled = await runPhased({ roles, max: opts.maxRequests ?? 12, jobsFor, run, tried: opts.tried });
   const failed = settled.find((r): r is PromiseRejectedResult => r.status === "rejected");
   if (failed && settled.every((r) => r.status === "rejected")) throw failed.reason;
 

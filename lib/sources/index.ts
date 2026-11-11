@@ -3,7 +3,7 @@ import { requiredYears } from "../quick-score";
 import { detectContracts } from "../fit";
 import { adzuna } from "./adzuna";
 import { jooble } from "./jooble";
-import type { JobOffer, SearchCriteria, SearchOpts, Source } from "./types";
+import { sinceDays, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
 
 export type { JobOffer, SearchCriteria } from "./types";
 export { MAX_PAGE } from "./types";
@@ -32,7 +32,8 @@ const NONE: Dropped = { exclude: 0, remote: 0, years: 0, contract: 0, old: 0 };
 /** Filtres communs : mots exclus, télétravail, années demandées, contrats non demandés, ancienneté. Compte aussi ce qui est écarté, par cause (la première qui s'applique). */
 export function filterOffersWithReport(list: JobOffer[], c: SearchCriteria): { kept: JobOffer[]; dropped: Dropped } {
   const exclude = (c.exclude ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
-  const oldest = Date.now() - (Number(c.publishedWithin || 14) + 1) * 864e5;
+  const days = sinceDays(c.publishedWithin);
+  const oldest = days == null ? -Infinity : Date.now() - (days + 1) * 864e5; // période décochée : aucune offre n'est trop ancienne
   const dropped: Dropped = { ...NONE };
   const drop = (cause: keyof Dropped) => { dropped[cause]++; return false; };
   const kept = list.filter((o) => {
@@ -80,10 +81,11 @@ export async function probeSources(): Promise<SourceStatus[]> {
 }
 
 /** Interroge toutes les sources branchées en parallèle ; une source en panne n'empêche pas les autres. */
-export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{ offers: JobOffer[]; sources: SourceReport[]; read: number; dropped: Dropped }> {
+export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{ offers: JobOffer[]; sources: SourceReport[]; read: number; dropped: Dropped; variants: string[] }> {
   const active = activeSources();
   if (!active.length) throw new HttpError(501, NO_SOURCE);
-  const settled = await Promise.allSettled(active.map((s) => s.search(c, opts)));
+  const tried: string[] = []; // variantes de poste cherchées en plus des mots saisis (chaque source y note les siennes)
+  const settled = await Promise.allSettled(active.map((s) => s.search(c, { ...opts, tried })));
   const sources: SourceReport[] = settled.map((r, i) =>
     r.status === "fulfilled"
       ? { id: active[i].id, label: active[i].label, ok: true, count: r.value.length }
@@ -96,5 +98,5 @@ export async function searchAll(c: SearchCriteria, opts?: SearchOpts): Promise<{
     .filter((o) => (seen.has(sameOffer(o)) ? false : (seen.add(sameOffer(o)), true)));
   const { kept, dropped } = filterOffersWithReport(merged, c);
   // `read` : offres lues par les sources (doublons entre sources déjà retirés), avant les filtres communs
-  return { offers: kept.sort((a, b) => b.date.localeCompare(a.date)), sources, read: merged.length, dropped };
+  return { offers: kept.sort((a, b) => b.date.localeCompare(a.date)), sources, read: merged.length, dropped, variants: [...new Set(tried)] };
 }

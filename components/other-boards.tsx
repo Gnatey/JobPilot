@@ -5,12 +5,13 @@ import { ChipGroup } from "@/components/ui/chip-group";
 import Link from "next/link";
 import type { SearchZone } from "@/lib/types";
 
+/** `days` vide : aucune limite de date (la période est décochée dans Recherche), le lien n'en porte pas. */
 type Site = { name: string; url: (q: string, where: string, days: string) => string };
 
 /** Pages de recherche des autres sites d'emploi, préremplies avec ton poste et ta zone (aucun accès à leurs données : tu les ouvres toi-même). */
 const SITES: Site[] = [
-  { name: "Indeed", url: (q, l, d) => `https://fr.indeed.com/jobs?q=${enc(q)}&l=${enc(l)}&fromage=${d}` },
-  { name: "LinkedIn", url: (q, l, d) => `https://www.linkedin.com/jobs/search/?keywords=${enc(q)}&location=${enc(l || "France")}&f_TPR=r${Number(d) * 86400}` },
+  { name: "Indeed", url: (q, l, d) => `https://fr.indeed.com/jobs?q=${enc(q)}&l=${enc(l)}${d ? `&fromage=${d}` : ""}` },
+  { name: "LinkedIn", url: (q, l, d) => `https://www.linkedin.com/jobs/search/?keywords=${enc(q)}&location=${enc(l || "France")}${d ? `&f_TPR=r${Number(d) * 86400}` : ""}` },
   { name: "HelloWork", url: (q, l) => `https://www.hellowork.com/fr-fr/emploi/recherche.html?k=${enc(q)}&l=${enc(l)}` },
   { name: "Welcome to the Jungle", url: (q, l) => `https://www.welcometothejungle.com/fr/jobs?query=${enc(q)}&aroundQuery=${enc(l)}` },
   { name: "Meteojob", url: (q, l) => `https://www.meteojob.com/jobs?what=${enc(q)}&where=${enc(l)}` },
@@ -31,7 +32,7 @@ export function OtherBoards({ roles, zone, days, auto }: { roles: string[]; zone
 
   const q = roles.includes(role) ? role : roles[0] ?? "";
   const where = zone?.scope === "ville" ? zone.cities[0]?.name ?? "" : zone?.scope === "departement" ? zone.departments[0]?.name ?? "" : "";
-  const since = days === "1" ? "1" : days === "3" ? "3" : days === "7" ? "7" : days === "31" ? "30" : "14";
+  const since = days === "0" ? "" : days === "1" ? "1" : days === "3" ? "3" : days === "7" ? "7" : days === "31" ? "30" : "14";
 
   return (
     <section className="mb-10" aria-labelledby="other-boards">

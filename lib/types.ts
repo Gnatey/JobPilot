@@ -62,7 +62,7 @@ export type SavedCriteria = {
   roles: string[];                       // 5 postes au maximum
   zone: SearchZone | null;
   contracts: string[];                   // codes des sources : CDI, CDD, MIS, LIB, ALT, STG ; vide = tous
-  publishedWithin: "1" | "3" | "7" | "14" | "31";
+  publishedWithin: "0" | "1" | "3" | "7" | "14" | "31"; // « 0 » : période décochée, pas de limite de date
   remoteOnly?: boolean;
   exclude?: string;
   maxYears?: number | null;

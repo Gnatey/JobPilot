@@ -75,7 +75,7 @@ const none = { exclude: 0, remote: 0, years: 0, contract: 0, old: 0 };
 // ---------- Branchement ----------
 {
   const day = readFileSync("lib/day.ts", "utf8");
-  ok("buildDay récupère les comptes de la recherche web et les passe à explainDay", /storeSearchOffers\([^)]*toSearchCriteria\(crit\), st\)/.test(day) && /read = found\.read; dropped = found\.dropped; stats = st;/.test(day) && /explainDay\(\{ sourcesOn: hasSource\(\)/.test(day));
+  ok("buildDay récupère les comptes de la recherche web et les passe à explainDay", /storeSearchOffers\([^)]*toSearchCriteria\(crit\), st\)/.test(day) && /read = found\.read; dropped = found\.dropped; variants = found\.variants; stats = st;/.test(day) && /explainDay\(\{ sourcesOn: hasSource\(\)/.test(day));
   ok("l'ancien conseil fixe « Élargis la période, la zone ou les postes » a disparu", !/Élargis la période, la zone ou les postes/.test(day));
   const sync = readFileSync("lib/sync.ts", "utf8");
   ok("storeSearchOffers range ce que planStore décide et rend le détail à qui le demande", /planStore\(\{ userId, profile, learning, offers, keywords: sc\.keywords/.test(sync) && /stats\?: StoreStats/.test(sync) && /ignoreDuplicates: true/.test(sync) && !/quick_score >= 30/.test(sync));

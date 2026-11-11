@@ -17,8 +17,17 @@ import type { Dropped } from "./sources";
 import { spendAi, AI_COST } from "./quota";
 import { HttpError } from "./supabase/server";
 
-const WINDOWS = ["1", "3", "7", "14", "31"];
+const WINDOWS = ["0", "1", "3", "7", "14", "31"];
+/**
+ * Jours que la liste du jour regarde. Période décochée (« 0 ») : 1 mois, le maximum d'une recherche limitée ; au-delà, Recommandées range de toute façon les offres
+ * non décidées en Masquées après 3 semaines (lib/reco-age.ts), elles ne pourraient pas servir. L'aperçu « Voir les offres trouvées » n'a, lui, aucune limite.
+ */
+export const dayWindow = (v: string | undefined | null): number => (v === "0" ? 31 : Number(v) || 14);
 const CODES = ["CDI", "CDD", "MIS", "LIB", "ALT", "STG"];
+
+/** « sur les 14 derniers jours », « sur les dernières 24 h », « sur le dernier mois (la liste du jour ne remonte pas plus loin) » quand la période est décochée. */
+export const dayLabel = (v: string | undefined | null) =>
+  v === "0" ? "sur le dernier mois (la liste du jour ne remonte pas plus loin, même sans limite de période)" : v === "1" ? "sur les dernières 24 h" : `sur les ${dayWindow(v)} derniers jours`;
 
 export const dailyQuota = (p: Profile) => Math.max(1, Math.min(MAX_DAILY_QUOTA, p.preferences?.daily_quota ?? DEFAULT_DAILY_QUOTA));
 
@@ -42,7 +51,7 @@ export function toSearchCriteria(c: SavedCriteria): SearchCriteria {
     keywords: c.roles.join(", "),
     departments: zoneDepartments(c.zone),
     cities: c.zone?.scope === "ville" ? c.zone.cities.map((x) => x.name) : [],
-    contracts: c.contracts, experience: "", publishedWithin: c.publishedWithin, remoteOnly: c.remoteOnly, exclude: c.exclude ?? "", maxYears: c.maxYears ?? null,
+    contracts: c.contracts, experience: "", publishedWithin: String(dayWindow(c.publishedWithin)) as SearchCriteria["publishedWithin"], remoteOnly: c.remoteOnly, exclude: c.exclude ?? "", maxYears: c.maxYears ?? null,
   };
 }
 
@@ -85,7 +94,7 @@ async function pool(supabase: SupabaseClient, userId: string, profile: Profile, 
   const learning = await computeLearning(supabase, userId);
   const { data } = await supabase.from("recommendations").select(await recoCols(supabase)).eq("user_id", userId).in("status", ["new", "analyzed"]).eq("senior", false)
     .order("quick_score", { ascending: false }).limit(800);
-  const oldest = Date.now() - (Number(crit.publishedWithin) + 1) * 864e5;
+  const oldest = Date.now() - (dayWindow(crit.publishedWithin) + 1) * 864e5;
   const exclude = (crit.exclude ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
   const out: Pooled[] = [];
   for (const row of (data ?? []) as unknown as RecoRow[]) {
@@ -135,6 +144,7 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
   const web: DayResult["web"] = { searched: false };
   // Ce que la recherche web a lu et écarté, pour dire pourquoi la liste est incomplète
   let read = 0;
+  let variants: string[] = [];
   let dropped: Dropped = { exclude: 0, remote: 0, years: 0, contract: 0, old: 0 };
   let stats: StoreStats | null = null;
 
@@ -147,7 +157,7 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
       const learning = await computeLearning(supabase, user.id);
       const st = { read: 0, far: 0, low: 0, asked: 0, senior: 0, known: 0, fresh: 0 };
       await storeSearchOffers(supabase, user.id, profile, learning, found.offers, toSearchCriteria(crit), st);
-      read = found.read; dropped = found.dropped; stats = st;
+      read = found.read; dropped = found.dropped; variants = found.variants; stats = st;
       picked = await pool(supabase, user.id, profile, crit, skip);
     } catch (e) {
       web.error = e instanceof Error ? e.message : "Recherche web impossible pour le moment.";
@@ -164,8 +174,8 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
   let message: string | undefined;
   if (take.length < quota) {
     const lack = take.length ? `Je n'ai trouvé que ${take.length} offre${take.length > 1 ? "s" : ""} sur ${quota} qui correspondent` : "Aucune nouvelle offre ne correspond";
-    message = `${lack} à « ${crit.roles.join(", ")} » sur les ${crit.publishedWithin === "1" ? "dernières 24 h" : `${crit.publishedWithin} derniers jours`}.`
-      + explainDay({ sourcesOn: hasSource(), web, period: crit.publishedWithin, maxYears: crit.maxYears, read, dropped, stats });
+    message = `${lack} à « ${crit.roles.join(", ")} » ${dayLabel(crit.publishedWithin)}.`
+      + explainDay({ sourcesOn: hasSource(), web, period: crit.publishedWithin, maxYears: crit.maxYears, read, dropped, stats, variants });
   }
   return { ids, added: take.length, left: await undecided(), quota, web, message };
 }

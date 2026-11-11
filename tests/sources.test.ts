@@ -27,7 +27,8 @@ const plugJooble = () => { env.JOOBLE_API_KEY = SECRET_JB; };
 
 const { searchAll, activeSources, hasSource, probeSources, filterOffers, SOURCES } = await import("../lib/sources");
 type Criteria = Parameters<typeof searchAll>[0];
-const crit: Criteria = { keywords: "data analyst", departments: ["75"], contracts: ["CDI"], experience: "", publishedWithin: "14" };
+// Un poste sans variante connue (lib/sources/query.ts) : ces tests comptent les requêtes envoyées, une seule par source et par zone
+const crit: Criteria = { keywords: "responsable reporting", departments: ["75"], contracts: ["CDI"], experience: "", publishedWithin: "14" };
 const today = new Date().toISOString();
 const daysAgo = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
 

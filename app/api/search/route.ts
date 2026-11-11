@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     return {
       sources: found.sources,
       read: found.read, // offres lues par les sources avant les filtres communs
+      variants: found.variants, // variantes de poste cherchées en plus des mots saisis
       dropped: found.dropped, // et ce que ces filtres ont écarté, par cause (encadré « Pourquoi si peu d'offres ? »)
       page: criteria.page ?? 1,
       results: found.offers

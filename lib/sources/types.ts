@@ -5,12 +5,17 @@ export type SearchCriteria = {
   cities?: string[]; // noms de villes quand la zone est une liste de villes
   contracts: string[]; // CDI, CDD, MIS (intérim), LIB (freelance), ALT (alternance), STG (stage)
   experience: "" | "1" | "2" | "3"; // 1 = <1 an, 2 = 1-3 ans, 3 = >3 ans
-  publishedWithin: "1" | "3" | "7" | "14" | "31";
+  publishedWithin: "0" | "1" | "3" | "7" | "14" | "31"; // « 0 » = aucune limite de date (la personne a décoché « Publiées depuis »)
   remoteOnly?: boolean;
   exclude?: string; // mots à exclure
   maxYears?: number | null; // masque les offres qui exigent plus d'années d'expérience
   page?: number; // 1 par défaut ; « Voir la suite » demande la page suivante de chaque source (MAX_PAGE au plus)
 };
+
+/** Valeur de `publishedWithin` quand la période est décochée : les sources ne reçoivent aucune limite de date. */
+export const ANY_DATE = "0";
+/** Jours de la période, ou null quand elle est décochée. Une valeur absente ou illisible vaut 14 jours (comme avant). */
+export const sinceDays = (v: string | undefined | null): number | null => (v === ANY_DATE ? null : Number(v) || 14);
 
 /** Pages qu'on peut lire par source (« Voir la suite ») : au-delà, les offres sont trop anciennes ou sans rapport, et le quota gratuit des sources est limité. */
 export const MAX_PAGE = 5;
@@ -32,7 +37,11 @@ export type JobOffer = {
   description: string;
 };
 
-export type SearchOpts = { maxRequests?: number }; // plafond de requêtes envoyées à la source (la tâche du matin en demande moins)
+export type SearchOpts = {
+  maxRequests?: number; // plafond de requêtes envoyées à la source (la tâche du matin en demande moins)
+  /** Rempli par la source : les variantes de poste qu'elle a cherchées EN PLUS des mots saisis (lib/sources/query.ts), pour le dire à la personne. */
+  tried?: string[];
+};
 
 export type Source = {
   id: "adzuna" | "jooble";

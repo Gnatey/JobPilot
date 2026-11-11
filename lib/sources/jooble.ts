@@ -2,7 +2,8 @@ import { HttpError } from "../supabase/server";
 import { splitRoles } from "../job-families";
 import { deptName } from "../departements";
 import { httpUrlOrNull } from "../fetch-offer";
-import { KEYWORD_CONTRACTS, MAX_PAGE, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
+import { runPhased } from "./query";
+import { KEYWORD_CONTRACTS, MAX_PAGE, sinceDays, type JobOffer, type SearchCriteria, type SearchOpts, type Source } from "./types";
 import { stripTags } from "./adzuna";
 
 /**
@@ -61,20 +62,20 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
   const page = Math.max(1, Math.min(MAX_PAGE, Math.round(c.page ?? 1) || 1));
   const roles = splitRoles(c.keywords);
   const places = c.cities?.length ? c.cities.slice(0, 5) : c.departments.length ? c.departments.slice(0, 5).map(deptName) : [""];
-  const jobs = (roles.length ? roles : [""])
-    .flatMap((role) => places.flatMap((where) => suffixes.map((suffix) => ({ role, where, suffix }))))
-    .slice(0, opts.maxRequests ?? 12);
-  const from = new Date(Date.now() - Number(c.publishedWithin || 14) * 864e5).toISOString().slice(0, 10);
+  const jobsFor = (queries: string[]) => queries.flatMap((role) => places.flatMap((where) => suffixes.map((suffix) => ({ role, where, suffix }))));
+  type Job = ReturnType<typeof jobsFor>[number];
+  const days = sinceDays(c.publishedWithin);
+  const from = days == null ? null : new Date(Date.now() - days * 864e5).toISOString().slice(0, 10); // période décochée : pas de date de départ
 
-  const post = (host: string, { role, where, suffix }: (typeof jobs)[number]) =>
+  const post = (host: string, { role, where, suffix }: Job) =>
     fetch(`${host}/api/${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "JobPilot" },
-      body: JSON.stringify({ keywords: `${role}${suffix}`.trim().slice(0, 120), location: where || "France", radius: "26", page: String(page), datecreatedfrom: from }),
+      body: JSON.stringify({ keywords: `${role}${suffix}`.trim().slice(0, 120), location: where || "France", radius: "26", page: String(page), ...(from ? { datecreatedfrom: from } : {}) }),
       signal: AbortSignal.timeout(15_000),
     });
 
-  const fetchOne = async (job: (typeof jobs)[number]) => {
+  const fetchOne = async (job: Job) => {
     const all = hostsToTry();
     const order = lastGoodHost && all.includes(lastGoodHost) ? [lastGoodHost, ...all.filter((h) => h !== lastGoodHost)] : all;
     const refused: { host: string; status: number; blocked: boolean }[] = [];
@@ -101,8 +102,12 @@ async function search(c: SearchCriteria, opts: SearchOpts = {}): Promise<JobOffe
     throw new HttpError(502, `Jooble : adresse introuvable (${detail}).`);
   };
 
-  const settled: PromiseSettledResult<Raw[]>[] = [];
-  for (let i = 0; i < jobs.length; i += 4) settled.push(...(await Promise.allSettled(jobs.slice(i, i + 4).map(fetchOne))));
+  const run = async (jobs: Job[]) => {
+    const out: PromiseSettledResult<Raw[]>[] = [];
+    for (let i = 0; i < jobs.length; i += 4) out.push(...(await Promise.allSettled(jobs.slice(i, i + 4).map(fetchOne))));
+    return out;
+  };
+  const settled = await runPhased({ roles, max: opts.maxRequests ?? 12, jobsFor, run, tried: opts.tried });
   const failed = settled.find((r): r is PromiseRejectedResult => r.status === "rejected");
   if (failed && settled.every((r) => r.status === "rejected")) throw failed.reason;
 

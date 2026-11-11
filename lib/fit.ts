@@ -56,9 +56,9 @@ function mentionsChosenContract(title: string, contracts: string[]): boolean {
 
 /* ---------- Métier ---------- */
 
-const STOP = new Set(["de", "du", "la", "le", "les", "des", "un", "une", "et", "en", "au", "aux", "pour", "the", "and", "of", "to", "for", "hf", "fh", "h", "f", "sur", "chez", "par", "dans", "avec"]);
+export const STOP = new Set(["de", "du", "la", "le", "les", "des", "un", "une", "et", "en", "au", "aux", "pour", "the", "and", "of", "to", "for", "hf", "fh", "h", "f", "sur", "chez", "par", "dans", "avec"]);
 /** Mots qui ne disent rien du métier : « chef de projet » ne rapproche pas deux métiers. */
-const GENERIC = new Set([
+export const GENERIC = new Set([
   "chef", "projet", "projets", "responsable", "charge", "chargee", "ingenieur", "ingenieure", "consultant", "consultante", "manager", "assistant", "assistante",
   "technicien", "technicienne", "developpeur", "developpeuse", "gestionnaire", "expert", "experte", "senior", "junior", "lead", "adjoint", "adjointe",
   "directeur", "directrice", "agent", "conseiller", "conseillere", "specialiste", "referent", "referente", "stagiaire", "stage", "alternance", "alternant",
@@ -72,6 +72,8 @@ const CANON: Record<string, string> = {
   scientist: "scientist", scientifique: "scientist",
   ingenieure: "ingenieur", developpeuse: "developpeur", developer: "developpeur", engineer: "ingenieur",
   comptable: "comptable", comptables: "comptable",
+  // Pluriels courants des intitulés informatiques : « bases de données » et « base de données » sont le même métier (11 novembre : « gestionnaire de base de données » contre « Administrateur de bases de données »)
+  bases: "base", systemes: "systeme", reseaux: "reseau", applications: "application", logiciels: "logiciel", infrastructures: "infrastructure",
 };
 const canon = (w: string) => CANON[w] ?? w;
 
