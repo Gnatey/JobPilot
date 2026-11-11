@@ -1,7 +1,7 @@
 import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile, patchPreferences } from "@/lib/profile";
-import { activeCriteria, sameCriteria, sanitizeSaved, toSearchCriteria } from "@/lib/day";
+import { activeCriteria, dailyQuota, dayIsStale, sameCriteria, sanitizeSaved, toSearchCriteria } from "@/lib/day";
 import { ensureFit } from "@/lib/fit-stock";
 import { DEFAULT_DAILY_QUOTA, MAX_DAILY_QUOTA } from "@/lib/onboarding";
 
@@ -11,7 +11,7 @@ const SAVED_NAME = "Mes critères";
  * Bouton 1 de la page Recherche : « Enregistrer mes critères ».
  * Le jeu enregistré remplace le précédent (hier « Data Analyst », aujourd'hui « Data BI »). La recherche automatique du matin
  * suit ces critères ; les anciennes recherches automatiques sont mises en pause (elles restent listées, réactivables).
- * Si les critères changent, la liste du jour est à refaire.
+ * Si les critères ou « Candidatures par jour » changent, la liste du jour est à refaire (`dayIsStale`).
  */
 export async function POST(req: Request) {
   return handle(async () => {
@@ -24,7 +24,8 @@ export async function POST(req: Request) {
     const profile = await getProfile(supabase, user);
     const before = profile.preferences?.criteria ?? null;
     const changed = !sameCriteria(before, crit) && !(before == null && sameCriteria(activeCriteria(profile), crit));
-    await patchPreferences(supabase, user.id, { criteria: crit, daily_quota: quota, ...(changed ? { day: null } : {}) });
+    const reset = dayIsStale(changed, dailyQuota(profile), quota);
+    await patchPreferences(supabase, user.id, { criteria: crit, daily_quota: quota, ...(reset ? { day: null } : {}) });
 
     // Recherche du matin : une seule recherche gérée par l'app, les autres en pause
     const search = toSearchCriteria(crit);
@@ -37,6 +38,6 @@ export async function POST(req: Request) {
     // Les offres déjà reçues sont revues avec les nouveaux postes
     const fresh = await getProfile(supabase, user);
     await ensureFit(supabase, user.id, fresh).catch(() => null);
-    return { ok: true, changed, paused: paused?.length ?? 0, saved_at: crit.saved_at };
+    return { ok: true, changed, reset, paused: paused?.length ?? 0, saved_at: crit.saved_at };
   });
 }

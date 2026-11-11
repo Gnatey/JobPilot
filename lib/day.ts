@@ -72,6 +72,12 @@ export function sanitizeSaved(raw: unknown): SavedCriteria {
   };
 }
 
+/**
+ * La liste du jour en cours est-elle à refaire ? Oui si les critères ont changé, OU si la personne a changé « Candidatures par jour » :
+ * sinon « Préparer ma journée » reprenait la liste déjà prête (10 offres à trancher) alors qu'elle venait d'en demander 4 (11 novembre).
+ */
+export const dayIsStale = (criteriaChanged: boolean, quotaBefore: number, quotaAfter: number) => criteriaChanged || quotaBefore !== quotaAfter;
+
 /** Deux jeux de critères identiques (la date d'enregistrement mise à part) ? */
 export const sameCriteria = (a?: SavedCriteria | null, b?: SavedCriteria | null) => {
   const k = (c?: SavedCriteria | null) => JSON.stringify(c ? { ...c, saved_at: "" } : null);

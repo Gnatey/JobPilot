@@ -54,6 +54,7 @@ export default function Recherche() {
   const [c, setC] = useState<SearchCriteria>(DEFAULT);
   const [zone, setZone] = useState<SearchZone | null>(FRANCE);
   const [quota, setQuota] = useState(DEFAULT_DAILY_QUOTA);
+  const [savedQuota, setSavedQuota] = useState<number | null>(null); // le nombre que le serveur connaît : changer seulement « Candidatures par jour » ne rendait pas le formulaire modifié (`sig` ne le contient pas), donc rien n'était enregistré
   const [loaded, setLoaded] = useState(false);
   const [savedSig, setSavedSig] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -108,7 +109,9 @@ export default function Recherche() {
       setTargets(p?.targets?.map((x) => x.title).filter(Boolean) ?? []);
       const pref = p?.preferences;
       setSectors(pref?.sectors ?? []);
-      setQuota(Math.max(1, Math.min(MAX_DAILY_QUOTA, pref?.daily_quota ?? DEFAULT_DAILY_QUOTA)));
+      const q0 = Math.max(1, Math.min(MAX_DAILY_QUOTA, pref?.daily_quota ?? DEFAULT_DAILY_QUOTA));
+      setQuota(q0);
+      setSavedQuota(q0);
       const crit = pref?.criteria;
       if (crit?.roles?.length) {
         // Les critères validés, tels que tu les as laissés
@@ -141,10 +144,11 @@ export default function Recherche() {
       .then((x) => x.json()).catch(() => ({ error: "Connexion interrompue, réessaie." }));
     if (r.error) { setErr(r.error); return false; }
     setSavedSig(sig(form));
+    setSavedQuota(quota);
     setSavedAt(r.saved_at ?? new Date().toISOString());
     setFromQuestionnaire(false);
     refreshBadges();
-    if (r.changed) setDay(null);
+    if (r.changed || r.reset) setDay(null);
     if (!quiet) {
       toast(r.paused ? `Critères enregistrés. ${plural(r.paused, "ancienne recherche automatique est", "anciennes recherches automatiques sont")} en pause.` : "Critères enregistrés : ils remplacent les précédents.");
       loadSaved();
@@ -163,7 +167,7 @@ export default function Recherche() {
   async function prepareDay(more = false) {
     setWorking(more ? "more" : "day");
     setNotice(null);
-    if (!more && (dirty || savedSig === null) && !(await saveCriteria(true))) return setWorking(null);
+    if (!more && (dirty || savedSig === null || savedQuota !== quota) && !(await saveCriteria(true))) return setWorking(null);
     const r = await fetch("/api/day", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ more }) })
       .then((x) => x.json()).catch(() => ({ error: "Connexion interrompue, réessaie." }));
     setWorking(null);

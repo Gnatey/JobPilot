@@ -421,3 +421,9 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Vérifié par recherche web (11 novembre)** : l'API Offres d'emploi de France Travail est en accès restreint et n'est plus exposée sur francetravail.io (data.gouv.fr) ; Careerjet exige `user_ip` et `user_agent` à chaque appel (documentation v4), gratuité et conditions non précisées.
 - **À proposer, pas fait** : une source de plus (Careerjet) après son accord et la création de son compte ; un budget de requêtes qui ne coupe pas en silence les derniers postes ; compléter `SYNONYMS` avec les cas réels.
 - **Aucune migration.**
+
+### Paquet 17 (préparé le 11 novembre soir, NON livré) : « demandé 4, eu 13 »
+- **Trouvé** : le nombre de candidatures par jour n'entrait pas dans la détection de changement du formulaire de Recherche (rien n'était enregistré s'il était seul à changer) ; la liste du jour en cours était reprise telle quelle après un nouveau nombre.
+- **Fait** : `savedQuota` côté écran, `dayIsStale` (`lib/day.ts`) et remise à zéro de la liste dans `/api/criteria` ; `tests/day-quota.test.ts`.
+- **Non prouvé** : d'où vient exactement son « 13 » (journaux : un enregistrement + une préparation à 19 h 10 ; un appel ne dépasse jamais le nombre demandé). Pistes : cumul « offres préparées » de la carte « Ma journée », ou Recommandées › À trier qui garde toutes les offres trouvées.
+- **Aucune migration.** Branche `paquet-17-quota`, à livrer avec le prochain paquet sur son feu vert.
