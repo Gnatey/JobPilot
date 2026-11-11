@@ -11,6 +11,9 @@ import { fitCheck, roleAffinity, titleMatchesRoles } from "./fit";
 import { CONTRACT_CODE, DEFAULT_DAILY_QUOTA, MAX_DAILY_QUOTA, MAX_TARGET_ROLES, normalizeZone, zoneDepartments } from "./onboarding";
 import { getProfileById, patchPreferences } from "./profile";
 import { storeSearchOffers } from "./sync";
+import type { StoreStats } from "./search-store";
+import { explainDay } from "./search-why";
+import type { Dropped } from "./sources";
 import { spendAi, AI_COST } from "./quota";
 import { HttpError } from "./supabase/server";
 
@@ -130,6 +133,10 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
   const skip = new Set(day.ids);
   let picked = await pool(supabase, user.id, profile, crit, skip);
   const web: DayResult["web"] = { searched: false };
+  // Ce que la recherche web a lu et écarté, pour dire pourquoi la liste est incomplète
+  let read = 0;
+  let dropped: Dropped = { exclude: 0, remote: 0, years: 0, contract: 0, old: 0 };
+  let stats: StoreStats | null = null;
 
   // Pas assez d'offres en réserve : recherche sur le web avec les mêmes critères
   if (picked.length < quota && hasSource() && !opts.noWeb) {
@@ -138,7 +145,9 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
       web.searched = true;
       const found = await searchAll(toSearchCriteria(crit), { maxRequests: 10 });
       const learning = await computeLearning(supabase, user.id);
-      await storeSearchOffers(supabase, user.id, profile, learning, found.offers, toSearchCriteria(crit));
+      const st = { read: 0, far: 0, low: 0, asked: 0, senior: 0, known: 0, fresh: 0 };
+      await storeSearchOffers(supabase, user.id, profile, learning, found.offers, toSearchCriteria(crit), st);
+      read = found.read; dropped = found.dropped; stats = st;
       picked = await pool(supabase, user.id, profile, crit, skip);
     } catch (e) {
       web.error = e instanceof Error ? e.message : "Recherche web impossible pour le moment.";
@@ -156,7 +165,7 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
   if (take.length < quota) {
     const lack = take.length ? `Je n'ai trouvé que ${take.length} offre${take.length > 1 ? "s" : ""} sur ${quota} qui correspondent` : "Aucune nouvelle offre ne correspond";
     message = `${lack} à « ${crit.roles.join(", ")} » sur les ${crit.publishedWithin === "1" ? "dernières 24 h" : `${crit.publishedWithin} derniers jours`}.`
-      + (!hasSource() ? " Aucune source de recherche automatique n'est branchée : les nouvelles offres viennent de tes alertes Gmail." : web.error ? ` La recherche web a échoué (${web.error}).` : " Élargis la période, la zone ou les postes, puis réessaie.");
+      + explainDay({ sourcesOn: hasSource(), web, period: crit.publishedWithin, maxYears: crit.maxYears, read, dropped, stats });
   }
   return { ids, added: take.length, left: await undecided(), quota, web, message };
 }

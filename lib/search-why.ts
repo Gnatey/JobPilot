@@ -1,4 +1,5 @@
 import type { Dropped } from "./sources";
+import type { StoreStats } from "./search-store";
 
 /**
  * « Pourquoi si peu d'offres ? » (11 novembre, Juliana : « j'ai cherché consultant SI et rien n'est sorti, même sous 1 mois, pour juste 5 offres »).
@@ -25,7 +26,7 @@ export type WhyInput = {
 const n = (count: number, one: string, many: string) => `${count} ${count > 1 ? many : one}`;
 
 /** Ce que chaque cause d'écart d'office veut dire, dans les mots de la personne. */
-function droppedPhrases(d: Dropped, maxYears?: number | null): string[] {
+export function droppedPhrases(d: Dropped, maxYears?: number | null): string[] {
   const out: string[] = [];
   if (d.years) out.push(`${d.years} ${d.years > 1 ? "demandent" : "demande"} plus de ${maxYears ?? "?"} an${(maxYears ?? 0) > 1 ? "s" : ""} d'expérience`);
   if (d.contract) out.push(`${n(d.contract, "est une alternance ou un stage", "sont des alternances ou des stages")} (contrat non coché)`);
@@ -58,4 +59,41 @@ export function explainSearch(i: WhyInput): string[] {
   if (i.criteria.remoteOnly) rules.push("télétravail seulement");
   if (rules.length) lines.push(`Réglages qui réduisent la recherche : ${rules.join(" ; ")}.`);
   return lines;
+}
+
+/**
+ * Pourquoi la liste du jour est vide ou incomplète (« Préparer ma journée », lib/day.ts). Avant : « Aucune nouvelle offre ne correspond… Élargis la période, la zone
+ * ou les postes », même quand la période était déjà au maximum (1 mois) et sans dire QUEL filtre avait tout retiré (11 novembre, Juliana : « Candidatures par jour : 5 »,
+ * recherche « consultant SI » : rien). Les comptes viennent de la recherche web faite pendant l'appel (`found.read`, `found.dropped`, `StoreStats`).
+ */
+export type DayWhy = {
+  sourcesOn: boolean;
+  web: { searched: boolean; error?: string };
+  /** Période choisie en jours (« 31 » = le maximum proposé). */
+  period: string;
+  maxYears?: number | null;
+  /** Lues par les sources avant les filtres communs, et écartées d'office. */
+  read: number;
+  dropped: Dropped;
+  stats: StoreStats | null;
+};
+
+export function explainDay(i: DayWhy): string {
+  if (!i.sourcesOn) return " Aucune source de recherche automatique n'est branchée : les nouvelles offres viennent de tes alertes Gmail.";
+  if (i.web.error) return ` La recherche web a échoué (${i.web.error}).`;
+  // La période maximale proposée est 1 mois : ne pas la conseiller quand elle est déjà choisie
+  const tail = i.period === "31"
+    ? " Retire un réglage (zone, contrat, années max) ou ajoute un poste voisin, puis réessaie."
+    : " Élargis la période (jusqu'à 1 mois), retire un réglage (zone, contrat, années max) ou ajoute un poste voisin, puis réessaie.";
+  if (!i.web.searched || !i.stats) return tail;
+  if (i.read === 0) return ` Les sources n'ont renvoyé aucune offre pour ces mots-clés dans cette zone et cette période.${tail}`;
+  const d = Object.values(i.dropped).reduce((a, b) => a + b, 0);
+  const parts: string[] = [];
+  if (d) parts.push(`${d} écartée${d > 1 ? "s" : ""} d'office (${droppedPhrases(i.dropped, i.maxYears).join(", ")})`);
+  if (i.stats.far) parts.push(`${i.stats.far} éloignée${i.stats.far > 1 ? "s" : ""} de tes postes (rangée${i.stats.far > 1 ? "s" : ""} dans Masquées)`);
+  if (i.stats.low) parts.push(`${i.stats.low} peu compatible${i.stats.low > 1 ? "s" : ""} avec ton profil (pré-score sous 30)`);
+  if (i.stats.senior) parts.push(`${i.stats.senior} au-dessus de ta limite d'expérience`);
+  if (i.stats.known) parts.push(`${i.stats.known} déjà connue${i.stats.known > 1 ? "s" : ""} (vue${i.stats.known > 1 ? "s" : ""}, décidée${i.stats.known > 1 ? "s" : ""} ou masquée${i.stats.known > 1 ? "s" : ""} avant)`);
+  if (i.stats.fresh) parts.push(`${i.stats.fresh} nouvelle${i.stats.fresh > 1 ? "s" : ""} gardée${i.stats.fresh > 1 ? "s" : ""}`);
+  return ` Les sources ont renvoyé ${i.read} offre${i.read > 1 ? "s" : ""}${parts.length ? ` : ${parts.join(" ; ")}` : ""}.${tail}`;
 }

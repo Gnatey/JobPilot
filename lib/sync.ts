@@ -1,5 +1,4 @@
 import { hasPostedColumn } from "./posted-db";
-import { parsePosted } from "./posted";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 import { fetchMeta, gmailEmail, listJobEmails } from "./gmail";
@@ -21,7 +20,7 @@ import { fetchAll } from "./paged";
 import { readOffer, detectSource, normalizeJobUrl, httpUrlOrNull } from "./fetch-offer";
 import { recoText } from "./reco-text";
 import { markRecoGone } from "./offer-ops";
-import { splitRoles } from "./job-families";
+import { planStore, type StoreStats } from "./search-store";
 import { dedupeKey } from "./dedupe-key";
 
 /* ---------- Corps complet d'un email (pour les alertes) ---------- */
@@ -206,23 +205,18 @@ export async function runSavedSearches(supabase: SupabaseClient, userId: string)
  * Ce qui n'est pas pour la personne (stage non demandé, métier éloigné) est rangé en « Masquées » au lieu de À trier.
  * Renvoie le nombre de nouvelles offres visibles dans À trier.
  */
-export async function storeSearchOffers(supabase: SupabaseClient, userId: string, profile: Profile, learning: Learning, offers: JobOffer[], sc: SearchCriteria): Promise<number> {
+export async function storeSearchOffers(supabase: SupabaseClient, userId: string, profile: Profile, learning: Learning, offers: JobOffer[], sc: SearchCriteria, stats?: StoreStats): Promise<number> {
   const withPosted = await hasPostedColumn(supabase); // date de publication du site, rangée à part quand la base est à jour (mise à jour 7)
-  const rows = offers.map((o) => {
-    const posted = parsePosted(o.date); // date de la source (Adzuna : création, Jooble : mise à jour), jamais une date inventée ni illisible
-    const q = quickScore(profile, o.title, `${o.experience} ${o.description}`, learning, o.company);
-    const fit = fitCheck(profile, { title: o.title, text: `${o.experience} ${o.description}` }, { roles: [...splitRoles(sc.keywords), ...criteriaRoles(profile)], contracts: sc.contracts });
-    return {
-      status: fit.ok ? "new" : "filtered", reject_reason: fit.ok ? null : fit.reason,
-      user_id: userId, origin: "search", source: o.source, dedupe_key: o.key,
-      title: o.title, company: o.company, location: o.location, url: o.url,
-      snippet: o.description.slice(0, 4000), quick_score: q.score, matched: q.matched, senior: q.senior, received_at: posted ?? new Date().toISOString(),
-      ...(withPosted && posted ? { posted_at: posted } : {}),
-    };
-  }).filter((r) => r.quick_score >= 30);
-  if (!rows.length) return 0;
-  const { data } = await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id, status");
-  return (data ?? []).filter((d) => d.status === "new").length;
+  // Le tri (éloignée, sous le seuil, demandée par son titre) est dans lib/search-store.ts, testé sans base
+  const plan = planStore({ userId, profile, learning, offers, keywords: sc.keywords, contracts: sc.contracts, criteriaRoles: criteriaRoles(profile), withPosted });
+  const out: StoreStats = { read: plan.read, far: plan.far, low: plan.low, asked: plan.asked, senior: plan.senior, known: 0, fresh: 0 };
+  if (stats) Object.assign(stats, out);
+  if (!plan.rows.length) return 0;
+  const { data } = await supabase.from("recommendations").upsert(plan.rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id, status");
+  // `data` ne contient que les lignes nouvellement rangées : les autres étaient déjà connues (vues, décidées ou masquées avant)
+  const fresh = (data ?? []).filter((d) => d.status === "new").length;
+  if (stats) Object.assign(stats, { known: plan.rows.length - (data ?? []).length, fresh });
+  return fresh;
 }
 
 /* ---------- 3. Analyse automatique des meilleures offres ----------

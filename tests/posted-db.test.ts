@@ -77,7 +77,7 @@ ok("une autre erreur n'est pas une colonne absente", !isMissingPostedColumn({ co
 // ---------- Les écritures passent par la sonde ----------
 {
   const read = (f: string) => readFileSync(f, "utf8");
-  ok("la tâche du matin et le rangement des recherches n'écrivent posted_at que si la colonne existe", /hasPostedColumn\(supabase\)/.test(read("lib/sync.ts")) && /withPosted && posted \? \{ posted_at/.test(read("lib/sync.ts")));
+  ok("la tâche du matin et le rangement des recherches n'écrivent posted_at que si la colonne existe", /hasPostedColumn\(supabase\)/.test(read("lib/sync.ts")) && /withPosted/.test(read("lib/sync.ts")) && /withPosted && posted \? \{ posted_at/.test(read("lib/search-store.ts")));
   ok("« Stocker » (page Recherche) idem, et une date illisible ne fait plus échouer le rangement", /withPosted && posted \? \{ posted_at/.test(read("app/api/recommendations/route.ts")) && !/clip\(o\.date, 40\)/.test(read("app/api/recommendations/route.ts")));
   ok("aucune page ne demande posted_at sans passer par recoCols", ["app/recommandees/page.tsx", "app/recommandees/tri/page.tsx", "lib/day.ts"].every((f) => /recoCols\(/.test(read(f)) && !/select\(RECO_COLS\)/.test(read(f))));
 }
