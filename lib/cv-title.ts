@@ -14,6 +14,14 @@ import { norm } from "./offers-filter";
 const GENDER = /\(?(?<![\p{L}\d])[hfm]\s*[/.]\s*[hfmwx](?:\s*[/.]\s*[hfmwx])?(?![\p{L}\d])\)?/giu;
 /** Niveau que le profil (junior) n'a pas. */
 const SENIOR = /(?<![\p{L}\d])(s[eé]nior|confirm[eé]e?s?|exp[eé]riment[eé]e?s?|lead|expert|principal|head of|directeur|directrice)(?![\p{L}\d])/iu;
+/** Étiquette collée devant le métier par un titre de page ou un site : « Emploi - », « Offre d'emploi : », « CDI - ». Seulement suivie d'un séparateur : « Stage data analyst » reste entier. */
+const LEADING_LABEL = /^\s*(?:offre\s+d['’]\s*emploi|offre\s+de\s+stage|offre|emploi|annonce|job|recrutement|cdd|cdi|int[eé]rim|stage|alternance)\s+[-–—|:/]\s+(?=\S)/i;
+/** Il ne reste que l'étiquette (« Emploi - H/F ») : ce n'est pas un métier, le titre de l'IA est gardé. */
+const BARE_LABEL = /^(?:offre(?:\s+d['’]\s*emploi)?|emploi|annonce|job|recrutement|cdd|cdi|int[eé]rim|stage|alternance)$/i;
+/** Segment de fin qui nomme le site ou l'espace recrutement, pas le métier : « BPCE Recrutement », « Acme Carrières », « Careers ». */
+const SITE_SEGMENT = /(?<![\p{L}\d])(?:recrutement|carri[eè]res?|careers?|jobs?|emploi|offres?\s+d['’]emploi)(?![\p{L}\d])/iu;
+/** Type de contrat resté au bout du métier : « Data scientist CDD », « Data scientist CDI 12 mois ». */
+const TRAILING_CONTRACT = /\s+(?:cdd|cdi|int[eé]rim)(?:\s+(?:de\s+)?\d+\s*(?:mois|ans?))?\s*$/i;
 const SMALL = new Set(["de", "des", "du", "la", "le", "les", "en", "et", "d", "l", "à", "a", "au", "aux", "pour", "sur", "dans", "par"]);
 export const MAX_TITLE = 70;
 
@@ -32,11 +40,18 @@ export function cleanOfferTitle(raw: string | null | undefined): string {
   t = t.replace(GENDER, " ");
   t = t.replace(/\((?!(?:e|es|ne|se|ère|rice)\))[^)]*\)/gi, " "); // (France entière), (Talentsoft)… sauf les marques de genre « (e) »
   t = t.replace(/(?<![\p{L}\d])full[\s-]?remote(?![\p{L}\d])/giu, " ");
+  // Titre de page d'un site de recrutement (« Emploi - Data scientist CDD (F/H) - BPCE Recrutement », 11 novembre) : le mot d'étiquette devant le métier n'en fait pas partie
+  while (LEADING_LABEL.test(t)) t = t.replace(LEADING_LABEL, "");
   // Le métier est avant le premier séparateur (« - », « – », « | », « : », « / » entourés d'espaces) : le reste est un lieu, un service, un second métier
-  const segs = t.split(/\s+[-–—|:/]\s+|\s*[|]\s*/).map((s) => s.trim()).filter(Boolean);
+  let segs = t.split(/\s+[-–—|:/]\s+|\s*[|]\s*/).map((s) => s.trim()).filter(Boolean);
+  // …ou le nom du site qui publie (« BPCE Recrutement », « Acme Carrières ») : retiré même quand le métier tient en un mot
+  const before = segs.length;
+  while (segs.length > 1 && SITE_SEGMENT.test(segs[segs.length - 1])) segs = segs.slice(0, -1);
   if (segs.length > 1 && segs[0].split(" ").length >= 2) t = segs[0];
+  else if (segs.length && segs.length < before) t = segs.join(" - "); // le séparateur d'origine est gardé sinon : « Data / AI Analyst » ne change pas
+  t = t.replace(TRAILING_CONTRACT, "");
   t = t.replace(/\s+/g, " ").replace(/^[\s\-–—,.:;/]+|[\s\-–—,.:;/]+$/g, "").trim();
-  if (t.length < 3 || t.length > MAX_TITLE) return "";
+  if (t.length < 3 || t.length > MAX_TITLE || BARE_LABEL.test(t)) return "";
   return sentenceCase(t);
 }
 

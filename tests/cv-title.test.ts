@@ -35,6 +35,20 @@ const REAL: [string, string][] = [
   ["Product Owner H/F", "Product Owner"],
 ];
 for (const [raw, want] of REAL) ok(`« ${raw} » donne « ${want} »`, c(raw) === want, c(raw));
+// Titres de page de sites de recrutement (11 novembre : le CV BPCE s'intitulait « Emploi - Data scientist CDD - BPCE Recrutement »)
+const PAGES: [string, string][] = [
+  ["Emploi - Data scientist CDD (F/H) - BPCE Recrutement", "Data scientist"],
+  ["Offre d'emploi - Analyste BI - Acme Carrières", "Analyste BI"],
+  ["CDI - Data analyst H/F", "Data analyst"],
+  ["Emploi : Chargé d'études statistiques (H/F)", "Chargé d'études statistiques"],
+  ["Data scientist CDD 12 mois", "Data scientist"],
+  ["Analyste - BPCE Recrutement", "Analyste"],
+  ["Stage data analyst", "Stage data analyst"], // pas de séparateur : « Stage » fait partie de l'intitulé
+  ["Data / AI Analyst", "Data / AI Analyst"], // séparateur d'origine gardé quand rien n'est retiré
+];
+for (const [raw, want] of PAGES) ok(`titre de page « ${raw} » donne « ${want} »`, c(raw) === want, c(raw));
+ok("le CV BPCE prend « Data scientist » et plus le titre de la page", alignHeadline("Data Analyst", "Emploi - Data scientist CDD (F/H) - BPCE Recrutement").headline === "Data scientist");
+ok("un titre réduit à une étiquette (« Emploi - H/F ») n'est pas un titre : celui de l'IA est gardé", c("Emploi - H/F") === "" && alignHeadline("Data Analyst", "Emploi - H/F").headline === "Data Analyst");
 ok("un titre court coupé au séparateur ne devient pas un mot seul (« Data - AI Analyst » reste entier)", c("Data - AI Analyst") === "Data - AI Analyst");
 ok("tout en majuscules : mis en minuscules et majuscules, sans majuscule à « de »", c("ADMINISTRATEUR BASE DE DONNÉES H/F") === "Administrateur Base de Données");
 ok("H/F/X, M/F, F/H et (H/F) sont retirés ; un mot qui contient ces lettres n'est jamais touché", c("Analyste BI M/F") === "Analyste BI" && c("Technicien H/F/X") === "Technicien" && c("Chef de projet HF") === "Chef de projet HF" && c("Responsable Fiabilité Hydraulique") === "Responsable Fiabilité Hydraulique");
@@ -57,6 +71,7 @@ import { readFileSync } from "node:fs";
   const gen = ai.slice(ai.indexOf("export async function generateCv"), ai.indexOf("/* ---------- 4."));
   ok("generateCv aligne le titre sur l'offre AVANT les faits du profil et le garde-fou", gen.indexOf("alignHeadline(cv.headline, offer.title)") > 0 && gen.indexOf("alignHeadline(") < gen.indexOf("enforceFacts(cv, profile)"));
   ok("le prompt ne laisse plus l'IA choisir le titre d'une cible quand l'offre lui paraît éloignée", /Ne le remplace JAMAIS par le titre d'une cible/.test(gen) && !/s'il correspond au profil/.test(gen));
+  ok("le résumé n'affiche que des compétences du profil, sans « expertise » ni « forte expérience » inventées", /N'y nomme que des outils, méthodes et domaines qui figurent dans le profil/.test(gen) && /Pas de « expertise », « forte expérience »/.test(gen));
   ok("offre de niveau senior : une note le dit à la personne", /demande un niveau senior/.test(gen) && /notes_for_candidate/.test(gen));
 }
 
