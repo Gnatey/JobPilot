@@ -71,7 +71,7 @@ import { readFileSync } from "node:fs";
   const gen = ai.slice(ai.indexOf("export async function generateCv"), ai.indexOf("/* ---------- 4."));
   ok("generateCv aligne le titre sur l'offre AVANT les faits du profil et le garde-fou", gen.indexOf("alignHeadline(cv.headline, offer.title)") > 0 && gen.indexOf("alignHeadline(") < gen.indexOf("enforceFacts(cv, profile)"));
   ok("le prompt ne laisse plus l'IA choisir le titre d'une cible quand l'offre lui paraît éloignée", /Ne le remplace JAMAIS par le titre d'une cible/.test(gen) && !/s'il correspond au profil/.test(gen));
-  ok("le résumé n'affiche que des compétences du profil, sans « expertise » ni « forte expérience » inventées", /N'y nomme que des outils, méthodes et domaines qui figurent dans le profil/.test(gen) && /Pas de « expertise », « forte expérience »/.test(gen));
+  ok("le résumé : une compétence vue seulement en formation n'est jamais écrite comme une expertise (voir tests/summary-guard.test.ts)", /ne l'écris jamais comme une expertise, une maîtrise ou une expérience/.test(gen) && /Pas de « expertise », « forte expérience »/.test(gen));
   ok("offre de niveau senior : une note le dit à la personne", /demande un niveau senior/.test(gen) && /notes_for_candidate/.test(gen));
 }
 

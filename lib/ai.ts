@@ -2,6 +2,7 @@ import { structured, str, int, arr, obj } from "./llm";
 import { letterParts, letterDoc } from "./letter";
 import { attachLinks } from "./cv-format";
 import { guardCv } from "./cv-guard";
+import { checkSummary, summaryNotes } from "./summary-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { alignHeadline } from "./cv-title";
@@ -139,7 +140,7 @@ export async function generateCv(profile: Profile, offer: OfferExtract, analysis
     system: `Tu rédiges un CV français d'UNE page, une colonne, optimisé ATS, ciblé sur une offre précise.
 Méthode :
 - headline : l'intitulé de l'offre, mot pour mot, sans « H/F », sans lieu ni nom d'entreprise. Ne le remplace JAMAIS par le titre d'une cible, même si le métier te semble éloigné du profil. Seule exception : une offre qui demande un niveau senior, expert ou lead, que le profil n'a pas : prends alors le titre de la cible "${target?.title ?? variant}". Un seul métier, pas de "|".
-- summary : 3 lignes max, concrètes. N'y nomme que des outils, méthodes et domaines qui figurent dans le profil (compétences, projets, réalisations) : une compétence de l'offre que le profil n'a pas n'est jamais écrite (elle va dans notes_for_candidate). Pas de « expertise », « forte expérience », « confirmé » ni d'années d'expérience que le profil ne dit pas : un profil junior se présente par ce qu'il a fait. Termine par la disponibilité.
+- summary : 3 lignes max, concrètes. Ce que les EXPÉRIENCES du profil montrent (leurs réalisations) s'écrit comme un acquis. Ce que le profil ne montre qu'en formation, en projet ou dans la liste de compétences (machine learning, NLP, LLM, deep learning, IA…) n'est pas un acquis de métier : ne l'écris jamais comme une expertise, une maîtrise ou une expérience ; ne le cite que si l'offre le demande, sous la forme « formée au machine learning en Master » ou « notions de… », sinon laisse-le de côté. Une compétence que le profil n'a nulle part n'est jamais écrite (elle va dans notes_for_candidate). Pas de « expertise », « forte expérience », « confirmé » ni d'années d'expérience que le profil ne dit pas : un profil junior se présente par ce qu'il a fait. Termine par la disponibilité.
 - experiences : TOUTES les expériences du profil qui ont au moins une réalisation, même celles qui semblent éloignées de l'offre (un trou entre deux postes se voit), en ordre antichronologique. Pour chacune, choisis et reformule les réalisations les plus pertinentes pour l'offre (3-4 puces pour le poste le plus récent, 2-3 pour les autres ; une seule suffit pour une expérience peu liée à l'offre). Commence chaque puce par un verbe d'action. Garde les chiffres existants tels quels. Une expérience du profil sans aucune réalisation n'est pas listée.
 - Chaque puce reformule UNE réalisation du profil sans rien y ajouter : mêmes outils, même public, même périmètre, mêmes chiffres. Reformuler, c'est changer l'ordre des mots et le verbe, jamais les faits.
 - N'ajoute JAMAIS un résultat, un effet ou un bénéfice que la réalisation ne dit pas (« réduisant… », « permettant… », « améliorant… », « afin de… », « ce qui a… »). Une réalisation sans résultat dans le profil s'arrête sur ce qui a été fait, pour qui et avec quoi. Le résultat qui manquerait va dans notes_for_candidate, sous forme de question à se poser.
@@ -179,6 +180,9 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
   // Puis garde-fou : un résultat ou un chiffre que le profil ne dit pas est retiré ou signalé (lib/cv-guard.ts)
   // Les projets « Toujours sur mes CV » du profil sont remis s'ils manquent (lib/cv-edit.ts) ; les tirets insécables du profil deviennent des tirets simples
   const { cv: checked } = guardCv(pinProjects(enforceFacts(cv, profile).cv, profile), profile);
+  // Le résumé ne présente pas comme une expertise une compétence que le profil ne montre qu'en formation (lib/summary-guard.ts) : signalé, jamais coupé
+  const claims = summaryNotes(checkSummary(checked.summary, profile));
+  if (claims.length) checked.notes_for_candidate = [...(checked.notes_for_candidate ?? []), ...claims];
   // Liens : repris du profil (jamais écrits par l'IA), choisis selon l'offre
   return attachLinks(cleanCvText(checked), profile,[offer.title, ...(offer.keywords ?? []), ...(analysis?.matched_keywords ?? []), ...(analysis?.missing_keywords ?? [])].join(" "));
 }

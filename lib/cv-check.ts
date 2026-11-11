@@ -1,5 +1,6 @@
 import { enforceFacts, languagesText } from "./cv-facts";
 import { guardCv } from "./cv-guard";
+import { checkSummary } from "./summary-guard";
 import { cleanOfferTitle, isSeniorTitle, sameTitle } from "./cv-title";
 import type { CvDoc, Profile } from "./types";
 
@@ -47,6 +48,10 @@ export function checkCv(content: unknown, profile: Profile, offerTitle?: string 
   for (const c of facts.inventedCerts) fix(`Certification qui ne figure pas dans ton profil : ${q(c)}`);
   for (const p of guard.placeholders) fix(`${p.where} : la réserve ${q(p.removed)} est écrite dans le CV`);
 
+  // Résumé : une compétence de formation écrite comme un acquis de métier (lib/summary-guard.ts)
+  const claims = checkSummary(cv.summary, profile);
+  if (claims.school.length) read(`Résumé : ${claims.school.map(q).join(", ")} ne figure${claims.school.length > 1 ? "nt" : ""} dans aucune de tes expériences (formation, projet ou compétences seulement)`);
+  if (claims.absent.length) read(`Résumé : ${claims.absent.map(q).join(", ")} ne figure${claims.absent.length > 1 ? "nt" : ""} pas dans ton profil`);
   for (const c of guard.cut) read(`${c.company} : ${q(c.removed)}, un effet ou un but que ton profil ne dit pas`);
   for (const f of guard.flagged) read(`${f.company} : ${q(f.effect)}, un effet ou un but que ton profil ne dit pas`);
   for (const n of guard.numbers) {
