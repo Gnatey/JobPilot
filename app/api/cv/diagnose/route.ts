@@ -3,6 +3,7 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { fileToText } from "@/lib/cv-text";
+import { cleanExtractedText } from "@/lib/clean-text";
 import { runCvAnalysis } from "@/lib/cv-job";
 import { stripPageMarks } from "@/lib/profile-fix";
 import { applyAnswers, missingAnswers, normalizeAnswers, withZoneText } from "@/lib/onboarding";
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
       }
     }
     const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0).slice(0, 6);
-    const pasted = String(form.get("text") ?? "").trim();
+    const pasted = cleanExtractedText(String(form.get("text") ?? "")).trim();
 
     const parts: string[] = [];
     for (const f of files) parts.push(`=== CV : ${f.name} ===\n${stripPageMarks(await fileToText(f))}`);

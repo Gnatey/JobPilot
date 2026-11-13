@@ -44,6 +44,19 @@ export type StoreStats = Pick<StorePlan, "read" | "far" | "low" | "asked" | "sen
   known: number;
   /** Nouvelles offres visibles dans « À trier ». */
   fresh: number;
+  /** Leurs identifiants : « Préparer ma journée » retire celles qui n'entrent pas dans la liste du jour (voir `leftovers`). */
+  ids?: string[];
+};
+
+/**
+ * Offres rangées par UNE recherche de « Préparer ma journée » qui n'ont pas été prises dans la liste du jour.
+ * 13 novembre, Juliana : « j'ai demandé 4 offres dans Recherche, mais dans Recommandées j'en ai eu 13 » : la recherche rangeait TOUT ce qui convenait dans
+ * « À trier » et la liste du jour n'en prenait que 4. Elles sont retirées (jamais vues ni décidées : rien d'apprenable) ; si elles sont toujours en ligne,
+ * la recherche suivante les ramène.
+ */
+export const leftovers = (stored: string[] | undefined, taken: string[]): string[] => {
+  const keep = new Set(taken);
+  return [...new Set(stored ?? [])].filter((id) => !keep.has(id));
 };
 
 type In = {

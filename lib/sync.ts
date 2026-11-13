@@ -215,7 +215,7 @@ export async function storeSearchOffers(supabase: SupabaseClient, userId: string
   const { data } = await supabase.from("recommendations").upsert(plan.rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id, status");
   // `data` ne contient que les lignes nouvellement rangées : les autres étaient déjà connues (vues, décidées ou masquées avant)
   const fresh = (data ?? []).filter((d) => d.status === "new").length;
-  if (stats) Object.assign(stats, { known: plan.rows.length - (data ?? []).length, fresh });
+  if (stats) Object.assign(stats, { known: plan.rows.length - (data ?? []).length, fresh, ids: (data ?? []).filter((d) => d.status === "new").map((d) => d.id as string) });
   return fresh;
 }
 

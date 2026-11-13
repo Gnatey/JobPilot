@@ -45,6 +45,7 @@ export type Profile = {
     onboarded?: boolean;        // questionnaire d'accueil terminé (avec ou sans diagnostic)
     dismissed_skills?: string[]; // suggestions de compétences refusées : on ne les repropose pas
     daily_quota?: number;       // candidatures visées par jour : taille de la liste du jour
+    lang?: "fr" | "en" | "tr";  // langue choisie (sélecteur) : les textes écrits par l'IA pour la personne et les e-mails la suivent
     criteria?: SavedCriteria;   // critères de recherche validés (page Recherche) ; remplacent les précédents
     day?: DayList | null;       // liste du jour (offres préparées pour le Tri rapide)
     fit_sig?: string;           // empreinte du dernier tri « offres adaptées à mon profil » (voir lib/fit.ts)

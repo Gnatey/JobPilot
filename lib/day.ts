@@ -11,7 +11,7 @@ import { fitCheck, roleAffinity, titleMatchesRoles } from "./fit";
 import { CONTRACT_CODE, DEFAULT_DAILY_QUOTA, MAX_DAILY_QUOTA, MAX_TARGET_ROLES, normalizeZone, zoneDepartments } from "./onboarding";
 import { getProfileById, patchPreferences } from "./profile";
 import { storeSearchOffers } from "./sync";
-import type { StoreStats } from "./search-store";
+import { leftovers, type StoreStats } from "./search-store";
 import { explainDay } from "./search-why";
 import type { Dropped } from "./sources";
 import { spendAi, AI_COST } from "./quota";
@@ -171,6 +171,12 @@ export async function buildDay(supabase: SupabaseClient, user: { id: string; ema
   }
 
   const take = picked.slice(0, quota).map((p) => p.id);
+  // Ce que CETTE recherche a rangé dans « À trier » sans que la liste du jour le prenne est retiré : demander 4 offres ne remplit pas Recommandées de 13
+  const spare = leftovers(stats?.ids, take);
+  for (let i = 0; i < spare.length; i += 100) {
+    const { error } = await supabase.from("recommendations").delete().eq("user_id", user.id).eq("status", "new").in("id", spare.slice(i, i + 100));
+    if (error) { console.error("Offres en trop non retirées", error.message); break; }
+  }
   const ids = [...day.ids, ...take];
   if (take.length) {
     await patchPreferences(supabase, user.id, { day: { date: day.date, ids, batches: day.batches + 1 } });
