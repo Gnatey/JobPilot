@@ -10,6 +10,7 @@ import { fmtDate } from "@/lib/format";
 import type { Profile } from "@/lib/types";
 import { getT } from "@/lib/i18n/server";
 import { tx } from "@/lib/i18n/translate";
+import { rich } from "@/lib/i18n/rich";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: tx("Diagnostic") };
@@ -38,7 +39,7 @@ export default async function DiagnosticPage({ params }: { params: Promise<{ id:
         <h1 className="display mb-6 mt-3 text-[2rem] md:text-[2.5rem]">{st.state === "pending" ? t("Ton CV est en cours d'analyse") : t("Ton CV n'a pas pu être analysé")}</h1>
         {st.state === "pending" ? <AnalysisProgress startedAt={st.startedAt} /> : <AnalysisFailed id={d.id} message={st.message} canRetry={st.canRetry} detail={st.detail} />}
         {d.kind === "onboarding" && st.state === "pending" && (
-          <p className="mt-5 max-w-[60ch] text-sm text-muted">{t("Tes réponses au questionnaire sont déjà enregistrées : tu peux déjà")} <Link className="link" href="/recherche">{t("chercher des offres")}</Link> {t("pendant l'analyse.")}</p>
+          <p className="mt-5 max-w-[60ch] text-sm text-muted">{rich(t("Tes réponses au questionnaire sont déjà enregistrées : tu peux déjà {1} pendant l'analyse."), [<Link key="r" className="link" href="/recherche">{t("chercher des offres")}</Link>])}</p>
         )}
       </>
     );

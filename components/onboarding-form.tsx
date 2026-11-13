@@ -183,7 +183,7 @@ export function OnboardingForm({ initial }: { initial?: Partial<OnboardingAnswer
           <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-paper/90 px-4 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
             <button className="btn btn-primary btn-xl">{t("Continuer")}</button>
             <p className={`text-sm ${tried && missing.length ? "font-semibold text-bad" : "text-muted"}`} role="status">
-              {missing.length ? t("Il reste {1} {2}.", [missing.length, missing.length > 1 ? "réponses obligatoires" : "réponse obligatoire"]) : t("Tout est rempli.")}
+              {missing.length ? t(missing.length > 1 ? "Il reste {1} réponses obligatoires." : "Il reste {1} réponse obligatoire.", [missing.length]) : t("Tout est rempli.")}
             </p>
           </div>
         </form>

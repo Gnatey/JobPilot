@@ -1,3 +1,5 @@
+import { langDirective } from "./ai-lang";
+import type { Locale } from "./i18n/locales";
 import { structured, str, int, arr, obj } from "./llm";
 import { letterParts, letterDoc } from "./letter";
 import { attachLinks } from "./cv-format";
@@ -394,7 +396,7 @@ Tu ne sais pas ce qui s'est dit pendant ${test ? "l'épreuve" : "l'entretien"} :
 /* ---------- 11. Diagnostic de CV (accueil et CV redéposé) ---------- */
 
 
-export async function diagnoseCv(cvText: string, answers: OnboardingAnswers | null, previous: Profile | null): Promise<Diagnostic> {
+export async function diagnoseCv(cvText: string, answers: OnboardingAnswers | null, previous: Profile | null, lang?: Locale): Promise<Diagnostic> {
   const sev = { type: "string", enum: ["bloquant", "important", "mineur"] };
   return structured<Diagnostic>({
     maxTokens: 6000,
@@ -411,7 +413,7 @@ Tu juges le CV par rapport aux métiers visés et au marché français actuel :
 ${previous ? "- changes_since_last : compare avec le profil actuel fourni et liste ce qui a changé ou progressé." : ""}
 ${previous?.settled?.length ? "- déjà tranché : la personne a déjà répondu aux questions listées sous « DÉJÀ TRANCHÉ PAR LA PERSONNE ». Ne les reposes pas, même reformulées, ni dans \"inconsistencies\" ni dans \"missing_metrics\" ; ne les rouvre que si le CV contredit clairement sa réponse." : ""}
 - exemples : dans toute reformulation que tu proposes (\"fix\", \"actions\"), n'écris jamais un chiffre, un pourcentage ou un volume de ton invention : mets [chiffre] à la place. Tu ne connais pas les vrais.
-Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquement sur ce qui est écrit. overall_score : 85+ = prêt à envoyer, 60-84 = correct à retravailler, <60 = à refaire.`,
+Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquement sur ce qui est écrit. overall_score : 85+ = prêt à envoyer, 60-84 = correct à retravailler, <60 = à refaire.${langDirective(lang)}`,
     prompt: `QUESTIONNAIRE :\n${JSON.stringify(answers ?? {})}\n\n${previous ? `PROFIL ACTUEL :\n${JSON.stringify(forAi(previous))}\n\n` : ""}${previous?.settled?.length ? `DÉJÀ TRANCHÉ PAR LA PERSONNE :\n${JSON.stringify(settledForAi(previous.settled))}\n\n` : ""}CV :\n"""\n${cvText.slice(0, 40000)}\n"""`,
     schema: {
       properties: {

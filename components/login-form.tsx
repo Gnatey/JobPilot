@@ -7,7 +7,9 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { Logo } from "@/components/nav";
 import { Gauge } from "@/components/ui/score";
 import { useT } from "@/components/i18n";
+import { LanguageSwitch } from "@/components/language-switch";
 import { tx } from "@/lib/i18n/translate";
+import { rich } from "@/lib/i18n/rich";
 
 /** Messages d'erreur de Supabase traduits en français clair, avec quoi faire. */
 function friendly(message: string, mode: "login" | "signup") {
@@ -96,7 +98,8 @@ export function LoginForm({ initialMode, linkExpired, sessionExpired = false, co
         </div>
       </aside>
 
-      <div className="grid place-items-center px-5 py-10">
+      <div className="relative grid place-items-center px-5 py-10">
+        <div className="absolute right-4 top-4"><LanguageSwitch /></div>
         <div className="w-full max-w-sm">
           <div className="lg:hidden"><Logo /></div>
           <h1 className="display mt-8 text-[2.4rem] lg:mt-0">{mode === "login" ? t("Reprendre ta recherche") : t("Créer ton espace")}</h1>
@@ -119,7 +122,7 @@ export function LoginForm({ initialMode, linkExpired, sessionExpired = false, co
             <button className="btn btn-primary btn-xl w-full" disabled={busy}>{busy ? t("Un instant…") : mode === "login" ? t("Se connecter") : t("Créer le compte")}</button>
             {mode === "signup" && (
               <p className="text-xs text-muted">
-                {t("En créant un compte, tu acceptes que les textes que tu fournis (profil, offres) soient envoyés à l'IA Gemini de Google pour les analyses. Détails dans la")} <Link href="/confidentialite" className="link">{t("politique de confidentialité")}</Link> {t("et les")} <Link href="/mentions-legales" className="link">{t("mentions légales")}</Link>.
+                {rich(t("En créant un compte, tu acceptes que les textes que tu fournis (profil, offres) soient envoyés à l'IA Gemini de Google pour les analyses. Détails dans la {1} et les {2}."), [<Link key="c" href="/confidentialite" className="link">{t("politique de confidentialité")}</Link>, <Link key="m" href="/mentions-legales" className="link">{t("mentions légales")}</Link>])}
               </p>
             )}
           </form>

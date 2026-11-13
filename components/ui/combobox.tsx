@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
 import { useT } from "@/components/i18n";
 import { tx } from "@/lib/i18n/translate";
+import { rich } from "@/lib/i18n/rich";
 
 export type Opt = { id: string; label: string; hint?: string; group?: string };
 
@@ -172,7 +173,7 @@ export function Combobox({ label, value, onChange, options, load, minChars = 2, 
                 onMouseDown={(e) => e.preventDefault()} onMouseMove={() => active !== r.i && setActive(r.i)} onClick={() => toggle(r.opt)}
                 className={`flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm ${active === r.i ? "bg-paper" : ""}`}>
                 {r.custom ? <Plus size={15} className="shrink-0 text-muted" /> : <Check size={15} className={`shrink-0 ${chosen.has(r.opt.id) ? "text-marigold-deep" : "invisible"}`} />}
-                <span className="min-w-0 flex-1">{r.custom ? <>{t("Ajouter «")} <b>{t(r.opt.label)}</b> »</> : t(r.opt.label)}</span>
+                <span className="min-w-0 flex-1">{r.custom ? rich(t("Ajouter « {1} »"), [<b key="v">{r.opt.label}</b>]) : t(r.opt.label)}</span>
                 {r.opt.hint && <span className="shrink-0 text-xs text-muted">{t(r.opt.hint)}</span>}
               </li>
             ),

@@ -427,3 +427,15 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Fait** : `savedQuota` côté écran, `dayIsStale` (`lib/day.ts`) et remise à zéro de la liste dans `/api/criteria` ; `tests/day-quota.test.ts`.
 - **Non prouvé** : d'où vient exactement son « 13 » (journaux : un enregistrement + une préparation à 19 h 10 ; un appel ne dépasse jamais le nombre demandé). Pistes : cumul « offres préparées » de la carte « Ma journée », ou Recommandées › À trier qui garde toutes les offres trouvées.
 - **Aucune migration.** Branche `paquet-17-quota`, à livrer avec le prochain paquet sur son feu vert.
+
+## Paquet 18 du 13 novembre : langue du site, CV PDF illisible, « 4 demandées, 13 reçues » (EN LIGNE le 13 novembre, avec le paquet 17)
+- **Demande de Juliana (10 h 55, « évo à faire passer immédiatement »)** : le site doit s'afficher dans la langue de chaque personne (son ami en Turquie préfère l'anglais ou le turc) ; le CV de son ami n'a pas pu être lu (« je pense que c'est à cause de la langue ») ; « j'ai demandé 4 offres, j'en ai eu 13 ».
+- **CV illisible : cause trouvée, ce n'est PAS la langue.** Le PDF contient des ligatures (« ﬁ »…) que `unpdf` rend en caractère NUL ; PostgreSQL refuse U+0000 dans le jsonb du diagnostic. `lib/clean-text.ts` + `tests/clean-text.test.ts` ; vérifié sur son vrai PDF.
+- **« 4 → 13 » : cause trouvée** : la recherche range toutes les offres qui conviennent dans Recommandées, la liste du jour n'en prend que 4. `leftovers` : celles que la recherche vient de ranger et que la liste n'a pas prises sont supprimées. Le paquet 17 (nombre par jour enregistré avant « Préparer ma journée », liste du jour refaite quand le nombre change) part avec.
+- **Langue** : français, anglais, turc ; choix = cookie, profil, navigateur, français ; sélecteur sur la connexion, l'accueil et Réglages ; 436 textes traduits (anglais et turc, écrits par moi) ; diagnostic de CV écrit dans la langue de l'écran ; mot de suppression du compte localisé ; `tests/i18n.test.ts` exige la traduction de tout texte enveloppé. Voir CLAUDE.md « Langue du site ».
+- **Trouvé par le build, corrigé** : `PageTitle` et `Section` (composants serveur asynchrones) étaient lus par une page cliente (`next/headers` interdit) → composants clients ; `app/global-error.tsx` avait l'import avant « use client ».
+- **Vérifié** : `typecheck`, `build`, 68 fichiers de tests, 0 échec.
+- **Non vérifié** : affichage dans un vrai navigateur turc ; effet de la consigne de langue sur une vraie IA ; qualité des traductions (relecture par une personne turcophone À PROPOSER) ; la suppression des offres en trop sur une vraie base.
+- **Pas encore traduit (voir CLAUDE.md)** : Aujourd'hui, Recommandées, Suivi, Offres & CV, Recherche, Profil, Stats, Importer, Administration, pages légales, titres d'onglet, messages d'erreur du serveur, dates. À faire dans les paquets suivants, écran par écran.
+- **Aucune migration.**
+

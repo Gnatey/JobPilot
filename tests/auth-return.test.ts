@@ -32,5 +32,5 @@ ok("l'inscription envoie vers /auth/confirme ; connexion par e-mail et mot de pa
 ok("la porte (proxy.ts) laisse passer tout /auth sans connexion", /const PUBLIC = \[[^\]]*"\/auth"/.test(read("proxy.ts")));
 ok("la bannière est montée dans la mise en page de l'appli connectée, et lit le même témoin que celui posé par la route", /<ConfirmedBanner \/>/.test(read("app/layout.tsx")) && read("components/confirmed-banner.tsx").includes("CONFIRMED_COOKIE") && read("lib/auth-callback.ts").includes("CONFIRMED_COOKIE") && CONFIRMED_COOKIE === "jp_confirme");
 ok("le témoin ne contient aucun secret et expire vite", /res\.cookies\.set\(CONFIRMED_COOKIE, "1", \{ maxAge: 120/.test(read("lib/auth-callback.ts")));
-ok("la page de connexion lit ?confirme=1 et le formulaire l'affiche en vert", /confirmed=\{sp\.confirme === "1"\}/.test(read("app/login/page.tsx")) && /confirmed \? \{ text: "Ton adresse est confirmée[^}]*done: true/.test(read("components/login-form.tsx")));
+ok("la page de connexion lit ?confirme=1 et le formulaire l'affiche en vert", /confirmed=\{sp\.confirme === "1"\}/.test(read("app/login/page.tsx")) && /confirmed \? \{ text: (?:tx\()?"Ton adresse est confirmée[^}]*done: true/.test(read("components/login-form.tsx")));
 done();

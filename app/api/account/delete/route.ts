@@ -4,6 +4,7 @@ import { handle } from "@/lib/http";
 import { recentlyAuthenticated } from "@/lib/reauth";
 import { openToken } from "@/lib/token-crypto";
 import { rateLimit } from "@/lib/rate-limit";
+import { isDeleteWord } from "@/lib/delete-word";
 
 /** Supprime le compte et toutes ses données (les tables sont reliées en cascade à l'utilisateur). */
 export async function POST(req: Request) {
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
     const { supabase, user } = await requireUser();
     await rateLimit(supabase, "deleteAccount");
     const { confirm } = (await req.json()) as { confirm?: string };
-    if (confirm !== "SUPPRIMER") throw new HttpError(400, "Tape SUPPRIMER pour confirmer.");
+    if (!isDeleteWord(confirm)) throw new HttpError(400, "Tape SUPPRIMER pour confirmer.");
     // Action sans retour : seulement juste après une connexion (mot de passe, lien ou code), pas avec une vieille session restée ouverte
     const { data: auth } = await supabase.auth.getClaims();
     if (!recentlyAuthenticated(auth?.claims?.amr, Date.now())) throw new HttpError(403, "Pour ta sécurité, reconnecte-toi avant de supprimer ton compte : déconnecte-toi, reconnecte-toi, puis reviens ici dans les 10 minutes.");

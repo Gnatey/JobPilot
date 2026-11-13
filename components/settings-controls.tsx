@@ -71,7 +71,7 @@ export function RecapControls({ email, enabled, sendOk, last }: { email: string;
     <div className="mt-6 border-t border-line pt-5" aria-label={t("Récap du matin par email")}>
       <h3 className="heading flex items-center gap-2">{t("Récap du matin par email")} {on && <span className="tag text-good"><MailCheck size={13} /> {t("Activé")}</span>}</h3>
       <p className="mt-1 max-w-[62ch] text-sm text-muted">
-        {t("Chaque matin vers 7 h, un seul email à toi-même (")}{t(email)}{t(") : entretiens des 3 jours à venir, relances après entretien, offres à trier et ton objectif de la semaine. Rien n'est envoyé s'il n'y a rien de neuf.")}
+        {t("Chaque matin vers 7 h, un seul email à toi-même ({1}) : entretiens des 3 jours à venir, relances après entretien, offres à trier et ton objectif de la semaine. Rien n'est envoyé s'il n'y a rien de neuf.", [email])}
       </p>
       {on ? (
         <>
@@ -367,7 +367,7 @@ export function DataControls() {
   const router = useRouter();
   const { ask, toast } = useFeedback();
   async function del() {
-    const v = await ask({ title: tx("Supprimer mon compte et toutes mes données ?"), label: tx("Pour confirmer, tape SUPPRIMER"), confirmLabel: "Supprimer définitivement", placeholder: tx("SUPPRIMER") });
+    const v = await ask({ title: tx("Supprimer mon compte et toutes mes données ?"), label: tx("Pour confirmer, tape SUPPRIMER"), confirmLabel: tx("Supprimer définitivement"), placeholder: tx("SUPPRIMER") });
     if (v == null) return;
     const r = await fetch("/api/account/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: v.trim() }) }).then((r) => r.json()).catch(() => ({ error: "Connexion interrompue." }));
     if (r.error) return toast(r.error, { tone: "err", ms: 9000 });

@@ -3,6 +3,7 @@ import {
   AlertTriangle, ArrowRight, BarChart3, CalendarClock, CalendarDays, Check, ChevronDown, Link2, Mail, MessageSquareText, ScanSearch, Smartphone, X,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { LanguageSwitch } from "@/components/language-switch";
 import { Gauge, ScorePill } from "@/components/ui/score";
 import { siteUrl } from "@/lib/site";
 import { getT } from "@/lib/i18n/server";
@@ -248,6 +249,7 @@ export async function Landing() {
           <a href="#questions" className="text-muted hover:text-ink">{t("Questions")}</a>
         </nav>
         <div className="flex items-center gap-2">
+          <LanguageSwitch className="hidden sm:inline-flex" />
           <Link href={LOGIN} className="btn btn-ghost btn-sm">{t("Se connecter")}</Link>
           <Link href={SIGNUP} className="btn btn-primary btn-sm"><span className="sm:hidden">{t("S'inscrire")}</span><span className="hidden sm:inline">{t("Créer mon espace")}</span></Link>
         </div>
@@ -389,6 +391,7 @@ export async function Landing() {
           <Link href="/mentions-legales" className="hover:text-ink">{t("Mentions légales")}</Link>
           <Link href="/confidentialite" className="hover:text-ink">{t("Confidentialité")}</Link>
         </nav>
+        <LanguageSwitch />
       </footer>
     </div>
   );

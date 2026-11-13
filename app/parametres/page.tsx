@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { PageTitle, Section } from "@/components/ui/page-title";
 import { SyncButton } from "@/components/sync-button";
 import { ThemePicker } from "@/components/theme";
+import { LanguageSwitch } from "@/components/language-switch";
 import { AccountCard, Bookmarklet, DataControls, GmailControls, Prefs, RecapControls } from "@/components/settings-controls";
 import { fmtDate } from "@/lib/format";
 import { isOwner, usedToday, dailyBudget, describeUsage } from "@/lib/quota";
@@ -91,6 +92,11 @@ export default async function Parametres({ searchParams }: { searchParams: Promi
 
       <Section title={t("Analyser une offre en un clic")}>
         <Bookmarklet />
+      </Section>
+
+      <Section title={t("Langue")}>
+        <p className="mb-3 max-w-[62ch] text-sm text-muted">{t("Langue de l'interface. Par défaut, celle de ton navigateur.")}</p>
+        <LanguageSwitch signedIn />
       </Section>
 
       <Section title={t("Apparence")}>

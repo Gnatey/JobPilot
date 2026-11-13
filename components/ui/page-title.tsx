@@ -1,6 +1,9 @@
-import { getT } from "@/lib/i18n/server";
-export async function PageTitle({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
-  const t = await getT();
+"use client";
+import { useT } from "@/components/i18n";
+
+/** Titres et sections : composants du navigateur (ils traduisent avec la langue du site), utilisables depuis une page serveur comme depuis une page cliente. */
+export function PageTitle({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
+  const t = useT();
   return (
     <header className="mb-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
@@ -12,8 +15,8 @@ export async function PageTitle({ title, sub, children }: { title: string; sub?:
   );
 }
 
-export async function Section({ title, aside, children, id }: { title: string; aside?: React.ReactNode; children: React.ReactNode; id?: string }) {
-  const t = await getT();
+export function Section({ title, aside, children, id }: { title: string; aside?: React.ReactNode; children: React.ReactNode; id?: string }) {
+  const t = useT();
   return (
     <section className="mb-10" id={id}>
       <div className="mb-3 flex items-baseline justify-between gap-3">

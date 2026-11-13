@@ -5,21 +5,22 @@ import { diagnoseCv, mergeProfileWithCv, profileFromCvText } from "./ai";
 import { applyAnswers, slug } from "./onboarding";
 import { dropSettled } from "./profile-fix";
 import type { OnboardingAnswers, Profile } from "./types";
+import type { Locale } from "./i18n/locales";
 
-type Job = { userId: string; rowId: string; text: string; answers: OnboardingAnswers | null; startedAt: string };
+type Job = { userId: string; rowId: string; text: string; answers: OnboardingAnswers | null; startedAt: string; lang?: Locale };
 
 /**
  * Analyse d'un CV : lit le profil, appelle l'IA (diagnostic + extraction en parallèle) puis range le résultat dans la ligne
  * « diagnostics » créée au dépôt. Ne lève jamais d'erreur : un échec est écrit dans la ligne pour que la page l'affiche.
  */
 export async function runCvAnalysis(db: SupabaseClient, job: Job) {
-  const { userId, rowId, text, answers, startedAt } = job;
+  const { userId, rowId, text, answers, startedAt, lang } = job;
   try {
     const current = await getProfileById(db, userId);
     const empty = current.experiences.length === 0;
 
     const [diagnostic, extracted] = await Promise.all([
-      diagnoseCv(text, answers, empty ? null : current),
+      diagnoseCv(text, answers, empty ? null : current, lang),
       empty ? profileFromCvText(text) : mergeProfileWithCv(current, text),
     ]);
 

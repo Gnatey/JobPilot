@@ -1,3 +1,4 @@
+import { getLocale } from "@/lib/i18n/server";
 import { after } from "next/server";
 import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
@@ -52,7 +53,8 @@ export async function POST(req: Request) {
       .single();
     if (error) throw error;
 
-    after(() => runCvAnalysis(supabase, { userId: user.id, rowId: data.id, text, answers, startedAt }));
+    const lang = await getLocale(); // lue ici : dans after(), la requête n'est plus là
+    after(() => runCvAnalysis(supabase, { userId: user.id, rowId: data.id, text, answers, startedAt, lang }));
     return { id: data.id };
   });
 }
