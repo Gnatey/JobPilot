@@ -15,6 +15,8 @@ const checker = program.getTypeChecker();
 const ATTRS = new Set(["placeholder", "title", "aria-label", "alt", "aria-description", "label"]);
 const CALLS = new Set(["toast", "setErr", "setError", "setNotice", "setMsg", "setMessage", "setInfo", "setFeedback", "setStatusMsg", "confirm", "alert"]);
 const PROPS = new Set(["text", "message", "title", "label", "detail", "msg", "description"]);
+const TXPROPS = new Set([...(process.env.EXTRA_PROPS ?? "").split(",").filter(Boolean),"text", "label", "title", "desc", "description", "hint", "sub", "help", "cta", "tip", "empty", "placeholder", "heading", "message"]);
+const sentence = (s) => /\p{L}/u.test(s) && (/\s/.test(s.trim()) || /[^\u0000-\u007F]/.test(s) || /^[A-ZÀ-Ý]/.test(s));
 const hasLetters = (s) => /\p{L}/u.test(s);
 const ENT = { "&nbsp;": " ", "&apos;": "'", "&#39;": "'", "&quot;": '"', "&amp;": "&", "&lt;": "<", "&gt;": ">", "&laquo;": "«", "&raquo;": "»", "&hellip;": "…", "&rsquo;": "’", "&eacute;": "é" };
 const decode = (s) => s.replace(/&[#\w]+;/g, (m) => ENT[m] ?? m);
@@ -98,7 +100,31 @@ for (const file of files) {
     }
   };
 
+  let needTx = false;
+  const inCall = (n) => { for (let p = n.parent; p; p = p.parent) if (ts.isCallExpression(p) && ts.isIdentifier(p.expression) && (p.expression.text === "t" || p.expression.text === "tx")) return true; return false; };
+  const markTx = (lit) => {
+    if (!(ts.isStringLiteral(lit) || ts.isNoSubstitutionTemplateLiteral(lit))) return;
+    if (!sentence(lit.text) || inCall(lit)) return;
+    needTx = true;
+    edits.push({ start: lit.getStart(), end: lit.getEnd(), text: `tx(${q(norm(lit.text))})` });
+  };
+  const returnsOf = (e) => {
+    if (ts.isParenthesizedExpression(e)) return returnsOf(e.expression);
+    if (ts.isConditionalExpression(e)) { returnsOf(e.whenTrue); returnsOf(e.whenFalse); return; }
+    markTx(e);
+  };
   const visit = (n) => {
+    // Libellés rangés dans des listes ou des objets (« { label: "Mon CV" } ») : marqués pour la traduction, traduits à l'endroit où ils s'affichent
+    if (ts.isPropertyAssignment(n) && TXPROPS.has(n.name.getText()) && ts.isObjectLiteralExpression(n.parent)) {
+      const call = n.parent.parent;
+      const inDisplayCall = ts.isCallExpression(call) && ts.isIdentifier(call.expression) && CALLS.has(call.expression.text);
+      if (!inDisplayCall) returnsOf(n.initializer);
+    }
+    // Messages renvoyés par une fonction qui n'est pas un composant (« friendly(message) ») : même marque
+    if (ts.isReturnStatement(n) && n.expression) {
+      const f = (() => { for (let p = n.parent; p; p = p.parent) if (isFn(p)) return p; return null; })();
+      if (f && !componentOf(n) && !(fnName(f) && /^[A-Z]/.test(fnName(f)))) returnsOf(n.expression);
+    }
     if (ts.isJsxText(n)) {
       const raw = n.getText();
       const core = decode(raw);
@@ -148,9 +174,12 @@ for (const file of files) {
   edits.sort((a, b) => b.start - a.start || b.end - a.end);
   for (const e of edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
   // Importer ce qu'il faut
-  const imp = client ? 'import { useT } from "@/components/i18n";' : 'import { getT } from "@/lib/i18n/server";';
-  if (!out.includes(imp)) {
-    const re = /^(import[\s\S]*?from\s+["'][^"']+["'];?\s*\n|import\s+["'][^"']+["'];?\s*\n)/gm;
+  const imps = [];
+  if (needs.size) imps.push(client ? 'import { useT } from "@/components/i18n";' : 'import { getT } from "@/lib/i18n/server";');
+  if (needTx) imps.push('import { tx } from "@/lib/i18n/translate";');
+  for (const imp of imps) {
+    if (out.includes(imp)) continue;
+    const re = /^(import[\s\S]*?from\s+["'][^"']+["'];?[ \t]*\n|import\s+["'][^"']+["'];?[ \t]*\n)/gm;
     let last = 0, m; while ((m = re.exec(out))) last = m.index + m[0].length;
     out = out.slice(0, last) + imp + "\n" + out.slice(last);
   }

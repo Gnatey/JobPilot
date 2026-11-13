@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { TwoFactorGate } from "@/components/two-factor";
 import { reauthDays, trustSecret } from "@/lib/reauth";
+import { tx } from "@/lib/i18n/translate";
 
-export const metadata = { title: "Vérification en deux étapes" };
+export const metadata = { title: tx("Vérification en deux étapes") };
 
 export default async function Verification() {
   const user = await getUser();

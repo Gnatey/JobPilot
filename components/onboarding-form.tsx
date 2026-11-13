@@ -14,6 +14,7 @@ import {
   emptyAnswers, missingAnswers, withZoneText,
 } from "@/lib/onboarding";
 import type { OnboardingAnswers } from "@/lib/types";
+import { useT } from "@/components/i18n";
 
 const DRAFT = "jp-onboarding-v3";
 
@@ -23,28 +24,31 @@ const toOpts = (xs: string[]): Opt[] => xs.map((x) => ({ id: x, label: x }));
 
 // Défini hors du composant : sinon les champs perdent le focus à chaque frappe
 function Q({ id, title, hint, required, error, children }: { id: string; title: string; hint?: string; required?: boolean; error?: string; children: React.ReactNode }) {
+  const t = useT();
   return (
     <fieldset id={`q-${id}`} className="scroll-mt-24">
       <legend className="heading text-[1.08rem]">
-        {title} <span className="ml-1 align-middle text-xs font-normal text-muted">{required ? "obligatoire" : "facultatif"}</span>
+        {t(title)} <span className="ml-1 align-middle text-xs font-normal text-muted">{required ? t("obligatoire") : t("facultatif")}</span>
       </legend>
-      {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
+      {hint && <p className="mt-0.5 text-sm text-muted">{t(hint)}</p>}
       {children}
-      {error && <p className="mt-2 text-sm font-semibold text-bad" role="alert">{error}</p>}
+      {error && <p className="mt-2 text-sm font-semibold text-bad" role="alert">{t(error)}</p>}
     </fieldset>
   );
 }
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
+  const t = useT();
   return (
     <section className="space-y-7 border-t border-line pt-8 first:border-t-0 first:pt-0">
-      <h2 className="display text-[1.7rem]">{title}</h2>
+      <h2 className="display text-[1.7rem]">{t(title)}</h2>
       {children}
     </section>
   );
 }
 
 export function OnboardingForm({ initial }: { initial?: Partial<OnboardingAnswers> }) {
+  const t = useT();
   const router = useRouter();
   const [a, setA] = useState<OnboardingAnswers>({ ...emptyAnswers(), ...initial });
   const [step, setStep] = useState<1 | 2>(1);
@@ -102,91 +106,91 @@ export function OnboardingForm({ initial }: { initial?: Partial<OnboardingAnswer
     <div className="mx-auto max-w-2xl px-1 pb-10 pt-2 md:pt-0">
       <div className="flex items-center justify-between gap-3">
         <Logo />
-        <button type="button" onClick={signOut} className="btn btn-ghost btn-sm"><LogOut size={15} /> Se déconnecter</button>
+        <button type="button" onClick={signOut} className="btn btn-ghost btn-sm"><LogOut size={15} /> {t("Se déconnecter")}</button>
       </div>
       <div className="mt-8 flex items-center gap-3 text-sm text-muted">
         <span className="h-1.5 w-24 overflow-hidden rounded-full bg-line" aria-hidden><span className="block h-full rounded-full bg-marigold transition-all" style={{ width: step === 1 ? "50%" : "100%" }} /></span>
-        Étape {step} sur 2
+        {t("Étape")} {step} {t("sur 2")}
       </div>
-      <h1 className="display mt-3 text-[2.3rem]">{step === 1 ? "Parle-moi de ta recherche" : "Dépose ton CV"}</h1>
+      <h1 className="display mt-3 text-[2.3rem]">{step === 1 ? t("Parle-moi de ta recherche") : t("Dépose ton CV")}</h1>
       <p className="mt-2 text-muted">
         {step === 1
-          ? "Deux minutes de questions. Elles règlent ta recherche d'offres et servent à juger ton CV par rapport à ce que tu vises vraiment. Seules les questions marquées « obligatoire » doivent être remplies."
-          : "L'app en tire ton profil maître (la base de tous tes futurs CV) et un diagnostic franc : positionnement, crédibilité, lisibilité par les robots de tri, plan d'action."}
+          ? t("Deux minutes de questions. Elles règlent ta recherche d'offres et servent à juger ton CV par rapport à ce que tu vises vraiment. Seules les questions marquées « obligatoire » doivent être remplies.")
+          : t("L'app en tire ton profil maître (la base de tous tes futurs CV) et un diagnostic franc : positionnement, crédibilité, lisibilité par les robots de tri, plan d'action.")}
       </p>
 
       {step === 1 ? (
         <form className="mt-8 space-y-9" onSubmit={next} noValidate>
-          <Block title="Ce que tu cherches">
-            <Q id="target_roles" required title="Quels postes vises-tu ?" hint="Choisis dans la liste, rangée par familles de métiers, ou écris le tien. 5 postes au maximum." error={err("target_roles")}>
+          <Block title={t("Ce que tu cherches")}>
+            <Q id="target_roles" required title={t("Quels postes vises-tu ?")} hint="Choisis dans la liste, rangée par familles de métiers, ou écris le tien. 5 postes au maximum." error={err("target_roles")}>
               <div className="mt-3">
-                <Combobox label="Postes visés" placeholder="Cherche un poste : Data Analyst…" options={JOBS} allowCustom max={5} maxMessage="5 postes au maximum : retire-en un pour en ajouter un autre."
+                <Combobox label={t("Postes visés")} placeholder={t("Cherche un poste : Data Analyst…")} options={JOBS} allowCustom max={5} maxMessage="5 postes au maximum : retire-en un pour en ajouter un autre."
                   invalid={!!err("target_roles")} value={toOpts(a.target_roles)} onChange={(v) => set("target_roles")(v.map((o) => o.label))} />
               </div>
             </Q>
-            <Q id="contracts" required title="Quels types de contrat ?" hint="Un ou plusieurs. Clique à nouveau sur un choix pour le retirer." error={err("contracts")}>
-              <ChipGroup multi label="Types de contrat" options={CONTRACT_OPTIONS} value={a.contracts} onChange={set("contracts")} invalid={!!err("contracts")} />
+            <Q id="contracts" required title={t("Quels types de contrat ?")} hint="Un ou plusieurs. Clique à nouveau sur un choix pour le retirer." error={err("contracts")}>
+              <ChipGroup multi label={t("Types de contrat")} options={CONTRACT_OPTIONS} value={a.contracts} onChange={set("contracts")} invalid={!!err("contracts")} />
             </Q>
-            <Q id="sectors" title="Quels secteurs t'intéressent ?" hint="Laisse vide si tout t'intéresse. Tu peux aussi écrire le tien.">
+            <Q id="sectors" title={t("Quels secteurs t'intéressent ?")} hint="Laisse vide si tout t'intéresse. Tu peux aussi écrire le tien.">
               <div className="mt-3">
-                <Combobox label="Secteurs" placeholder="Cherche un secteur : banque…" options={SECTORS} allowCustom max={6} maxMessage="6 secteurs au maximum."
+                <Combobox label={t("Secteurs")} placeholder={t("Cherche un secteur : banque…")} options={SECTORS} allowCustom max={6} maxMessage="6 secteurs au maximum."
                   value={toOpts(a.sectors)} onChange={(v) => set("sectors")(v.map((o) => o.label))} />
               </div>
             </Q>
           </Block>
 
-          <Block title="Où">
-            <Q id="zone" required title="Où cherches-tu ?" error={err("zone")}>
+          <Block title={t("Où")}>
+            <Q id="zone" required title={t("Où cherches-tu ?")} error={err("zone")}>
               <div className="mt-3">
                 <ZonePicker value={a.zone} onChange={set("zone")} invalid={!!err("zone")} />
               </div>
             </Q>
-            <Q id="remote" title="Présentiel ou télétravail ?" hint="Sans choix, on ne filtre pas.">
-              <ChipGroup multi label="Mode de travail" options={REMOTE_OPTIONS} value={a.remote} onChange={set("remote")} />
+            <Q id="remote" title={t("Présentiel ou télétravail ?")} hint="Sans choix, on ne filtre pas.">
+              <ChipGroup multi label={t("Mode de travail")} options={REMOTE_OPTIONS} value={a.remote} onChange={set("remote")} />
             </Q>
           </Block>
 
-          <Block title="Toi">
-            <Q id="experience_years" required title="Combien d'années d'expérience as-tu ?" hint="Alternances et stages comptent, mais compte honnêtement. Coche plusieurs tranches si tu vises des niveaux différents." error={err("experience_years")}>
-              <ChipGroup multi label="Années d'expérience" options={YEAR_BANDS.map((b) => b.label)} value={a.experience_years} onChange={set("experience_years")} invalid={!!err("experience_years")} />
+          <Block title={t("Toi")}>
+            <Q id="experience_years" required title={t("Combien d'années d'expérience as-tu ?")} hint="Alternances et stages comptent, mais compte honnêtement. Coche plusieurs tranches si tu vises des niveaux différents." error={err("experience_years")}>
+              <ChipGroup multi label={t("Années d'expérience")} options={YEAR_BANDS.map((b) => b.label)} value={a.experience_years} onChange={set("experience_years")} invalid={!!err("experience_years")} />
             </Q>
-            <Q id="availability" required title="Quand peux-tu commencer ?" error={err("availability")}>
-              <ChipGroup label="Disponibilité" options={AVAILABILITY} value={a.availability ? [a.availability] : []} onChange={(v) => set("availability")(v[0] ?? "")} invalid={!!err("availability")} />
+            <Q id="availability" required title={t("Quand peux-tu commencer ?")} error={err("availability")}>
+              <ChipGroup label={t("Disponibilité")} options={AVAILABILITY} value={a.availability ? [a.availability] : []} onChange={(v) => set("availability")(v[0] ?? "")} invalid={!!err("availability")} />
             </Q>
-            <Q id="salary" title="Salaire visé" hint="Si tu as une idée. Elle ne sert qu'à te signaler les offres trop basses.">
-              <input className="field mt-3 max-w-sm" placeholder="ex : 35-40 k€ brut par an" value={a.salary} onChange={(e) => set("salary")(e.target.value)} />
+            <Q id="salary" title={t("Salaire visé")} hint="Si tu as une idée. Elle ne sert qu'à te signaler les offres trop basses.">
+              <input className="field mt-3 max-w-sm" placeholder={t("ex : 35-40 k€ brut par an")} value={a.salary} onChange={(e) => set("salary")(e.target.value)} />
             </Q>
           </Block>
 
-          <Block title="Ta recherche jusqu'ici">
-            <Q id="search_since" required title="Où en est ta recherche ?" error={err("search_since")}>
-              <ChipGroup label="Durée de la recherche" options={SEARCH_SINCE} value={a.search_since ? [a.search_since] : []} onChange={(v) => set("search_since")(v[0] ?? "")} invalid={!!err("search_since")} />
+          <Block title={t("Ta recherche jusqu'ici")}>
+            <Q id="search_since" required title={t("Où en est ta recherche ?")} error={err("search_since")}>
+              <ChipGroup label={t("Durée de la recherche")} options={SEARCH_SINCE} value={a.search_since ? [a.search_since] : []} onChange={(v) => set("search_since")(v[0] ?? "")} invalid={!!err("search_since")} />
             </Q>
-            <Q id="applications_per_week" required title="Combien de candidatures par semaine, en moyenne ?" error={err("applications_per_week")}>
-              <ChipGroup label="Candidatures par semaine" options={APPS_PER_WEEK} value={a.applications_per_week ? [a.applications_per_week] : []} onChange={(v) => set("applications_per_week")(v[0] ?? "")} invalid={!!err("applications_per_week")} />
+            <Q id="applications_per_week" required title={t("Combien de candidatures par semaine, en moyenne ?")} error={err("applications_per_week")}>
+              <ChipGroup label={t("Candidatures par semaine")} options={APPS_PER_WEEK} value={a.applications_per_week ? [a.applications_per_week] : []} onChange={(v) => set("applications_per_week")(v[0] ?? "")} invalid={!!err("applications_per_week")} />
             </Q>
-            <Q id="daily_quota" title="Combien de candidatures veux-tu envoyer par jour ?" hint="L'app te prépare ce nombre d'offres chaque jour (page Recherche). Tu pourras le changer quand tu veux.">
-              <ChipGroup label="Candidatures par jour" options={DAILY_QUOTA} value={a.daily_quota ? [a.daily_quota] : []} onChange={(v) => set("daily_quota")(v[0] ?? "")} />
+            <Q id="daily_quota" title={t("Combien de candidatures veux-tu envoyer par jour ?")} hint="L'app te prépare ce nombre d'offres chaque jour (page Recherche). Tu pourras le changer quand tu veux.">
+              <ChipGroup label={t("Candidatures par jour")} options={DAILY_QUOTA} value={a.daily_quota ? [a.daily_quota] : []} onChange={(v) => set("daily_quota")(v[0] ?? "")} />
             </Q>
-            <Q id="responses" title="Qu'est-ce que tu obtiens ?">
-              <ChipGroup label="Réponses obtenues" options={RESPONSES} value={a.responses ? [a.responses] : []} onChange={(v) => set("responses")(v[0] ?? "")} />
+            <Q id="responses" title={t("Qu'est-ce que tu obtiens ?")}>
+              <ChipGroup label={t("Réponses obtenues")} options={RESPONSES} value={a.responses ? [a.responses] : []} onChange={(v) => set("responses")(v[0] ?? "")} />
             </Q>
-            <Q id="blockers" title="Qu'est-ce qui coince, selon toi ?" hint="Une phrase suffit.">
-              <textarea rows={3} aria-label="Ce qui coince dans ta recherche" className="field mt-3" value={a.blockers} onChange={(e) => set("blockers")(e.target.value)} />
+            <Q id="blockers" title={t("Qu'est-ce qui coince, selon toi ?")} hint="Une phrase suffit.">
+              <textarea rows={3} aria-label={t("Ce qui coince dans ta recherche")} className="field mt-3" value={a.blockers} onChange={(e) => set("blockers")(e.target.value)} />
             </Q>
           </Block>
 
           <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-paper/90 px-4 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
-            <button className="btn btn-primary btn-xl">Continuer</button>
+            <button className="btn btn-primary btn-xl">{t("Continuer")}</button>
             <p className={`text-sm ${tried && missing.length ? "font-semibold text-bad" : "text-muted"}`} role="status">
-              {missing.length ? `Il reste ${missing.length} ${missing.length > 1 ? "réponses obligatoires" : "réponse obligatoire"}.` : "Tout est rempli."}
+              {missing.length ? t("Il reste {1} {2}.", [missing.length, missing.length > 1 ? "réponses obligatoires" : "réponse obligatoire"]) : t("Tout est rempli.")}
             </p>
           </div>
         </form>
       ) : (
         <div className="mt-8">
           <CvUpload kind="onboarding" answers={withZoneText(a)} submitLabel="Lancer le diagnostic" onDone={clearDraft} onSkip={skip} skipLabel="Passer cette étape" />
-          <button type="button" className="btn btn-sm btn-ghost mt-6" onClick={() => setStep(1)}>Revenir aux questions</button>
+          <button type="button" className="btn btn-sm btn-ghost mt-6" onClick={() => setStep(1)}>{t("Revenir aux questions")}</button>
         </div>
       )}
     </div>

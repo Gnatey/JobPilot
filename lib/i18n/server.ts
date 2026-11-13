@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { DEFAULT_LOCALE, LOCALE_COOKIE, pickLocale, type Locale } from "./locales";
-import { translate, type Dict, type Vars } from "./translate";
+import { makeT, type Dict, type TFn } from "./translate";
 import en from "./en";
 import tr from "./tr";
 
@@ -18,7 +18,6 @@ export async function getLocale(): Promise<Locale> {
 }
 
 /** `t` d'un composant serveur ou d'une route : `const t = await getT(); t("Bonjour")`. */
-export async function getT(): Promise<(text: string, vars?: Vars) => string> {
-  const dict = dictOf(await getLocale());
-  return (text, vars) => translate(dict, text, vars);
+export async function getT(): Promise<TFn> {
+  return makeT(dictOf(await getLocale()));
 }

@@ -5,6 +5,7 @@ import { Loader2, LogOut, ShieldCheck, ShieldOff } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Logo } from "@/components/nav";
 import { useFeedback } from "@/components/ui/feedback";
+import { useT } from "@/components/i18n";
 
 type Factor = { id: string; status: string; factor_type: string };
 
@@ -27,6 +28,7 @@ function qrSrc(qr: string) {
  * `trustDays` > 0 : une case permet de ne plus le redemander sur cet appareil pendant ce nombre de jours (0 : option masquée).
  */
 export function TwoFactorGate({ trustDays = 0 }: { trustDays?: number }) {
+  const t = useT();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [trust, setTrust] = useState(true);
@@ -40,10 +42,10 @@ export function TwoFactorGate({ trustDays = 0 }: { trustDays?: number }) {
     const sb = supabaseBrowser();
     const { data, error: lf } = await sb.auth.mfa.listFactors();
     const factor = data?.totp?.[0];
-    if (lf || !factor) { setBusy(false); return setErr("Aucune application d'authentification n'est reliée à ce compte."); }
+    if (lf || !factor) { setBusy(false); return setErr(t("Aucune application d'authentification n'est reliée à ce compte.")); }
     const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.replace(/\s/g, "") });
     setBusy(false);
-    if (error) return setErr(friendly(error.message));
+    if (error) return setErr(t(friendly(error.message)));
     if (trustDays > 0 && trust) {
       try { await fetch("/api/auth/trust", { method: "POST" }); } catch { /* pas grave : le code sera simplement redemandé */ }
     }
@@ -61,26 +63,26 @@ export function TwoFactorGate({ trustDays = 0 }: { trustDays?: number }) {
     <div className="grid min-h-dvh place-items-center px-5 py-10">
       <div className="w-full max-w-sm">
         <Logo />
-        <h1 className="display mt-8 text-[2.2rem]">Code de vérification</h1>
-        <p className="mt-2 text-muted">Ouvre ton application d'authentification (Google Authenticator, Microsoft Authenticator, Authy…) et recopie le code à 6 chiffres de JobPilot.</p>
+        <h1 className="display mt-8 text-[2.2rem]">{t("Code de vérification")}</h1>
+        <p className="mt-2 text-muted">{t("Ouvre ton application d'authentification (Google Authenticator, Microsoft Authenticator, Authy…) et recopie le code à 6 chiffres de JobPilot.")}</p>
         <form onSubmit={verify} className="mt-6 space-y-3">
           <label className="block">
-            <span className="label">Code à 6 chiffres</span>
+            <span className="label">{t("Code à 6 chiffres")}</span>
             <input className="field mt-1 text-center text-2xl tracking-[0.4em]" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} required autoFocus
               value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={!!err || undefined} />
           </label>
           {trustDays > 0 && (
             <label className="flex cursor-pointer items-start gap-2.5 text-sm">
               <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-marigold)]" checked={trust} onChange={(e) => setTrust(e.target.checked)} />
-              <span>Ne plus demander le code sur cet appareil pendant {trustDays} jours. <span className="text-muted">À décocher sur un ordinateur partagé.</span></span>
+              <span>{t("Ne plus demander le code sur cet appareil pendant")} {trustDays} {t("jours.")} <span className="text-muted">{t("À décocher sur un ordinateur partagé.")}</span></span>
             </label>
           )}
-          {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}
+          {err && <p className="rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{t(err)}</p>}
           <button className="btn btn-primary btn-xl w-full" disabled={busy || code.replace(/\s/g, "").length < 6}>
-            {busy ? <><Loader2 size={18} className="animate-spin" /> Vérification…</> : "Valider"}
+            {busy ? <><Loader2 size={18} className="animate-spin" /> {t("Vérification…")}</> : t("Valider")}
           </button>
         </form>
-        <button className="btn btn-ghost mt-3 w-full" onClick={logout}><LogOut size={16} /> Me déconnecter</button>
+        <button className="btn btn-ghost mt-3 w-full" onClick={logout}><LogOut size={16} /> {t("Me déconnecter")}</button>
       </div>
     </div>
   );
@@ -88,6 +90,7 @@ export function TwoFactorGate({ trustDays = 0 }: { trustDays?: number }) {
 
 /** Bloc des Réglages : activer, voir l'état, désactiver la vérification en deux étapes. */
 export function TwoFactorCard() {
+  const t = useT();
   const { toast, confirm } = useFeedback();
   const router = useRouter();
   const [factors, setFactors] = useState<Factor[] | null>(null);
@@ -112,7 +115,7 @@ export function TwoFactorCard() {
     for (const f of factors ?? []) if (f.status !== "verified") await sb.auth.mfa.unenroll({ factorId: f.id });
     const { data, error } = await sb.auth.mfa.enroll({ factorType: "totp", friendlyName: `JobPilot ${new Date().toISOString().slice(0, 16)}`, issuer: "JobPilot" });
     setBusy(false);
-    if (error || !data) return setErr(friendly(error?.message ?? "Impossible de démarrer."));
+    if (error || !data) return setErr(t(friendly(error?.message ?? "Impossible de démarrer.")));
     setSetup({ id: data.id, qr: qrSrc(data.totp.qr_code), secret: data.totp.secret });
     setCode("");
   }
@@ -131,68 +134,68 @@ export function TwoFactorCard() {
     setErr(null);
     const { error } = await supabaseBrowser().auth.mfa.challengeAndVerify({ factorId: setup.id, code: code.replace(/\s/g, "") });
     setBusy(false);
-    if (error) return setErr(friendly(error.message));
+    if (error) return setErr(t(friendly(error.message)));
     setSetup(null);
     await load();
     router.refresh();
-    toast("Vérification en deux étapes activée.");
+    toast(t("Vérification en deux étapes activée."));
   }
 
   async function disable() {
     if (!active) return;
-    const ok = await confirm({ title: "Désactiver la vérification en deux étapes ?", body: "Ton compte ne sera plus protégé que par le mot de passe.", confirmLabel: "Désactiver", danger: true });
+    const ok = await confirm({ title: t("Désactiver la vérification en deux étapes ?"), body: "Ton compte ne sera plus protégé que par le mot de passe.", confirmLabel: "Désactiver", danger: true });
     if (!ok) return;
     setBusy(true);
     const { error } = await supabaseBrowser().auth.mfa.unenroll({ factorId: active.id });
     setBusy(false);
-    if (error) return setErr(friendly(error.message));
+    if (error) return setErr(t(friendly(error.message)));
     await load();
     router.refresh();
-    toast("Vérification en deux étapes désactivée.");
+    toast(t("Vérification en deux étapes désactivée."));
   }
 
   return (
-    <div className="mt-5 border-t border-line pt-5" aria-label="Vérification en deux étapes">
-      <h3 className="heading flex items-center gap-2">Vérification en deux étapes {active && <span className="tag text-good"><ShieldCheck size={13} /> Activée</span>}</h3>
+    <div className="mt-5 border-t border-line pt-5" aria-label={t("Vérification en deux étapes")}>
+      <h3 className="heading flex items-center gap-2">{t("Vérification en deux étapes")} {active && <span className="tag text-good"><ShieldCheck size={13} /> {t("Activée")}</span>}</h3>
       {!setup && (
         <>
           <p className="mt-1 max-w-[60ch] text-sm text-muted">
             {active
-              ? "Après ton mot de passe, JobPilot demande aussi un code à 6 chiffres affiché par ton application d'authentification. Tu peux choisir de ne plus le demander sur un appareil que tu utilises seule (90 jours, 30 pour l'administration)."
-              : "Ajoute une protection : après ton mot de passe, JobPilot demande un code à 6 chiffres affiché sur ton téléphone. Facultatif."}
+              ? t("Après ton mot de passe, JobPilot demande aussi un code à 6 chiffres affiché par ton application d'authentification. Tu peux choisir de ne plus le demander sur un appareil que tu utilises seule (90 jours, 30 pour l'administration).")
+              : t("Ajoute une protection : après ton mot de passe, JobPilot demande un code à 6 chiffres affiché sur ton téléphone. Facultatif.")}
           </p>
           <div className="mt-3">
-            {factors === null ? <span className="text-sm text-muted">Chargement…</span>
-              : active ? <button className="btn" onClick={disable} disabled={busy}><ShieldOff size={16} /> Désactiver</button>
-              : <button className="btn" onClick={start} disabled={busy}>{busy ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />} Activer la vérification en deux étapes</button>}
+            {factors === null ? <span className="text-sm text-muted">{t("Chargement…")}</span>
+              : active ? <button className="btn" onClick={disable} disabled={busy}><ShieldOff size={16} /> {t("Désactiver")}</button>
+              : <button className="btn" onClick={start} disabled={busy}>{busy ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />} {t("Activer la vérification en deux étapes")}</button>}
           </div>
         </>
       )}
       {setup && (
         <form onSubmit={confirmCode} className="mt-3 space-y-3">
           <ol className="list-decimal space-y-1 pl-5 text-sm">
-            <li>Installe une application d'authentification sur ton téléphone (Google Authenticator, Microsoft Authenticator, Authy…).</li>
-            <li>Dans l'application, ajoute un compte et scanne ce QR code.</li>
-            <li>Recopie ci-dessous le code à 6 chiffres qu'elle affiche.</li>
+            <li>{t("Installe une application d'authentification sur ton téléphone (Google Authenticator, Microsoft Authenticator, Authy…).")}</li>
+            <li>{t("Dans l'application, ajoute un compte et scanne ce QR code.")}</li>
+            <li>{t("Recopie ci-dessous le code à 6 chiffres qu'elle affiche.")}</li>
           </ol>
           <div className="flex flex-wrap items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={setup.qr} alt="QR code à scanner avec l'application d'authentification" width={168} height={168} className="rounded-xl border border-line bg-white p-2" />
+            <img src={setup.qr} alt={t("QR code à scanner avec l'application d'authentification")} width={168} height={168} className="rounded-xl border border-line bg-white p-2" />
             <div className="min-w-0 text-sm">
-              <p className="text-muted">Pas de caméra ? Saisis ce code dans l'application. Garde-le aussi en lieu sûr : il permet de la reconfigurer si tu perds ton téléphone.</p>
-              <code className="mt-1 block break-all rounded-lg bg-paper px-2 py-1.5 font-mono text-xs">{setup.secret}</code>
+              <p className="text-muted">{t("Pas de caméra ? Saisis ce code dans l'application. Garde-le aussi en lieu sûr : il permet de la reconfigurer si tu perds ton téléphone.")}</p>
+              <code className="mt-1 block break-all rounded-lg bg-paper px-2 py-1.5 font-mono text-xs">{t(setup.secret)}</code>
             </div>
           </div>
-          <label className="block max-w-xs"><span className="label">Code à 6 chiffres</span>
+          <label className="block max-w-xs"><span className="label">{t("Code à 6 chiffres")}</span>
             <input className="field mt-1 text-center text-xl tracking-[0.35em]" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} required value={code} onChange={(e) => setCode(e.target.value)} />
           </label>
           <div className="flex flex-wrap gap-2">
-            <button className="btn btn-primary" disabled={busy || code.replace(/\s/g, "").length < 6}>{busy ? <Loader2 size={16} className="animate-spin" /> : null} Activer</button>
-            <button type="button" className="btn btn-ghost" onClick={cancel} disabled={busy}>Annuler</button>
+            <button className="btn btn-primary" disabled={busy || code.replace(/\s/g, "").length < 6}>{busy ? <Loader2 size={16} className="animate-spin" /> : null} {t("Activer")}</button>
+            <button type="button" className="btn btn-ghost" onClick={cancel} disabled={busy}>{t("Annuler")}</button>
           </div>
         </form>
       )}
-      {err && <p className="mt-3 rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{err}</p>}
+      {err && <p className="mt-3 rounded-xl bg-bad/10 p-3 text-sm text-bad" role="alert">{t(err)}</p>}
     </div>
   );
 }

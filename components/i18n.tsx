@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useMemo } from "react";
-import { translate, type Vars } from "@/lib/i18n/translate";
+import { makeT, type TFn } from "@/lib/i18n/translate";
 import type { Locale } from "@/lib/i18n/locales";
 import en from "@/lib/i18n/en";
 import tr from "@/lib/i18n/tr";
@@ -15,10 +15,7 @@ export function I18nProvider({ locale, children }: { locale: Locale; children: R
 export const useLocale = () => useContext(Ctx);
 
 /** `const t = useT(); t("Valider mes critères")` ; variables : `t("{1} offres", [n])`. Même langue que le serveur : pas de décalage à l'affichage. */
-export function useT() {
+export function useT(): TFn {
   const locale = useContext(Ctx);
-  return useMemo(() => {
-    const dict = locale === "en" ? en : locale === "tr" ? tr : null;
-    return (text: string, vars?: Vars) => translate(dict, text, vars);
-  }, [locale]);
+  return useMemo(() => makeT(locale === "en" ? en : locale === "tr" ? tr : null), [locale]);
 }

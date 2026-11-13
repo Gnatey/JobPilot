@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
+import { useT } from "@/components/i18n";
+import { tx } from "@/lib/i18n/translate";
 
 export type Opt = { id: string; label: string; hint?: string; group?: string };
 
@@ -34,6 +36,7 @@ type Row = { kind: "head"; label: string } | { kind: "opt"; opt: Opt; i: number;
  * Les choix s'affichent en pastilles dans le champ ; cliquer un choix déjà fait le retire.
  */
 export function Combobox({ label, value, onChange, options, load, minChars = 2, max, maxMessage, allowCustom, placeholder, invalid, id, emptyHint }: Props) {
+  const t = useT();
   const uid = useId();
   const listId = `${uid}-list`;
   const box = useRef<HTMLDivElement>(null);
@@ -53,13 +56,13 @@ export function Combobox({ label, value, onChange, options, load, minChars = 2, 
     if (text.length < minChars) { setRemote([]); setLoading(false); setFailed(false); return; }
     const ctl = new AbortController();
     setLoading(true);
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       load(text, ctl.signal)
         .then((r) => { setRemote(r); setFailed(false); })
         .catch((e) => { if (e?.name !== "AbortError") { setRemote([]); setFailed(true); } })
         .finally(() => { if (!ctl.signal.aborted) setLoading(false); });
     }, 250);
-    return () => { clearTimeout(t); ctl.abort(); };
+    return () => { clearTimeout(timer); ctl.abort(); };
   }, [q, load, minChars]);
 
   // Fermeture au clic en dehors
@@ -87,7 +90,7 @@ export function Combobox({ label, value, onChange, options, load, minChars = 2, 
     }
     const typed = q.trim();
     if (allowCustom && typed.length > 1 && !list.some((o) => norm(o.label) === text) && !value.some((v) => norm(v.label) === text)) {
-      out.push({ kind: "head", label: "Autre" });
+      out.push({ kind: "head", label: tx("Autre") });
       out.push({ kind: "opt", opt: { id: typed, label: typed }, i: i++, custom: true });
     }
     return out;
@@ -139,19 +142,19 @@ export function Combobox({ label, value, onChange, options, load, minChars = 2, 
       >
         {value.map((v) => (
           <span key={v.id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink py-1 pl-3 pr-1.5 text-sm text-paper">
-            <span className="truncate">{v.label}</span>
-            <button type="button" aria-label={`Retirer ${v.label}`} className="relative grid h-5 w-5 shrink-0 place-items-center rounded-full after:absolute after:-inset-2 hover:bg-white/20"
+            <span className="truncate">{t(v.label)}</span>
+            <button type="button" aria-label={t("Retirer {1}", [v.label])} className="relative grid h-5 w-5 shrink-0 place-items-center rounded-full after:absolute after:-inset-2 hover:bg-white/20"
               onClick={(e) => { e.stopPropagation(); onChange(value.filter((x) => x.id !== v.id)); setNote(null); }}><X size={13} /></button>
           </span>
         ))}
         <input
-          ref={input} id={id} role="combobox" aria-label={label} aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-invalid={invalid || undefined}
+          ref={input} id={id} role="combobox" aria-label={t(label)} aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-invalid={invalid || undefined}
           aria-activedescendant={open && items[active] ? optId(active) : undefined} autoComplete="off" autoCapitalize="off" spellCheck={false}
           className="min-w-[9ch] flex-1 bg-transparent py-1 text-[0.95rem] !outline-none placeholder:text-muted/75"
-          placeholder={value.length ? "" : placeholder} value={q}
+          placeholder={value.length ? "" : t(placeholder)} value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onKey}
         />
-        <button type="button" tabIndex={-1} aria-label={open ? "Fermer la liste" : "Ouvrir la liste"}
+        <button type="button" tabIndex={-1} aria-label={open ? t("Fermer la liste") : t("Ouvrir la liste")}
           className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-paper"
           onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); if (!open) input.current?.focus(); }}>
           {loading ? <Loader2 size={17} className="animate-spin" /> : <ChevronDown size={18} className={open ? "rotate-180" : ""} />}
@@ -159,25 +162,25 @@ export function Combobox({ label, value, onChange, options, load, minChars = 2, 
       </div>
 
       {open && (
-        <ul id={listId} role="listbox" aria-label={label} aria-multiselectable
+        <ul id={listId} role="listbox" aria-label={t(label)} aria-multiselectable
           className="absolute inset-x-0 z-40 mt-1.5 max-h-72 overflow-auto overscroll-contain rounded-2xl border border-line bg-surface p-1.5 shadow-lift">
           {rows.map((r, k) =>
             r.kind === "head" ? (
-              <li key={`h${k}`} role="presentation" className="px-3 pb-1 pt-2.5 text-xs font-semibold text-muted first:pt-1.5">{r.label}</li>
+              <li key={`h${k}`} role="presentation" className="px-3 pb-1 pt-2.5 text-xs font-semibold text-muted first:pt-1.5">{t(r.label)}</li>
             ) : (
               <li key={`${r.opt.id}-${k}`} id={optId(r.i)} role="option" aria-selected={chosen.has(r.opt.id)}
                 onMouseDown={(e) => e.preventDefault()} onMouseMove={() => active !== r.i && setActive(r.i)} onClick={() => toggle(r.opt)}
                 className={`flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm ${active === r.i ? "bg-paper" : ""}`}>
                 {r.custom ? <Plus size={15} className="shrink-0 text-muted" /> : <Check size={15} className={`shrink-0 ${chosen.has(r.opt.id) ? "text-marigold-deep" : "invisible"}`} />}
-                <span className="min-w-0 flex-1">{r.custom ? <>Ajouter « <b>{r.opt.label}</b> »</> : r.opt.label}</span>
-                {r.opt.hint && <span className="shrink-0 text-xs text-muted">{r.opt.hint}</span>}
+                <span className="min-w-0 flex-1">{r.custom ? <>{t("Ajouter «")} <b>{t(r.opt.label)}</b> »</> : t(r.opt.label)}</span>
+                {r.opt.hint && <span className="shrink-0 text-xs text-muted">{t(r.opt.hint)}</span>}
               </li>
             ),
           )}
-          {!items.length && empty && <li role="presentation" className="px-3 py-3 text-sm text-muted">{empty}</li>}
+          {!items.length && empty && <li role="presentation" className="px-3 py-3 text-sm text-muted">{t(empty)}</li>}
         </ul>
       )}
-      {note && <p className="mt-1.5 text-sm text-bad" role="status">{note}</p>}
+      {note && <p className="mt-1.5 text-sm text-bad" role="status">{t(note)}</p>}
     </div>
   );
 }

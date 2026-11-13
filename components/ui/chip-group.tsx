@@ -1,5 +1,6 @@
 "use client";
 import { Check } from "lucide-react";
+import { useT } from "@/components/i18n";
 
 /** Boutons à cocher : on coche, puis on décoche en recliquant. `multi` autorise plusieurs choix. */
 export function ChipGroup({
@@ -9,18 +10,19 @@ export function ChipGroup({
   /** Un choix reste toujours coché (on ne peut qu'en changer) */
   keepOne?: boolean; className?: string;
 }) {
+  const t = useT();
   const toggle = (o: string) => {
     const on = value.includes(o);
     if (on && keepOne && value.length === 1) return;
     onChange(multi ? (on ? value.filter((x) => x !== o) : [...value, o]) : on ? [] : [o]);
   };
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`} role="group" aria-label={label}>
+    <div className={`flex flex-wrap gap-2 ${className}`} role="group" aria-label={t(label)}>
       {options.map((o) => {
         const on = value.includes(o);
         return (
           <button key={o} type="button" aria-pressed={on} onClick={() => toggle(o)} className={`chip ${invalid && !value.length ? "!border-bad" : ""}`}>
-            {on && <Check size={14} aria-hidden />}{o}
+            {on && <Check size={14} aria-hidden />}{t(o)}
           </button>
         );
       })}

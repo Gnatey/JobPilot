@@ -3,8 +3,9 @@ import { getProfile } from "@/lib/profile";
 import { OnboardingForm } from "@/components/onboarding-form";
 import { AVAILABILITY, CONTRACT_OPTIONS, REMOTE_OPTIONS, YEAR_BANDS } from "@/lib/onboarding";
 import type { OnboardingAnswers } from "@/lib/types";
+import { tx } from "@/lib/i18n/translate";
 
-export const metadata = { title: "Bienvenue" };
+export const metadata = { title: tx("Bienvenue") };
 export const dynamic = "force-dynamic";
 
 /** Pour « Refaire le questionnaire » : les réponses déjà enregistrées reviennent pré-remplies. */
@@ -17,7 +18,7 @@ export default async function Bienvenue() {
     if (p.onboarded || profile.experiences.length) {
       const maxYears = p.max_years;
       initial = {
-        target_roles: profile.targets.map((t) => t.title).filter(Boolean).slice(0, 4),
+        target_roles: profile.targets.map((x) => x.title).filter(Boolean).slice(0, 4),
         contracts: (p.contracts ?? []).filter((c) => CONTRACT_OPTIONS.includes(c)),
         remote: (p.remote ?? "").split(",").map((x) => x.trim()).filter((x) => REMOTE_OPTIONS.includes(x)),
         sectors: p.sectors ?? [],

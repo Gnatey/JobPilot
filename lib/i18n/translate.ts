@@ -14,7 +14,20 @@ export function fill(text: string, vars?: Vars): string {
 /** Une clé normalisée : espaces insécables et espaces multiples ne changent pas la correspondance. */
 export const keyOf = (s: string) => s.replace(/[  ]/g, " ").replace(/\s+/g, " ").trim();
 
-export function translate(dict: Dict | null | undefined, text: string, vars?: Vars): string {
+/** Une valeur absente (null, undefined) passe telle quelle : on peut envelopper sans crainte ce qui s'affiche. */
+export type TFn = <T extends string | null | undefined>(text: T, vars?: Vars) => T extends string ? string : T;
+
+export const translate: (dict: Dict | null | undefined, text: string | null | undefined, vars?: Vars) => string | null | undefined = (dict, text, vars) => {
+  if (typeof text !== "string") return text;
   const hit = dict && (dict[text] ?? dict[keyOf(text)]);
   return fill(hit ?? text, vars);
-}
+};
+
+/** Fabrique le `t` d'une langue. */
+export const makeT = (dict: Dict | null | undefined): TFn => ((text: string | null | undefined, vars?: Vars) => translate(dict, text, vars)) as unknown as TFn;
+
+/**
+ * Marque un texte français écrit hors d'un composant (liste de libellés, message d'une fonction) pour qu'il soit traduit : `tx` ne change rien à l'exécution
+ * (le texte reste français), mais il est compté parmi les textes à traduire (tests/i18n.test.ts) ; l'endroit où il s'AFFICHE le traduit avec `t(...)`.
+ */
+export const tx = <S extends string>(text: S): S => text;
