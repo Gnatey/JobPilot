@@ -89,18 +89,22 @@ function titleScore(title: string, m: MailRef) {
  * - même entreprise (mots entiers, jamais « contient ») ;
  * - un refus ne peut viser qu'une candidature envoyée ;
  * - une carte « À postuler » ou une entreprise seulement proche ne sont retenues que si l'intitulé du poste est dans le mail ;
+ * - un mail qui nomme un poste dont AUCUN mot n'est dans l'intitulé de la carte vise un autre poste de la même entreprise : aucune carte
+ *   (13 novembre : une seule carte « Postulé » chez Storm Group, un mail pour une autre offre de ce recruteur l'a passée en Entretien) ;
  * - plusieurs cartes possibles : on prend celle dont l'intitulé colle nettement le mieux, sinon aucune.
  */
 export function matchApplication<A extends AppRef>(apps: A[], m: MailRef): Match<A> | null {
   if (!m.company.trim()) return null;
+  const named = !!m.jobTitle?.trim();
   const found = apps.flatMap((app) => {
     const k = companyMatch(app.company, m.company);
     if (!k) return [];
     const t = titleScore(app.title, m);
-    return [{ app, exact: k === "exact", ...t }];
+    return [{ app, exact: k === "exact", otherJob: named && t.of > 0 && t.hit === 0, ...t }];
   });
 
   const pool = found.filter((c) => {
+    if (c.otherJob) return false;
     if (m.category === "refus" && !SENT.includes(c.app.status)) return false;
     return (c.exact && c.app.status !== "a_postuler") || c.proof;
   });
