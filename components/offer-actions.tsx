@@ -8,6 +8,8 @@ import { ReasonChips } from "@/components/reason-chips";
 import { fmtDate } from "@/lib/format";
 import { useFeedback } from "@/components/ui/feedback";
 import { refreshBadges } from "@/components/nav";
+import { OfferFiche } from "@/components/offer-fiche";
+import type { Fiche } from "@/lib/offer-fiche";
 
 type Doc = { id: string; kind: string; variant: string | null; template: string | null; created_at: string; reused_from: string | null };
 type Reuse = { id: string; coverage: number; template: string | null; made_for: string };
@@ -26,6 +28,8 @@ export function OfferActions(props: {
   docs: Doc[];
   analysed: boolean;
   reanalyseUrl?: string | null;
+  /** La fiche de l'offre (ce que l'analyse a lu de l'annonce), modifiable à la main. */
+  fiche?: Fiche;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -183,7 +187,8 @@ export function OfferActions(props: {
           </>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-1">
-        <button className="btn btn-sm btn-ghost text-muted hover:text-ink" onClick={reanalyse} disabled={!!busy} title="Refaire l'analyse de l'offre avec ton profil actuel (une analyse du quota du jour)"><ScanSearch size={15} /> Refaire l'analyse</button>
+        {props.fiche && <OfferFiche offerId={props.offerId} initial={props.fiche} />}
+        <button className="btn btn-sm btn-ghost text-muted hover:text-ink" onClick={reanalyse} disabled={!!busy} title="Relire l'annonce et refaire l'analyse avec ton profil actuel (une analyse du quota du jour). Ce que tu as corrigé dans la fiche est gardé."><ScanSearch size={15} /> Refaire l'analyse</button>
         <details className="relative text-sm">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-full px-3 py-1.5 text-muted hover:bg-paper"><SlidersHorizontal size={14} /> Réglages du CV</summary>
           <div className="absolute right-0 z-10 mt-1 grid w-[min(92vw,26rem)] gap-3 rounded-2xl border border-line bg-surface p-4 shadow-lift sm:grid-cols-2">

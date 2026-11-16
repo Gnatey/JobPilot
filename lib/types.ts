@@ -153,6 +153,8 @@ export type OfferExtract = {
   soft_skills: string[];
   keywords: string[];
   red_flags: string[];
+  /** Champs remplis à la main (lib/offer-fiche.ts) : jamais écrasés par une relecture de l'annonce, jamais envoyés aux IA. */
+  hand?: string[];
 };
 
 export type ScoreBlock = { score: number; comment: string };

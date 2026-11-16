@@ -84,7 +84,7 @@ import { readFileSync } from "node:fs";
   ok("offre senior ou sans titre : le CV est repris sans changement", withOfferTitle(src, "Data Engineer Senior H/F") === src && withOfferTitle(src, "") === src && withOfferTitle(src, null) === src);
   ok("contenu absent : pas d'erreur", withOfferTitle(null as never, "Data Analyst") === null);
   const route = readFileSync("app/api/offers/[id]/generate/route.ts", "utf8");
-  ok("la route de génération applique le titre de l'offre aux CV réutilisés", /content: withOfferTitle\(src\.content as CvDoc, offer\.extracted\?\.title \|\| offer\.title\)/.test(route));
+  ok("la route de génération applique le titre de l'offre aux CV réutilisés", /content: withOfferTitle\(src\.content as CvDoc, extract\.title \|\| offer\.title\)/.test(route) && /const extract = withColumns\(offer\.extracted, offer\)/.test(route));
 }
 
 done();

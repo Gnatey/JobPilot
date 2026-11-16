@@ -7,6 +7,7 @@ import { letterTemplateFor } from "@/lib/letter";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { pickApplication } from "@/lib/app-pick";
 import { withOfferTitle } from "@/lib/cv-title";
+import { withColumns } from "@/lib/offer-fiche";
 
 export const maxDuration = 60;
 
@@ -35,6 +36,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const body = (await req.json()) as Body;
     const { data: offer } = await supabase.from("offers").select("*").eq("id", id).single();
     if (!offer) throw new HttpError(404, "Offre introuvable");
+    // La fiche telle que la personne la voit : un champ vide (le poste, souvent) est complété par la colonne de l'offre
+    const extract = withColumns(offer.extracted, offer);
     const profile = await getProfile(supabase, user);
     const variant = body.variant || offer.analysis?.recommended_variant || profile.targets[0]?.id || "general";
     const template = body.template || offer.analysis?.recommended_template || "compact";
@@ -50,7 +53,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           user_id: user.id, offer_id: id, application_id: app?.id ?? null, kind: "cv",
           variant: src.variant, template: body.template || src.template,
           // Le contenu est copié, mais le titre devient celui de CETTE offre (un CV « Data Engineer » ne part pas sur une offre « Administrateur base de données »)
-          content: withOfferTitle(src.content as CvDoc, offer.extracted?.title || offer.title), reused_from: src.id,
+          content: withOfferTitle(src.content as CvDoc, extract.title || offer.title), reused_from: src.id,
         }).select("id").single();
         if (error) throw error;
         if (app) await supabase.from("applications").update({ cv_variant: src.variant }).eq("id", app.id);
@@ -63,7 +66,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           .from("documents").select("id, variant, template, content, offer_id, offers(company, title)")
           .eq("kind", "cv").eq("variant", variant).neq("offer_id", id).order("created_at", { ascending: false }).limit(30);
         const best = (existing ?? [])
-          .map((d) => ({ d, cov: coverage(d.content as CvDoc, offer.extracted) }))
+          .map((d) => ({ d, cov: coverage(d.content as CvDoc, extract) }))
           .sort((a, b) => b.cov - a.cov)[0];
         if (best && best.cov >= 75) {
           const o = best.d.offers as unknown as { company: string; title: string } | null;
@@ -90,10 +93,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     await spendAi(supabase, user, body.kind === "cv" ? AI_COST.cv : AI_COST.document);
     const content =
       body.kind === "cv"
-        ? await generateCv(profile, offer.extracted, offer.analysis, variant)
+        ? await generateCv(profile, extract, offer.analysis, variant)
         : body.kind === "lettre"
-          ? await generateLetter(profile, offer.extracted, offer.analysis, { headline })
-          : await generatePrep(profile, offer.extracted, offer.analysis);
+          ? await generateLetter(profile, extract, offer.analysis, { headline })
+          : await generatePrep(profile, extract, offer.analysis);
 
     const { data, error } = await supabase
       .from("documents")

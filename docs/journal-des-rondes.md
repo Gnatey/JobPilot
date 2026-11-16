@@ -439,11 +439,18 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Pas encore traduit (voir CLAUDE.md)** : Aujourd'hui, Recommandées, Suivi, Offres & CV, Recherche, Profil, Stats, Importer, Administration, pages légales, titres d'onglet, messages d'erreur du serveur, dates. À faire dans les paquets suivants, écran par écran.
 - **Aucune migration.**
 
-## Paquet 19 du 13 novembre : un mail d'une autre offre ne doit pas déplacer une carte (PRÉPARÉ, branche `paquet-19-rapprochement`, pas livré)
+## Paquet 19 du 13 novembre : un mail d'une autre offre ne doit pas déplacer une carte (livré le 16 novembre avec la fiche modifiable)
 - **Signalement de Juliana (12 h 37)** : une fiche Storm Group « Data Analyst - H/F » est passée Postulé → Entretien pendant « Tout synchroniser », sans e-mail d'entretien trouvé dans Gmail ni dans sa base. Elle précise ensuite qu'elle venait de postuler à une autre offre.
 - **Mon premier avis était faux** : je penchais pour un geste manuel dans Suivi (liste déroulante de statut sur téléphone, glisser-déposer) parce que la synchro range toujours l'e-mail avec le numéro de la carte. Elle m'a dit que le changement s'était fait pendant la synchro : je la crois, c'est la synchro.
 - **Mécanisme reproduit** (`tests/email-match.test.ts`, premier test de ce module) : avec une seule carte vivante chez l'entreprise, un mail nommant une autre offre était rattaché à cette carte (nom d'entreprise seul) ; classé `entretien` il la passait en Entretien, classé `refus` en Refusé.
 - **Correction** : un mail dont l'intitulé de poste n'a aucun mot commun avec la carte ne vise aucune carte. **Non prouvé** pour sa ligne (le vrai mail n'a pas été lu) et **non couvert** : un mail sans intitulé de poste.
 - **Vérifié** : `typecheck`, 69 fichiers de tests, 0 échec (build non refait : rien n'est livré).
+- **Aucune migration.**
+
+### Paquet 19, suite du 16 novembre : fiche d'une offre modifiable (EN LIGNE avec la correction des e-mails)
+- **Demande de Juliana (14 h 21, « evo maintenant »)** : une offre SPIE sans poste (« Technicien Support N2 Base de Données & Applicatifs ») : rien sur le CV et aucun moyen de le renseigner ; pouvoir renseigner toute la fiche et refaire l'analyse.
+- **Fait** : fenêtre « Modifier la fiche » (15 champs), `PATCH /api/offers/:id`, « Enregistrer et refaire l'analyse » (`POST /reanalyze` `source: "fiche"`, sans relire l'annonce), mémoire `extracted.hand` des champs remplis à la main (jamais écrasés par une relecture, jamais envoyés aux IA), lignes de Suivi qui reprenaient « Poste ? » mises à jour, message « Poste non précisé » + lien sur la page de l'offre, `generate` qui complète un poste présent seulement dans la colonne.
+- **Trouvé en route** : le passage « estimé » → « complet » de `POST /offers/analyze` aurait aussi écrasé la fiche ; protégé de la même façon.
+- **Vérifié** : `typecheck`, `build`, 70 fichiers de tests, 0 échec. **Non vérifié** : l'écran en navigateur, la vraie base, la vraie IA.
 - **Aucune migration.**
 

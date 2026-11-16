@@ -1,6 +1,21 @@
 import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { deletionReason, planOfferDeletion, REJECTABLE_RECO } from "@/lib/offer-delete";
+import { readFiche } from "@/lib/offer-fiche";
+import { saveFiche } from "@/lib/offer-fiche-db";
+
+/**
+ * Modifier la fiche de l'offre (poste, entreprise, lieu, contrat, missions, mots-clés…). Corps : les champs à changer (seuls les champs présents
+ * sont lus). Aucun appel d'IA : « Refaire l'analyse » (POST /reanalyze, `source: "fiche"`) est une demande à part. Voir lib/offer-fiche.ts.
+ */
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  return handle(async () => {
+    const { id } = await ctx.params;
+    const { supabase } = await requireUser();
+    const body = await req.json().catch(() => null);
+    return saveFiche(supabase, id, readFiche(body));
+  });
+}
 
 /**
  * Supprime une offre. Ses documents partent avec elle.

@@ -8,6 +8,7 @@ import { checkSummary, summaryNotes } from "./summary-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { alignHeadline } from "./cv-title";
+import { forPrompt } from "./offer-fiche";
 import { cleanCvText, pinProjects } from "./cv-edit";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, settledForAi, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
 import { dateLine, today } from "./format";
@@ -82,7 +83,7 @@ skill_suggestions : parmi les mots-clés ABSENTS du profil, ne garde que ceux qu
 Exemples : Jira ou Planner utilisés → Trello plausible ; GitHub utilisé → Git ; Python pratiqué → VS Code ou Jupyter probables ; Power BI + SQL → modélisation de données. Contre-exemples : jamais un langage, un diplôme ou une certification sans lien réel avec le profil.
 "evidence" recopie l'élément précis du profil qui justifie (ex. « Jira cité dans l'alternance SNCF »). "category" réutilise une catégorie existante de "skills" du profil, sinon « Autres outils ». "confidence" : "forte" seulement si la compétence est quasi équivalente ou prérequise, sinon "moyenne". La personne confirmera : n'affirme rien, propose.
 ${HONESTY}`,
-    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}`,
     schema: {
       properties: {
         verdict: str("2 phrases : est-ce une bonne cible et pourquoi"),
@@ -156,7 +157,7 @@ Méthode :
 - notes_for_candidate : ce que la personne doit vérifier ou compléter avant d'envoyer (ex : un chiffre manquant qui renforcerait une puce).
 ${HONESTY}
 Règles propres au profil : ${profile.rules.join(" / ")}`,
-    prompt: `PROFIL MAÎTRE :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}\n\nCible choisie : ${variant}`,
+    prompt: `PROFIL MAÎTRE :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}\n\nCible choisie : ${variant}`,
     schema: {
       properties: {
         headline: S, summary: S,
@@ -211,7 +212,7 @@ Style :
 - notes_for_candidate : ce qu'il faut vérifier ou compléter avant d'envoyer (un chiffre manquant, une exigence non couverte, un nom de contact à ajouter).
 ${HONESTY}
 Règles propres au profil : ${profile.rules.join(" / ")}`,
-    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
     schema: {
       properties: { subject: S, greeting: S, paragraphs: arr(S, "les 4 paragraphes, sans salutation ni formule finale"), signoff: S, notes_for_candidate: list },
       required: ["subject", "greeting", "paragraphs", "signoff", "notes_for_candidate"],
@@ -232,7 +233,7 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
 export async function generatePrep(profile: Profile, offer: OfferExtract, analysis: OfferAnalysis | null): Promise<PrepDoc> {
   return structured<PrepDoc>({
     system: `Tu prépares une personne à un entretien, avec un niveau d'exigence adapté à son expérience réelle. Les angles de réponse s'appuient sur des situations réelles du profil (méthode STAR). ${HONESTY}`,
-    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(offer)}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
     schema: {
       properties: {
         pitch_60s: str("présentation orale de 60 secondes, à la première personne"),

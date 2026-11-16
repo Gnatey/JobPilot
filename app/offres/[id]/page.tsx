@@ -10,6 +10,7 @@ import { fresh } from "@/lib/skills";
 import { OfferActions } from "@/components/offer-actions";
 import { statusLabel, templateLabel, TEMPLATES, type OfferAnalysis, type OfferExtract } from "@/lib/types";
 import { pickApplication } from "@/lib/app-pick";
+import { ficheOf } from "@/lib/offer-fiche";
 
 export const dynamic = "force-dynamic";
 /** Onglet : « Intitulé, entreprise » (une seule petite lecture, en parallèle de la page) ; « Offre » si elle est introuvable. */
@@ -68,6 +69,8 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
   const tpl = TEMPLATES.find((t) => t.id === a.recommended_template);
   const apply = a.should_apply ? APPLY[a.should_apply] : null;
   const company: string = offer.company || x.company || "";
+  const fiche = ficheOf(offer.extracted, offer);
+  const title = fiche.title;
   const q = encodeURIComponent(company);
   const links = company
     ? [
@@ -90,7 +93,14 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
       <header className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-center">
         {analysed && <Gauge value={Number(offer.score) || 0} size={136} />}
         <div className="min-w-0 flex-1">
-          <h1 className="display text-[1.9rem] leading-[1.05] md:text-[2.5rem]">{offer.title}</h1>
+          {title
+            ? <h1 className="display text-[1.9rem] leading-[1.05] md:text-[2.5rem]">{title}</h1>
+            : <h1 className="display text-[1.9rem] leading-[1.05] text-muted md:text-[2.5rem]">Poste non précisé</h1>}
+          {!title && analysed && (
+            <p className="mt-2 max-w-[62ch] text-sm text-marigold-deep">
+              Le poste n'est pas renseigné : il n'apparaîtra pas sur le CV. <Link href="?fiche=1" className="link font-semibold">Renseigner le poste</Link>
+            </p>
+          )}
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted">
             {company && <span className="inline-flex items-center gap-1.5"><Building2 size={15} /> {company}</span>}
             {[offer.location, offer.contract, x.remote].filter(Boolean).length > 0 && <span>{[offer.location, offer.contract, x.remote].filter(Boolean).join(", ")}</span>}
@@ -121,6 +131,7 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
         docs={docs ?? []}
         analysed={analysed}
         reanalyseUrl={offer.url}
+        fiche={analysed ? fiche : undefined}
       />
 
       {!analysed ? null : (

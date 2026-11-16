@@ -7,6 +7,7 @@ import { markRecoGone } from "@/lib/offer-ops";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { recoText } from "@/lib/reco-text";
 import { readLineText, rememberLineText } from "@/lib/offer-keep-db";
+import { mergeReread } from "@/lib/offer-fiche";
 import type { OfferAnalysis } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -40,10 +41,11 @@ export async function POST(req: Request) {
     // Déjà analysée : on la rouvre au lieu de consommer du quota IA pour rien
     // (sauf si cette analyse n'était qu'une estimation d'après un extrait et qu'on a maintenant l'annonce entière : on la refait)
     let upgradeId: string | null = null;
+    let upgradeFrom: unknown = null; // l'ancienne offre : ce que la personne y a rempli à la main est gardé (lib/offer-fiche.ts)
     if (url && !body.force) {
-      const { data: dup } = await supabase.from("offers").select("id, score, analysis").in("url", [...new Set([url, rawUrl!])]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const { data: dup } = await supabase.from("offers").select("id, score, analysis, title, company, location, contract, extracted").in("url", [...new Set([url, rawUrl!])]).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (dup) {
-        if (dup.analysis?.estimated && text.length >= 300) upgradeId = dup.id;
+        if (dup.analysis?.estimated && text.length >= 300) { upgradeId = dup.id; upgradeFrom = dup; }
         else {
           await link(supabase, body, dup.id, dup.score, dup.analysis?.recommended_variant);
           return { id: dup.id, existing: true };
@@ -71,7 +73,8 @@ export async function POST(req: Request) {
     try {
       await spendAi(supabase, user, AI_COST.offer);
       const profile = await getProfile(supabase, user);
-      const extracted = await extractOffer(text, url);
+      const read = await extractOffer(text, url);
+      const extracted = upgradeFrom ? mergeReread((upgradeFrom as { extracted?: unknown }).extracted, read, upgradeFrom as Record<string, string>) : read;
       const analysis: OfferAnalysis = { ...(await analyzeOffer(profile, extracted)), ...(partial ? { estimated: true } : {}) };
 
       const fields = {
