@@ -8,7 +8,16 @@ import { PRINT_HEIGHT_MM, PRINT_WIDTH_MM, PX_PER_MM } from "@/lib/print-layout";
  * sur téléphone et sur ordinateur. À l'impression, `app/globals.css` impose cette même largeur minimale à la feuille imprimée : sur les
  * navigateurs qui rétrécissent la page (iPhone), la feuille est réduite au lieu d'être recoupée, pour que le PDF contienne ce qui a été mesuré ici (lib/print-layout.ts).
  */
-const LIMIT = PRINT_HEIGHT_MM * PX_PER_MM - 20; // zone imprimée en hauteur (A4 moins les marges), moins une petite sécurité
+const PAGE_PX = PRINT_HEIGHT_MM * PX_PER_MM; // zone imprimée en hauteur (A4 moins les marges)
+const LIMIT = PAGE_PX - 20; // au-delà, le CV ne tient plus sur une page même à la taille minimale (avertissement à l'écran)
+/**
+ * Hauteur visée : le texte est réduit (ou agrandi) pour tenir SOUS cette hauteur, pas seulement sous LIMIT.
+ * Raison : sur l'ordinateur de Juliana (Edge, Windows) le PDF était 2,3 à 5 % plus haut que cette mesure (le texte passe à la ligne
+ * autrement à l'impression qu'à l'écran) : un CV mesuré à 99 % de la page débordait sur une page 2 avec seulement la ligne des liens.
+ * Cet écart n'a pas pu être reproduit hors de Windows (Linux : mesure et PDF à moins de 0,5 % près) : la marge est ajustée sur ce seul cas.
+ */
+export const SAFE_RATIO = 0.95;
+const SAFE = PAGE_PX * SAFE_RATIO;
 export const MIN_ZOOM = 0.86;
 /** Un CV court est agrandi d'un rien pour mieux remplir la page (jamais plus que ça : le texte reste à une taille normale). */
 const MAX_ZOOM = 1.06;
@@ -30,8 +39,8 @@ export function FitPage({ children, watch, onFit, grow = true }: { children: Rea
       if (!r || !i || cancelled) return;
       const height = (z: number) => { i.style.zoom = String(z); return r.getBoundingClientRect().height; };
       let z = 1;
-      while (z > MIN_ZOOM && height(z) > LIMIT) z = Math.round((z - 0.01) * 100) / 100;
-      if (grow && z === 1) while (z < MAX_ZOOM && height(Math.round((z + 0.01) * 100) / 100) <= LIMIT * 0.97) z = Math.round((z + 0.01) * 100) / 100;
+      while (z > MIN_ZOOM && height(z) > SAFE) z = Math.round((z - 0.01) * 100) / 100;
+      if (grow && z === 1) while (z < MAX_ZOOM && height(Math.round((z + 0.01) * 100) / 100) <= SAFE) z = Math.round((z + 0.01) * 100) / 100;
       const over = height(z) > LIMIT;
       setZoom(z);
       cb.current?.({ zoom: z, over });

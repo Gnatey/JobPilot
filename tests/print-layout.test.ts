@@ -14,4 +14,7 @@ ok("la feuille imprimée a une largeur minimale égale à la largeur mesurée pa
 ok("FitPage mesure sur cette même largeur et cette même hauteur", fit.includes("PRINT_WIDTH_MM") && fit.includes("PRINT_HEIGHT_MM") && !/\b182mm\b/.test(fit));
 ok("la feuille à l'écran garde la même marge intérieure que la page imprimée sur ordinateur", doc.includes(`md:p-[${PAGE_MARGIN_MM}mm]`));
 ok("rien d'autre ne fixe une ancienne marge de 12 ou 14 mm pour l'impression", !/@page[^}]*(12mm|14mm)/.test(css));
+ok("FitPage vise une hauteur inférieure à la page (marge pour l'écart écran / PDF vu sur Windows), pas la page entière", /SAFE_RATIO\s*=\s*0\.9[0-6]\b/.test(fit) && fit.includes("height(z) > SAFE") && !/LIMIT\s*\*\s*0\.97/.test(fit));
+ok("l'avertissement « trop long » garde la vraie limite (pas de faux avertissement)", fit.includes("const over = height(z) > LIMIT"));
+ok("la feuille impose la même largeur de lettres à l'écran et à l'impression (geometricPrecision hors @media print)", css.slice(0, css.indexOf("@media print")).includes(".print-sheet { text-rendering: geometricPrecision; }"));
 done();

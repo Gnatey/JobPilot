@@ -187,6 +187,8 @@ dialog::backdrop { background: rgb(10 14 30 / .55); backdrop-filter: blur(3px); 
 
 /* CV : pas de mot tout seul au bout d'une ligne, pas de texte justifié (trous entre les mots) */
 .print-sheet p, .print-sheet li { text-wrap: pretty; }
+/* Même largeur de lettres à l'écran (là où FitPage mesure) et à l'impression : sur Windows, Chrome et Edge arrondissent sinon la largeur des lettres à l'écran seulement, le texte passe à la ligne autrement dans le PDF et le CV déborde sur une page 2 */
+.print-sheet { text-rendering: geometricPrecision; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
