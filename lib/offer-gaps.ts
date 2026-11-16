@@ -34,7 +34,41 @@ const GENERIC_ASK = new Set([
   "poste", "mission", "missions", "profil", "plus", "tres", "bien", "une", "etre", "avoir", "faire", "gerer", "assurer", "realiser", "participer", "veiller",
 ]);
 /** Une exigence de diplôme ou d'années d'expérience n'est pas une compétence à raconter : le profil la montre par la formation ou les dates. */
-const NOT_A_SKILL = /\bbac\s*\+?\s*\d|\bmaster\b|\blicence\b|diplom|\bmiage\b|\d+\s*(ans?|annees?)\b|\ban(s|nees?)? d.?exp|experience de \d/i;
+const NOT_A_SKILL = /\bbac\b|\bbts\b|\bdut\b|\bbachelor\b|\bmba\b|\blicence\b|\bmiage\b|diplom|\bmaster\b(?!\s+data)|\bdoctorat\b|\d+\s*(?:[-–/]\s*\d+\s*)?(?:ans?|annees?|mois)\b|\ban(s|nees?)? d.?exp|experience de \d/i;
+/** Un montant, une fourchette de salaire. */
+const MONEY = /€|\beuros?\b|\d\s*k\b|\bsalaire\b|\bremuneration\b/i;
+/** Des mots qui disent un type de contrat, un rythme ou une durée, jamais une compétence (tous les mots du terme doivent en faire partie). */
+const NON_SKILL_WORDS = new Set([
+  "cdi", "cdd", "stage", "stagiaire", "alternance", "apprentissage", "interim", "freelance", "portage", "temps", "plein", "partiel", "full", "time", "part",
+  "remote", "teletravail", "hybride", "presentiel", "hf", "fh", "mf", "mois", "semaine", "semaines", "jour", "jours", "an", "ans", "annee", "annees",
+  "brut", "net", "annuel", "annuels", "mensuel", "eur", "euro", "euros", "salaire", "remuneration", "de", "par", "et", "a",
+]);
+const containsSeq = (hay: string[], needle: string[]) => needle.length > 0 && hay.some((_, i) => needle.every((w, j) => hay[i + j] === w));
+
+/**
+ * Ce que l'IA range parfois dans les mots-clés alors que ce n'est pas une compétence : le type de contrat (« CDI »), une durée (« 1-2 ans »), un salaire
+ * (« 40 000 € - 45 000 € »), un diplôme (« MIAGE »), un code, et ce que la fiche dit déjà du lieu, du contrat, du télétravail, du niveau, du salaire ou de l'entreprise
+ * (« Nucourt »). Demander « tu connais Nucourt ? » n'a aucun sens (retour de Juliana, 16 novembre 2026, sur l'offre LHH).
+ */
+export function notASkill(term: string, x: Partial<OfferExtract> | null | undefined): boolean {
+  if (NOT_A_SKILL.test(fold(term)) || MONEY.test(term)) return true;
+  if (/^[\d\s.,/+\-–()%€]+$/.test(term)) return true;
+  const w = words(term);
+  if (w.length && w.every((k) => NON_SKILL_WORDS.has(k))) return true;
+  if (!x) return false;
+  for (const f of [x.location, x.contract, x.remote, x.seniority, x.salary]) {
+    if (typeof f === "string" && f.trim() && containsSeq(words(f), w)) return true;
+  }
+  return typeof x.company === "string" && !!x.company.trim() && sameTerm(x.company, term);
+}
+
+/** Un point qu'un simple « Oui, je connais » peut ajouter aux compétences du profil : un mot-clé court, jamais une phrase d'exigence. */
+export function canAddAsSkill(term: string, from: Gap["from"]): boolean {
+  const t = term.replace(/\s+/g, " ").trim();
+  return from === "keyword" && t.length >= 2 && t.length <= 40 && t.split(" ").length <= 5;
+}
+/** Catégorie du profil où atterrit un « Oui » sans détail (la personne la déplace ensuite dans Profil si elle veut). */
+export const GAP_SKILL_CATEGORY = "Autres compétences";
 
 /** Tout ce que le profil dit de ce que la personne sait faire : expériences, projets, compétences, formations, certifications. */
 export function profileKeys(p: Profile): Set<string> {
@@ -84,7 +118,7 @@ export function offerGaps(extracted: Partial<OfferExtract> | null | undefined, p
     if (typeof raw !== "string") return;
     const term = raw.replace(/\s+/g, " ").trim().replace(/^[-–•*·]\s+/, "").slice(0, MAX_TERM);
     if (term.length < 2 || handled(term) || out.some((g) => sameTerm(g.term, term))) return;
-    if (from === "must_have" && NOT_A_SKILL.test(term)) return;
+    if (notASkill(term, extracted)) return;
     const ks = distinctive(term);
     if (!ks.length) return;
     const found = ks.filter((k) => have.has(k)).length;
