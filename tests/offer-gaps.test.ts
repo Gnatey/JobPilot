@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { ok, done } from "./helpers";
 import { fakeSupabase } from "./fake-supabase";
 import { EMPTY_PROFILE } from "../lib/empty-profile";
-import { offerGaps, gapsState, markGap, refusedLine, refusedTerms, gapQuestion, profileKeys } from "../lib/offer-gaps";
-import { answerGap, applyGapAnswer, markGapDb } from "../lib/offer-gaps-db";
+import { offerGaps, gapsState, markGap, refusedLine, refusedTerms, gapQuestion, profileKeys, notASkill, canAddAsSkill, GAP_SKILL_CATEGORY } from "../lib/offer-gaps";
+import { answerGap, applyGapAnswer, markGapDb, addGapSkill } from "../lib/offer-gaps-db";
 import { forPrompt, mergeReread, applyFiche, withColumns, readFiche } from "../lib/offer-fiche";
 import type { OfferExtract, Profile } from "../lib/types";
 
@@ -60,6 +60,22 @@ ok("un profil sans rien : tout est un écart", offerGaps({ keywords: ["SQL", "Ex
 ok("offre sans extrait ou champs illisibles : aucun écart, aucune erreur", offerGaps(null, profile).length === 0 && offerGaps({ keywords: "SQL" as unknown as string[], must_have: 3 as unknown as string[] }, profile).length === 0);
 ok("un mot-clé vide, trop court ou non textuel est ignoré", offerGaps({ keywords: ["", "a", 5 as unknown as string, "  "] }, profile).length === 0);
 ok("profileKeys lit expériences, formations, projets, compétences, certifications", ["orano", "maste", "jobpi", "power", "openc"].every((k) => profileKeys(profile).has(k)));
+
+/* ---------- Ce qui n'est pas une compétence (capture de Juliana, 16 novembre : « Nucourt », « CDI », « 1-2 ans », salaire, MIAGE dans la liste) ---------- */
+const lhh: Partial<OfferExtract> = {
+  title: "Gestionnaire Base de données (H/F)", company: "LHH Recruitment Solutions", location: "Nucourt (95)", contract: "CDI", remote: "Présentiel", seniority: "1-2 ans", salary: "40 000 € - 45 000 €",
+  keywords: ["Nucourt", "CDI", "1-2 ans", "40 000 € - 45 000 €", "MIAGE", "nomenclatures", "import/export", "temps standards", "temps partiel", "H/F", "95", "LHH Recruitment Solutions", "Full remote", "3 à 5 ans", "ERP"],
+  must_have: [],
+};
+const lhhTerms = offerGaps(lhh, profile).map((g) => g.term);
+ok("pas une compétence : le lieu, le contrat, la durée, le salaire, le diplôme, le code postal ne sont plus proposés", !lhhTerms.some((t) => /nucourt|cdi|ans|€|miage|^95$|h\/f|remote|lhh/i.test(t)));
+ok("les vraies compétences restent : nomenclatures, import/export, temps standards, ERP", ["nomenclatures", "import/export", "temps standards", "ERP"].every((t) => lhhTerms.includes(t)));
+ok("« temps partiel » (contrat) part, « temps standards » (compétence) reste", !lhhTerms.includes("temps partiel") && lhhTerms.includes("temps standards"));
+ok("« Master Data » est une compétence (données de référence), pas un diplôme", offerGaps({ keywords: ["Master Data", "Master 2", "Master en informatique"] }, EMPTY_PROFILE).map((g) => g.term).join() === "Master Data");
+ok("notASkill : durée, fourchette, euros, code, type de contrat, télétravail", ["1-2 ans", "3 à 5 ans", "6 mois", "45 k€", "50k", "CDD 12 mois", "Temps plein", "Full remote", "95300", "Bac +5"].every((t) => notASkill(t, null)));
+ok("notASkill : une compétence reste une compétence", ["SQL", "Relation client", "Microsoft Pack Office", "nomenclatures", "Kubernetes", "Gestion de projet", "Master Data Management"].every((t) => !notASkill(t, lhh)));
+ok("notASkill : le nom de l'entreprise n'est pas une compétence, mais un mot de son nom l'est encore", notASkill("LHH Recruitment Solutions", lhh) && !notASkill("Recruitment", { company: "LHH Recruitment Solutions" }) );
+ok("canAddAsSkill : un mot-clé court oui, une exigence ou une phrase non", canAddAsSkill("Relation client", "keyword") && !canAddAsSkill("Maîtrise avancée d'Excel", "must_have") && !canAddAsSkill("a ".repeat(30).trim(), "keyword") && !canAddAsSkill("un deux trois quatre cinq six", "keyword") && !canAddAsSkill("x", "keyword"));
 
 /* ---------- Écarts traités ---------- */
 const m1 = markGap(offer, "nomenclatures", "no");
@@ -118,17 +134,45 @@ const db = () => fakeSupabase({
   ok("appliquer : un refus ne change rien au profil", p3.experiences[0].achievements.length === 4);
   ok("appliquer : offre sans fiche = 422 et profil intact", await applyGapAnswer(sb, { id: "u1" }, "o2", "doublons", answer, good.ops).catch((e) => e.status) === 422 && ((await sb.from("profiles").select("data").eq("user_id", "u1").maybeSingle()).data?.data as Profile).experiences[0].achievements.length === 4);
 
+  /* ---------- « Oui, je connais » sans rien écrire ---------- */
+  const yesOffer = { ...offer, keywords: ["nomenclatures", "doublons", "import/export", "Un mot-clé beaucoup trop long pour être une compétence à ajouter"], must_have: ["Une première expérience en gestion de données ERP dans un environnement industriel"], gaps: undefined };
+  const yesDb = (prof: Profile = profile) => fakeSupabase({ offers: [{ id: "o1", extracted: { ...yesOffer } }, { id: "o2", extracted: null }], profiles: [{ user_id: "u1", data: prof }] });
+  const y = yesDb();
+  const r1 = await addGapSkill(y.sb, { id: "u1" }, "o1", "  nomenclatures ");
+  const py = (await y.sb.from("profiles").select("data").eq("user_id", "u1").maybeSingle()).data?.data as Profile;
+  ok("oui sans détail : le mot-clé entre dans les compétences, dans « Autres compétences »", r1.added && py.skills[GAP_SKILL_CATEGORY]?.join() === "nomenclatures");
+  ok("oui sans détail : le reste du profil est intact", py.experiences.length === 2 && py.skills["BI & Excel"].length === 2 && py.projects.length === 1);
+  const ey = (await y.sb.from("offers").select("extracted").eq("id", "o1").maybeSingle()).data?.extracted;
+  ok("oui sans détail : l'écart est noté « fait » et ne revient plus", gapsState(ey).yes.join() === "nomenclatures" && !offerGaps(ey, py).some((g) => g.term === "nomenclatures"));
+  const r2 = await addGapSkill(y.sb, { id: "u1" }, "o1", "nomenclatures");
+  const py2 = (await y.sb.from("profiles").select("data").eq("user_id", "u1").maybeSingle()).data?.data as Profile;
+  ok("oui sans détail : rejouable, jamais de doublon", !r2.added && py2.skills[GAP_SKILL_CATEGORY]?.length === 1);
+  ok("oui sans détail : aucune IA (la fonction n'en reçoit pas) et rien à écrire", addGapSkill.length === 4);
+  const before = JSON.stringify((await y.sb.from("profiles").select("data").eq("user_id", "u1").maybeSingle()).data);
+  ok("oui sans détail : une exigence en phrase est refusée (409)", await addGapSkill(y.sb, { id: "u1" }, "o1", "Une première expérience en gestion de données ERP dans un environnement industriel").catch((e) => e.status) === 409);
+  ok("oui sans détail : un texte qui n'est pas un mot-clé de l'offre est refusé (409)", await addGapSkill(y.sb, { id: "u1" }, "o1", "Kubernetes").catch((e) => e.status) === 409);
+  ok("oui sans détail : un mot-clé trop long est refusé (409)", await addGapSkill(y.sb, { id: "u1" }, "o1", "Un mot-clé beaucoup trop long pour être une compétence à ajouter").catch((e) => e.status) === 409);
+  ok("oui sans détail : offre sans fiche = 422, inconnue = 404, terme vide = 400", await addGapSkill(y.sb, { id: "u1" }, "o2", "doublons").catch((e) => e.status) === 422 && await addGapSkill(y.sb, { id: "u1" }, "zz", "doublons").catch((e) => e.status) === 404 && await addGapSkill(y.sb, { id: "u1" }, "o1", " ").catch((e) => e.status) === 400);
+  ok("oui sans détail : un refus ne change rien au profil", JSON.stringify((await y.sb.from("profiles").select("data").eq("user_id", "u1").maybeSingle()).data) === before);
+  const dis = yesDb({ ...profile, preferences: { ...profile.preferences, dismissed_skills: ["Doublons", "autre"] } });
+  const r3 = await addGapSkill(dis.sb, { id: "u1" }, "o1", "doublons");
+  const pd = (await dis.sb.from("profiles").select("data").eq("user_id", "u1").maybeSingle()).data?.data as Profile;
+  ok("oui sans détail : un « Non » d'avant sur la même compétence ne l'annule pas", r3.added && pd.skills[GAP_SKILL_CATEGORY]?.includes("doublons") && !(pd.preferences?.dismissed_skills ?? []).some((d) => /doublons/i.test(d)) && (pd.preferences?.dismissed_skills ?? []).includes("autre"));
+
   /* ---------- Branchement dans le code ---------- */
   const ai = read("lib/ai.ts");
   ok("le CV et la lettre reçoivent « pas fait »", (ai.match(/refusedLine\(offer\)/g) ?? []).length >= 4 && /Tu peux le reconnaître une fois/.test(ai));
   ok("le résumé du CV ne s'ouvre pas sur la liste des intitulés passés", /jamais sur la liste des intitulés de poste passés/.test(ai));
   const route = read("app/api/offers/[id]/gaps/route.ts");
-  ok("route : trois gestes, l'IA seulement pour « answer », quota compté", /action === "no"/.test(route) && /action === "apply"/.test(route) && /spendAi\(supabase, user, AI_COST\.document\)/.test(route) && /requireUser/.test(route));
+  ok("route : les gestes, l'IA seulement pour « answer », quota compté", /action === "no"/.test(route) && /action === "apply"/.test(route) && /spendAi\(supabase, user, AI_COST\.document\)/.test(route) && /requireUser/.test(route));
   ok("route : la réponse passe par answerQuestion (mêmes garde-fous que « À compléter »)", /answerQuestion\(profile/.test(route));
   const page = read("app/offres/[id]/page.tsx");
   ok("page : le bloc n'apparaît que pour une offre analysée et seulement s'il y a des écarts", /analysed \? offerGaps\(/.test(page) && /asked\.length > 0/.test(page) && /<OfferGaps offerId=\{id\} gaps=\{asked\}/.test(page));
   const ui = read("components/offer-gaps.tsx");
   ok("écran : rien n'est enregistré sans « Ajouter à mon profil »", /action: "apply"/.test(ui) && /Ajouter à mon profil/.test(ui) && /action: "no"/.test(ui));
   ok("écran : les boutons disent ce qui se passe (aria-expanded, rafraîchissement)", /aria-expanded/.test(ui) && /router\.refresh\(\)/.test(ui));
+  ok("écran : « Oui, je connais » n'exige aucune réponse (un clic, action « skill »), « Oui, avec un détail » ouvre la phrase", /action: "skill"/.test(ui) && /Oui, je connais/.test(ui) && /Oui, avec un détail/.test(ui) && /canAddAsSkill\(term/.test(ui));
+  ok("écran : après une réponse sans ligne utilisable, un bouton ajoute quand même la compétence", /sans détail<\/button>/.test(ui));
+  ok("route : le geste « skill » existe et ne passe ni par l'IA ni par le quota", /action === "skill"/.test(route) && route.indexOf('body.action === "skill"') < route.indexOf("await spendAi("));
   done();
 })();

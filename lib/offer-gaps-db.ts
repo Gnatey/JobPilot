@@ -7,7 +7,9 @@ import { HttpError } from "./supabase/server";
 import { getProfile } from "./profile";
 import { applyOps, previewOps, vetOps, type AnswerOp, type AnswerRaw, type AnswerResult } from "./profile-fix";
 import { finishAnswer } from "./answer-reply";
-import { gapQuestion, markGap, type GapKind } from "./offer-gaps";
+import { gapQuestion, markGap, canAddAsSkill, GAP_SKILL_CATEGORY, type GapKind } from "./offer-gaps";
+import { addSkills, alreadyKnown, undismissSkill } from "./skills";
+import { must } from "./db-must";
 import type { Profile } from "./types";
 
 const cleanTerm = (v: unknown): string => {
@@ -70,4 +72,28 @@ export async function applyGapAnswer(
   if (error) throw error;
   await markGapDb(supabase, offerId, t, "yes");
   return { applied: vetted.length };
+}
+
+/**
+ * « Oui, je connais » SANS détail : le mot-clé entre dans les compétences du profil (comme « Oui, je sais » des mots-clés absents), puis l'écart est noté « fait »
+ * sur l'offre. Aucune IA, aucune action du quota, aucune réponse obligatoire. Seulement pour un mot-clé court de CETTE offre (jamais une phrase d'exigence,
+ * jamais un texte libre venu de l'écran) : le reste passe par « Oui, avec un détail ». Rejouable : une compétence déjà là n'est pas dupliquée.
+ */
+export async function addGapSkill(
+  supabase: SupabaseClient, user: { id: string; email?: string | null }, offerId: string, term: unknown,
+): Promise<{ added: boolean }> {
+  const t = cleanTerm(term);
+  const { data: offer } = await supabase.from("offers").select("id, extracted").eq("id", offerId).maybeSingle();
+  if (!offer) throw new HttpError(404, "Offre introuvable");
+  if (!offer.extracted) throw new HttpError(422, "Cette offre n'a pas encore de fiche : lance d'abord l'analyse.");
+  const fold = (x: string) => x.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const keywords = (offer.extracted as { keywords?: unknown }).keywords;
+  const listed = Array.isArray(keywords) && keywords.some((k) => typeof k === "string" && fold(k) === fold(t));
+  if (!listed || !canAddAsSkill(t, "keyword")) throw new HttpError(409, "Pour ce point, écris-le en une phrase : « Oui, avec un détail ».");
+  const profile = await getProfile(supabase, user);
+  const base = undismissSkill(profile, t); // un « Non » d'avant ne doit pas annuler ce « Oui »
+  const added = !alreadyKnown(base, t);
+  if (added || base !== profile) must(await supabase.from("profiles").upsert({ user_id: user.id, data: addSkills(base, [{ category: GAP_SKILL_CATEGORY, skill: t }]), updated_at: new Date().toISOString() }), "Ton profil");
+  await markGapDb(supabase, offerId, t, "yes");
+  return { added };
 }

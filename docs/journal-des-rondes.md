@@ -483,3 +483,8 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Fait** : `components/offer-gaps.tsx` rend maintenant une carte (`card`, icône, titre « Ces points de l'offre, tu les connais ? », compteur « N à confirmer ») ; chaque point = une ligne avec « Oui, je connais » (bouton jaune) et « Non » ; « Oui » ouvre la phrase (où, pour qui, avec quels outils), la réponse de l'IA et la ligne avant / après à valider (« Ajouter à mon profil ») ; « Non » = l'ancien « Pas fait ». Même logique, mêmes routes, aucun changement de comportement. Espaces insécables dans les guillemets.
 - **Vérifié** : `typecheck`, `build`, 74 fichiers de tests ; aperçu navigateur du composant seul (bureau et 390 px, faux serveur). **Non vérifié** : la page d'offre complète derrière la connexion. **Aucune migration.**
 
+### « Oui » facultatif dans « Écarts avec l'offre » (16 novembre, 23 h ; PRÉPARÉ sur la branche `paquet-22-oui-facultatif`)
+- **Retour de Juliana** (capture de l'offre LHH) : l'affichage est bon, mais les réponses ne doivent pas être obligatoires. Sur sa capture : « Nucourt » (le lieu), « CDI », « 1-2 ans », « 40 000 € - 45 000 € », « MIAGE » proposés comme des compétences, et la réponse « Je peux m'y rendre » renvoyée par « tu ne précises pas d'expérience concrète ».
+- **Fait** : « Oui, je connais » d'un clic (compétence ajoutée au profil, sans IA ni quota) ; « Oui, avec un détail » pour l'ancien parcours (phrase, avant / après) avec « Ajouter sans détail » en repli ; faux mots-clés écartés (`notASkill`) ; « Master Data » n'est plus pris pour un diplôme.
+- **Vérifié** : `typecheck`, `build`, 74 fichiers de tests, 0 échec ; aperçu navigateur du composant seul. **Non vérifié** : la page d'offre réelle, la vraie base. **Aucune migration.**
+

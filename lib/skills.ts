@@ -27,6 +27,13 @@ export function addSkills(profile: Profile, add: { category: string; skill: stri
   return { ...profile, skills };
 }
 
+/** La personne dit maintenant « oui » à une compétence qu'elle avait refusée : elle n'est plus exclue des propositions. */
+export function undismissSkill(profile: Profile, skill: string): Profile {
+  const cur = profile.preferences?.dismissed_skills ?? [];
+  if (!cur.some((d) => norm(d) === norm(skill))) return profile;
+  return { ...profile, preferences: { ...profile.preferences, dismissed_skills: cur.filter((d) => norm(d) !== norm(skill)) } };
+}
+
 export function dismissSkills(profile: Profile, names: string[]): Profile {
   const cur = profile.preferences?.dismissed_skills ?? [];
   const next = [...new Set([...cur, ...names.map((n) => n.trim().slice(0, 60)).filter(Boolean)])].slice(-200);
