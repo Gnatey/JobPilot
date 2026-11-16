@@ -3,6 +3,7 @@ import { handle } from "@/lib/http";
 import { ensureApplication, ensureGivenUp, findApplication, undoGivenUp } from "@/lib/offer-ops";
 import { pickApplication } from "@/lib/app-pick";
 import { cleanReason } from "@/lib/types";
+import { must } from "@/lib/db-must";
 
 /** Même logique que les recommandations, pour une offre analysée à la main. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -21,8 +22,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (app && !["a_postuler", "abandonne", "expiree"].includes(app.status)) {
         throw new HttpError(409, "Cette candidature est déjà envoyée : dans Suivi, utilise « Pas retenu » ou change son statut.");
       }
-      await supabase.from("offers").update({ decision: "rejected", reject_reason: reason ?? "autre" }).eq("id", id);
-      await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason ?? "autre", decided_at: new Date().toISOString() }).eq("offer_id", id);
+      must(await supabase.from("offers").update({ decision: "rejected", reject_reason: reason ?? "autre" }).eq("id", id));
+      must(await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason ?? "autre", decided_at: new Date().toISOString() }).eq("offer_id", id));
       await ensureGivenUp(supabase, user, {
         offer_id: id, company: offer.company, title: offer.title, url: offer.url, location: offer.location, contract: offer.contract, channel: offer.source, score: offer.score,
       }, reason);
@@ -34,24 +35,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const app = pickApplication(rows);
       if (app && app.status !== "a_postuler") throw new HttpError(409, "Cette candidature est déjà envoyée : annule d'abord l'envoi.");
       // Toutes les lignes « À postuler » de cette offre (il peut y avoir des doublons)
-      if (app) await supabase.from("applications").delete().eq("offer_id", id).eq("status", "a_postuler").is("applied_at", null);
-      await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", id);
-      await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).eq("offer_id", id);
+      if (app) must(await supabase.from("applications").delete().eq("offer_id", id).eq("status", "a_postuler").is("applied_at", null));
+      must(await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", id));
+      must(await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).eq("offer_id", id));
       return { ok: true };
     }
     // Retour en arrière après « J'ai envoyé ma candidature » : elle repasse à postuler
     if (decision === "unsend") {
-      await supabase.from("applications").update({ status: "a_postuler", applied_at: null, next_action_at: null }).eq("offer_id", id).eq("status", "postule");
+      must(await supabase.from("applications").update({ status: "a_postuler", applied_at: null, next_action_at: null }).eq("offer_id", id).eq("status", "postule"));
       return { ok: true };
     }
     if (decision === "restore") {
-      await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", id);
-      await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).eq("offer_id", id);
+      must(await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", id));
+      must(await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).eq("offer_id", id));
       await undoGivenUp(supabase, { offer_id: id }, status); // status: « a_postuler » quand l'offre y était avant d'être abandonnée
       return { ok: true };
     }
-    await supabase.from("offers").update({ decision: "accepted", reject_reason: null }).eq("id", id);
-    await supabase.from("recommendations").update({ status: "accepted", decided_at: new Date().toISOString() }).eq("offer_id", id);
+    must(await supabase.from("offers").update({ decision: "accepted", reject_reason: null }).eq("id", id));
+    must(await supabase.from("recommendations").update({ status: "accepted", decided_at: new Date().toISOString() }).eq("offer_id", id));
     const { data: cv } = await supabase.from("documents").select("variant").eq("offer_id", id).eq("kind", "cv").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const applicationId = await ensureApplication(supabase, user, {
       offer_id: id, company: offer.company, title: offer.title, url: offer.url, location: offer.location, contract: offer.contract,

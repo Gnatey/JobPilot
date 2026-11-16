@@ -6,6 +6,7 @@ import { spendAi, AI_COST } from "./quota";
 import { pickApplication, UNSENT } from "./app-pick";
 import { fetchAll } from "./paged";
 import { REJECTABLE_RECO } from "./offer-delete";
+import { must } from "@/lib/db-must";
 
 type User = { id: string; email?: string | null };
 
@@ -44,7 +45,7 @@ export async function ensureApplication(
     const existing = pickApplication(rows as { id: string; status: string; applied_at: string | null }[] | null);
     if (existing) {
       if (status !== existing.status && status === "postule") {
-        await supabase.from("applications").update({ status, ...(existing.applied_at ? {} : { applied_at: today() }) }).eq("id", existing.id);
+        must(await supabase.from("applications").update({ status, ...(existing.applied_at ? {} : { applied_at: today() }) }).eq("id", existing.id));
       }
       return existing.id as string;
     }
@@ -61,7 +62,7 @@ export async function ensureApplication(
     .select("id")
     .single();
   if (error) throw error;
-  if (src.offer_id) await supabase.from("documents").update({ application_id: data.id }).eq("offer_id", src.offer_id).is("application_id", null);
+  if (src.offer_id) must(await supabase.from("documents").update({ application_id: data.id }).eq("offer_id", src.offer_id).is("application_id", null));
   return data.id as string;
 }
 
@@ -127,7 +128,7 @@ export async function ensureGivenUp(
   const existing = await findApplication(supabase, src);
   if (existing) {
     if (["a_postuler", "abandonne", "expiree"].includes(existing.status) && !existing.applied_at) {
-      await supabase.from("applications").update({ status, next_action_at: null }).eq("id", existing.id);
+      must(await supabase.from("applications").update({ status, next_action_at: null }).eq("id", existing.id));
     }
     return existing.id;
   }
@@ -151,8 +152,8 @@ export async function ensureGivenUp(
 export async function undoGivenUp(supabase: SupabaseClient, src: AppSrc, backTo?: string | null) {
   const app = await findApplication(supabase, src);
   if (!app || !["abandonne", "expiree"].includes(app.status) || app.applied_at) return;
-  if (backTo === "a_postuler") await supabase.from("applications").update({ status: "a_postuler" }).eq("id", app.id);
-  else await supabase.from("applications").delete().eq("id", app.id);
+  if (backTo === "a_postuler") must(await supabase.from("applications").update({ status: "a_postuler" }).eq("id", app.id));
+  else must(await supabase.from("applications").delete().eq("id", app.id));
 }
 
 /**

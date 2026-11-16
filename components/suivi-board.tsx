@@ -110,7 +110,8 @@ export function SuiviBoard({ initial, calendarUrl = null }: { initial: Applicati
     // Chaque ligne retrouve son étape d'avant (Postulé ou Relancé) si on annule
     const idsOf = (st: string) => ghosted.filter((a) => a.status === st).map((a) => a.id);
     const before = { postule: idsOf("postule"), relance: idsOf("relance") };
-    await sb.from("applications").update({ status: "abandonne", next_action_at: null }).in("id", ids);
+    const { error } = await sb.from("applications").update({ status: "abandonne", next_action_at: null }).in("id", ids);
+    if (error) return toast("Le classement n'a pas été enregistré : réessaie dans un instant.", { tone: "err" });
     await reload();
     toast(`${plural(ids.length, "candidature classée", "candidatures classées")} sans suite`, { action: { label: "Annuler", run: async () => {
       for (const [st, list] of Object.entries(before)) if (list.length) await sb.from("applications").update({ status: st }).in("id", list);
@@ -485,7 +486,8 @@ function Sheet({ app, onClose, onSaved }: { app: Partial<Application>; onClose: 
     if (!app.id) return;
     const ok = await confirm({ title: "Supprimer cette candidature ?", body: `${app.company} : ${app.title}. Les documents rattachés à l'offre sont conservés.`, confirmLabel: "Supprimer", danger: true });
     if (!ok) return;
-    await sb.from("applications").delete().eq("id", app.id);
+    const { error } = await sb.from("applications").delete().eq("id", app.id);
+    if (error) return setErr("Suppression impossible. Réessaie dans un instant.");
     onSaved();
   }
 

@@ -6,6 +6,7 @@ import { applyAnswers, slug } from "./onboarding";
 import { dropSettled } from "./profile-fix";
 import type { OnboardingAnswers, Profile } from "./types";
 import type { Locale } from "./i18n/locales";
+import { must } from "./db-must";
 
 type Job = { userId: string; rowId: string; text: string; answers: OnboardingAnswers | null; startedAt: string; lang?: Locale };
 
@@ -47,9 +48,9 @@ export async function runCvAnalysis(db: SupabaseClient, job: Job) {
 
     // Premier passage avec un profil vide : on applique directement
     const now = new Date().toISOString();
-    if (empty) await db.from("profiles").upsert({ user_id: userId, data: proposed, updated_at: now });
+    if (empty) must(await db.from("profiles").upsert({ user_id: userId, data: proposed, updated_at: now }), "Ton profil"); // sinon le diagnostic dirait « appliqué » sans profil
     // Profil déjà rempli : ses réponses au questionnaire (zone, contrats, postes…) s'appliquent tout de suite, le reste attend ton accord
-    else if (answers) await db.from("profiles").upsert({ user_id: userId, data: applyAnswers(current, answers, hints), updated_at: now });
+    else if (answers) must(await db.from("profiles").upsert({ user_id: userId, data: applyAnswers(current, answers, hints), updated_at: now }), "Tes réponses");
 
     const { error } = await db.from("diagnostics").update({ content: diagnostic, proposed_profile: proposed, applied: empty }).eq("id", rowId);
     if (error) throw error;

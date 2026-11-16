@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { KEPT } from "@/lib/fit";
 import { cleanReason } from "@/lib/types";
+import { must } from "@/lib/db-must";
 
 /** Tri en lot : écarter (ou remettre à trier) plusieurs offres d'un coup. */
 export async function POST(req: Request) {
@@ -15,18 +16,18 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     if (decision === "keep") {
       // Offres masquées par le filtre « adapté à mon profil » que la personne veut garder : « garde » empêche de les re-masquer
-      await supabase.from("recommendations").update({ status: "new", reject_reason: KEPT }).in("id", list).eq("status", "filtered");
+      must(await supabase.from("recommendations").update({ status: "new", reject_reason: KEPT }).in("id", list).eq("status", "filtered"));
       return { ok: true, count: list.length };
     }
     const { data: rows } = await supabase.from("recommendations").select("id, offer_id").in("id", list);
     const offerIds = (rows ?? []).map((r) => r.offer_id).filter(Boolean) as string[];
     if (decision === "reject") {
-      await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason ?? "score_bas", decided_at: now }).in("id", list);
-      if (offerIds.length) await supabase.from("offers").update({ decision: "rejected", reject_reason: reason ?? "score_bas" }).in("id", offerIds);
+      must(await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason ?? "score_bas", decided_at: now }).in("id", list));
+      if (offerIds.length) must(await supabase.from("offers").update({ decision: "rejected", reject_reason: reason ?? "score_bas" }).in("id", offerIds));
     } else {
-      await supabase.from("recommendations").update({ status: "new", reject_reason: null, decided_at: null }).in("id", list).is("offer_id", null);
-      await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).in("id", list).not("offer_id", "is", null);
-      if (offerIds.length) await supabase.from("offers").update({ decision: null, reject_reason: null }).in("id", offerIds);
+      must(await supabase.from("recommendations").update({ status: "new", reject_reason: null, decided_at: null }).in("id", list).is("offer_id", null));
+      must(await supabase.from("recommendations").update({ status: "analyzed", reject_reason: null, decided_at: null }).in("id", list).not("offer_id", "is", null));
+      if (offerIds.length) must(await supabase.from("offers").update({ decision: null, reject_reason: null }).in("id", offerIds));
     }
     return { ok: true, count: list.length };
   });

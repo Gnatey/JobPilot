@@ -3,6 +3,7 @@ import { handle } from "@/lib/http";
 import { deletionReason, planOfferDeletion, REJECTABLE_RECO } from "@/lib/offer-delete";
 import { readFiche } from "@/lib/offer-fiche";
 import { saveFiche } from "@/lib/offer-fiche-db";
+import { must } from "@/lib/db-must";
 
 /**
  * Modifier la fiche de l'offre (poste, entreprise, lieu, contrat, missions, mots-clés…). Corps : les champs à changer (seuls les champs présents
@@ -34,12 +35,12 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     if (!offer) throw new HttpError(404, "Offre introuvable");
     const { data: apps } = await supabase.from("applications").select("status, applied_at").eq("offer_id", id);
     const plan = planOfferDeletion(apps, reason);
-    await supabase.from("applications").delete().eq("offer_id", id).in("status", ["a_postuler", "abandonne", "expiree"]).is("applied_at", null);
+    must(await supabase.from("applications").delete().eq("offer_id", id).in("status", ["a_postuler", "abandonne", "expiree"]).is("applied_at", null));
     // Avant la suppression de l'offre : ensuite, la recommandation n'a plus de lien avec elle
     if (plan.rejectRecos) {
-      await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason, decided_at: new Date().toISOString() }).eq("offer_id", id).in("status", [...REJECTABLE_RECO]);
+      must(await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason, decided_at: new Date().toISOString() }).eq("offer_id", id).in("status", [...REJECTABLE_RECO]));
     } else {
-      await supabase.from("recommendations").update({ status: "new" }).eq("offer_id", id).eq("status", "analyzed");
+      must(await supabase.from("recommendations").update({ status: "new" }).eq("offer_id", id).eq("status", "analyzed"));
     }
     const { error } = await supabase.from("offers").delete().eq("id", id);
     if (error) throw error;

@@ -503,11 +503,13 @@ export default function Recherche() {
                 </button>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" className="h-4 w-4 accent-[var(--color-marigold)]" checked={s.auto}
-                    onChange={async (e) => { await sb.from("searches").update({ auto: e.target.checked }).eq("id", s.id); loadSaved(); }} /> Auto
+                    onChange={async (e) => { const { error } = await sb.from("searches").update({ auto: e.target.checked }).eq("id", s.id); if (error) toast("Le changement n'a pas été enregistré.", { tone: "err" }); loadSaved(); }} /> Auto
                 </label>
                 <button className="btn btn-ghost btn-icon text-bad" aria-label={`Supprimer ${s.name}`} onClick={async () => {
                   if (!(await confirm({ title: "Supprimer cette recherche ?", body: s.name, confirmLabel: "Supprimer", danger: true }))) return;
-                  await sb.from("searches").delete().eq("id", s.id); loadSaved();
+                  const { error } = await sb.from("searches").delete().eq("id", s.id);
+                  if (error) toast("La recherche n'a pas été supprimée.", { tone: "err" });
+                  loadSaved();
                 }}><Trash2 size={16} /></button>
               </li>
             ))}

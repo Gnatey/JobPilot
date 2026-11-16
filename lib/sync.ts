@@ -22,6 +22,8 @@ import { recoText } from "./reco-text";
 import { markRecoGone } from "./offer-ops";
 import { planStore, type StoreStats } from "./search-store";
 import { dedupeKey } from "./dedupe-key";
+import { applyEmail } from "./email-apply";
+import { must } from "./db-must";
 
 /* ---------- Corps complet d'un email (pour les alertes) ---------- */
 
@@ -72,11 +74,13 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
   const own = (acc.email || (await gmailEmail(token).catch(() => null)) || "").toLowerCase();
   const metas = fetched.filter((m) => !isOwnMail(m, own));
   const mine = fetched.filter((m) => isOwnMail(m, own));
+  let partial = false, stopped: "ia" | undefined, read = 0, failed = 0;
   if (mine.length) {
-    await supabase.from("emails").upsert(
+    const { error } = await supabase.from("emails").upsert(
       mine.map((m) => ({ user_id: userId, gmail_id: m.id, thread_id: m.threadId, from_addr: m.from, subject: m.subject, snippet: m.snippet, received_at: m.date, category: "autre", application_id: null })),
       { onConflict: "user_id,gmail_id" }
     );
+    if (error) partial = true; // pas rangés : la date de synchro n'avance pas, ils seront relus
   }
 
   const { data: apps } = await fetchAll((a, b) => supabase.from("applications").select("id, company, title, status, applied_at").eq("user_id", userId).order("id").range(a, b));
@@ -84,7 +88,6 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
 
   // Étapes courtes et reprenables : si le temps ou l'IA manque, on garde ce qui est lu, on le dit (`partial`) et la synchro suivante reprend là
   // (les emails déjà rangés sont ignorés, la date de dernière synchro n'avance pas tant que tout n'est pas lu).
-  let partial = false, stopped: "ia" | undefined, read = 0, failed = 0;
   let classified: Awaited<ReturnType<typeof classifyEmails>> = [];
   for (let i = 0; i < metas.length; i += 40) {
     if (timeLeft() < 25_000) { partial = true; break; }
@@ -116,11 +119,10 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
       ? matchApplication(apps ?? [], { company: c.company || "", subject: m.subject, snippet: m.snippet, jobTitle: c.job_title, category: c.category })?.app
       : undefined;
     const store = async () => {
-      await supabase.from("emails").upsert(
-        { user_id: userId, gmail_id: m.id, thread_id: m.threadId, from_addr: m.from, subject: m.subject, snippet: m.snippet, received_at: m.date, category: c.category, application_id: app?.id ?? null },
-        { onConflict: "user_id,gmail_id" }
-      );
-      stored++;
+      const r = await applyEmail(supabase, userId, m, c.category, undefined);
+      if (r.ok) stored++;
+      else partial = true; // non rangé : relu à la prochaine synchro
+      return r.ok;
     };
 
     // Alerte emploi → offres recommandées. L'email n'est rangé qu'une fois ses offres lues : sinon, une lecture ratée la perdrait pour de bon.
@@ -156,19 +158,11 @@ export async function syncGmail(supabase: SupabaseClient, userId: string) {
       continue;
     }
 
-    await store();
-    if (!app) continue;
-    const patch: Record<string, unknown> = { last_email_at: m.date };
-    const target = nextStatus(app.status, c.category);
-    if (target) {
-      patch.status = target;
-      app.status = target;
-      if (target === "postule" && !app.applied_at) patch.applied_at = m.date.slice(0, 10);
-      // Plus de date de relance : elle se déduit de la date de l'entretien (lib/followup.ts), pas de l'arrivée de l'email d'invitation
-      if (["refuse", "offre", "entretien", "test"].includes(target)) patch.next_action_at = null;
-      updated++;
-    }
-    await supabase.from("applications").update(patch).eq("id", app.id);
+    // Candidature d'abord, e-mail ensuite : si l'une des deux écritures échoue, l'e-mail est relu à la prochaine synchro (lib/email-apply.ts)
+    const r = await applyEmail(supabase, userId, m, c.category, app);
+    if (!r.ok) { partial = true; continue; }
+    stored++;
+    if (r.moved) updated++;
   }
 
   if (!partial) await supabase.from("gmail_accounts").update({ last_sync_at: new Date().toISOString() }).eq("user_id", userId);
@@ -255,7 +249,8 @@ export async function autoPrepare(supabase: SupabaseClient, userId: string, spen
         contract: extracted.contract, raw_text: text, extracted, analysis, score: analysis.score,
       }).select("id").single();
       if (!offer) continue;
-      await supabase.from("recommendations").update({ status: "analyzed", offer_id: offer.id }).eq("id", r.id);
+      const { error: linkError } = await supabase.from("recommendations").update({ status: "analyzed", offer_id: offer.id }).eq("id", r.id);
+      if (linkError) { failures++; continue; } // offre rangée mais pas rattachée : pas de CV de plus à payer, on le dit en fin de passage
       if (process.env.AUTO_GENERATE_CV === "true" && analysis.score >= 70) {
         const cv = await generateCv(profile, extracted, analysis, analysis.recommended_variant);
         await supabase.from("documents").insert({

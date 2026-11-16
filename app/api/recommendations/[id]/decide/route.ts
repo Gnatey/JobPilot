@@ -5,6 +5,7 @@ import { createAnalyzedOffer, ensureApplication, ensureGivenUp, undoGivenUp } fr
 import { externalId } from "@/lib/sources";
 import { recoText } from "@/lib/reco-text";
 import { cleanReason } from "@/lib/types";
+import { must } from "@/lib/db-must";
 
 export const maxDuration = 60;
 
@@ -29,8 +30,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const now = new Date().toISOString();
 
     if (decision === "reject") {
-      await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason ?? "autre", decided_at: now }).eq("id", id);
-      if (reco.offer_id) await supabase.from("offers").update({ decision: "rejected", reject_reason: reason ?? "autre" }).eq("id", reco.offer_id);
+      must(await supabase.from("recommendations").update({ status: "rejected", reject_reason: reason ?? "autre", decided_at: now }).eq("id", id));
+      if (reco.offer_id) must(await supabase.from("offers").update({ decision: "rejected", reject_reason: reason ?? "autre" }).eq("id", reco.offer_id));
       if (to_suivi) {
         const { data: o } = reco.offer_id ? await supabase.from("offers").select("score, contract").eq("id", reco.offer_id).maybeSingle() : { data: null };
         await ensureGivenUp(supabase, user, {
@@ -41,8 +42,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     if (decision === "restore") {
-      await supabase.from("recommendations").update({ status: reco.offer_id ? "analyzed" : "new", reject_reason: null, decided_at: null }).eq("id", id);
-      if (reco.offer_id) await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", reco.offer_id);
+      must(await supabase.from("recommendations").update({ status: reco.offer_id ? "analyzed" : "new", reject_reason: null, decided_at: null }).eq("id", id));
+      if (reco.offer_id) must(await supabase.from("offers").update({ decision: null, reject_reason: null }).eq("id", reco.offer_id));
       // Annuler un « Pas pour moi » du Tri rapide : la ligne d'Abandonné disparaît du suivi
       if (reco.status === "rejected") await undoGivenUp(supabase, { offer_id: reco.offer_id, url: reco.url, title: reco.title, company: reco.company });
       // Annuler un « Je candidate » : on retire la candidature créée si rien n'a encore été fait dessus
@@ -51,7 +52,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         const { data: apps } = await (reco.offer_id ? q.eq("offer_id", reco.offer_id) : reco.url ? q.eq("url", reco.url) : q.eq("title", reco.title ?? "").eq("company", reco.company ?? ""));
         for (const a of apps ?? []) {
           const { count } = await supabase.from("documents").select("id", { count: "exact", head: true }).eq("application_id", a.id);
-          if (!count) await supabase.from("applications").delete().eq("id", a.id);
+          if (!count) must(await supabase.from("applications").delete().eq("id", a.id));
         }
       }
       return { ok: true };
@@ -60,7 +61,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     // accept
     let offer = reco.offer_id ? (await supabase.from("offers").select("*").eq("id", reco.offer_id).single()).data : null;
     if (offer) {
-      await supabase.from("offers").update({ decision: "accepted", reject_reason: null }).eq("id", offer.id);
+      must(await supabase.from("offers").update({ decision: "accepted", reject_reason: null }).eq("id", offer.id));
     } else if (analyze) {
       let text = recoText(reco);
       if (text.length < 300 && reco.url) text = (await fetchOfferText(reco.url)) ?? "";
@@ -88,7 +89,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       score: offer?.score ?? null, // un seul pourcentage par offre : celui de l'analyse complète (le pré-tri n'est pas recopié dans le suivi)
       cv_variant: offer?.analysis?.recommended_variant ?? null,
     });
-    await supabase.from("recommendations").update({ status: "accepted", decided_at: now, reject_reason: null, offer_id: offer?.id ?? null }).eq("id", id);
+    must(await supabase.from("recommendations").update({ status: "accepted", decided_at: now, reject_reason: null, offer_id: offer?.id ?? null }).eq("id", id));
     return { application_id: applicationId, offer_id: offer?.id ?? null, needs_text: !offer };
   });
 }

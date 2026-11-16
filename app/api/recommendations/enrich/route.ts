@@ -7,6 +7,7 @@ import { tidyText, usableJobText } from "@/lib/reco-text";
 import { READING } from "@/lib/reco-import";
 import { hasPostedColumn } from "@/lib/posted-db";
 import { postedFromText } from "@/lib/posted";
+import { must } from "@/lib/db-must";
 
 export const maxDuration = 30;
 
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
       // Date de publication écrite en tête de la page (« Publiée il y a 3 jours », ligne LinkedIn « Il y a 3 jours ») : lue, jamais devinée ; une date déjà donnée par une source de recherche n'est pas touchée
       const posted = withPosted && r.origin !== "search" ? postedFromText(text) : null;
       const patch = { snippet: text, quick_score: q.score, matched: q.matched, senior: q.senior, ...(posted ? { posted_at: posted } : {}) };
-      await supabase.from("recommendations").update(r.status === READING ? { ...patch, status: "new" } : patch).eq("id", r.id).eq("user_id", user.id);
+      must(await supabase.from("recommendations").update(r.status === READING ? { ...patch, status: "new" } : patch).eq("id", r.id).eq("user_id", user.id), "Le texte de cette annonce");
       updated.push({ id: r.id, score: q.score, senior: q.senior, analyzed: !!r.offer_id });
     }
     return { updated };
