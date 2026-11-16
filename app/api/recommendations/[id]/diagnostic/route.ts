@@ -4,6 +4,7 @@ import { readOfferWithReader, goneMessage } from "@/lib/fetch-offer";
 import { createAnalyzedOffer, markRecoGone } from "@/lib/offer-ops";
 import { externalId } from "@/lib/sources";
 import { recoText } from "@/lib/reco-text";
+import { must } from "@/lib/db-must";
 
 export const maxDuration = 60;
 
@@ -22,7 +23,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     if (reco.url) {
       const { data: dup } = await supabase.from("offers").select("id").eq("url", reco.url).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (dup) {
-        await supabase.from("recommendations").update({ status: reco.status === "accepted" ? "accepted" : "analyzed", offer_id: dup.id }).eq("id", id);
+        must(await supabase.from("recommendations").update({ status: reco.status === "accepted" ? "accepted" : "analyzed", offer_id: dup.id }).eq("id", id));
         return { offer_id: dup.id };
       }
     }
@@ -44,7 +45,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       external_id: /^(ft|az|jb):/.test(reco.dedupe_key ?? "") ? externalId(reco.dedupe_key) : null,
       decision: reco.status === "accepted" ? "accepted" : null,
     });
-    await supabase.from("recommendations").update({ status: reco.status === "accepted" ? "accepted" : "analyzed", offer_id: offer.id }).eq("id", id);
+    must(await supabase.from("recommendations").update({ status: reco.status === "accepted" ? "accepted" : "analyzed", offer_id: offer.id }).eq("id", id));
     return { offer_id: offer.id };
   });
 }

@@ -4,6 +4,7 @@ import { getProfile, patchPreferences } from "@/lib/profile";
 import { activeCriteria, dailyQuota, dayIsStale, sameCriteria, sanitizeSaved, toSearchCriteria } from "@/lib/day";
 import { ensureFit } from "@/lib/fit-stock";
 import { DEFAULT_DAILY_QUOTA, MAX_DAILY_QUOTA } from "@/lib/onboarding";
+import { must } from "@/lib/db-must";
 
 const SAVED_NAME = "Mes critères";
 
@@ -31,8 +32,8 @@ export async function POST(req: Request) {
     const search = toSearchCriteria(crit);
     const { data: mine } = await supabase.from("searches").select("id").eq("user_id", user.id).eq("name", SAVED_NAME).limit(1);
     let id = mine?.[0]?.id as string | undefined;
-    if (id) await supabase.from("searches").update({ criteria: search, auto: true }).eq("id", id);
-    else id = (await supabase.from("searches").insert({ name: SAVED_NAME, criteria: search, auto: true }).select("id").single()).data?.id;
+    if (id) must(await supabase.from("searches").update({ criteria: search, auto: true }).eq("id", id), "Ta recherche du matin");
+    else id = must(await supabase.from("searches").insert({ name: SAVED_NAME, criteria: search, auto: true }).select("id").single(), "Ta recherche du matin").data?.id;
     const { data: paused } = id ? await supabase.from("searches").update({ auto: false }).eq("user_id", user.id).eq("auto", true).neq("id", id).select("id") : { data: [] };
 
     // Les offres déjà reçues sont revues avec les nouveaux postes

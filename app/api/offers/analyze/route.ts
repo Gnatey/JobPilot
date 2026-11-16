@@ -9,6 +9,7 @@ import { recoText } from "@/lib/reco-text";
 import { readLineText, rememberLineText } from "@/lib/offer-keep-db";
 import { mergeReread } from "@/lib/offer-fiche";
 import type { OfferAnalysis } from "@/lib/types";
+import { must } from "@/lib/db-must";
 
 export const maxDuration = 60;
 
@@ -117,12 +118,12 @@ type Sb = Awaited<ReturnType<typeof requireUser>>["supabase"];
 async function link(supabase: Sb, body: Body, offerId: string, score: number | null, variant?: string) {
   if (body.reco_id) {
     const { data: r } = await supabase.from("recommendations").select("status").eq("id", body.reco_id).maybeSingle();
-    await supabase.from("recommendations").update({ status: r?.status === "accepted" ? "accepted" : "analyzed", offer_id: offerId }).eq("id", body.reco_id);
+    must(await supabase.from("recommendations").update({ status: r?.status === "accepted" ? "accepted" : "analyzed", offer_id: offerId }).eq("id", body.reco_id));
   }
   if (body.app_id) {
-    await supabase.from("applications").update({ offer_id: offerId, score, cv_variant: variant ?? null }).eq("id", body.app_id);
-    await supabase.from("offers").update({ decision: "accepted" }).eq("id", offerId);
-    await supabase.from("documents").update({ application_id: body.app_id }).eq("offer_id", offerId).is("application_id", null);
+    must(await supabase.from("applications").update({ offer_id: offerId, score, cv_variant: variant ?? null }).eq("id", body.app_id));
+    must(await supabase.from("offers").update({ decision: "accepted" }).eq("id", offerId));
+    must(await supabase.from("documents").update({ application_id: body.app_id }).eq("offer_id", offerId).is("application_id", null));
     // Le texte est maintenant dans l'offre (`raw_text`) : celui gardé sur la ligne n'a plus d'utilité (table absente : sans effet)
     await supabase.from("application_texts").delete().eq("application_id", body.app_id);
   }

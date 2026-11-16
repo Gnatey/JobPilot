@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/profile";
 import { generateFollowup } from "@/lib/ai";
 import { spendAi, AI_COST } from "@/lib/quota";
 import { isFollowupStatus, nextFollowupAfterDraft } from "@/lib/followup";
+import { must } from "@/lib/db-must";
 
 export const maxDuration = 60;
 
@@ -21,8 +22,8 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     await spendAi(supabase, user, AI_COST.followup);
     const profile = await getProfile(supabase, user);
     const draft = await generateFollowup(profile, app);
-    await supabase.from("documents").insert({ user_id: user.id, application_id: id, offer_id: app.offer_id, kind: "relance", content: draft });
-    await supabase.from("applications").update({ next_action_at: nextFollowupAfterDraft() }).eq("id", id);
+    must(await supabase.from("documents").insert({ user_id: user.id, application_id: id, offer_id: app.offer_id, kind: "relance", content: draft }), "Le brouillon de relance");
+    must(await supabase.from("applications").update({ next_action_at: nextFollowupAfterDraft() }).eq("id", id));
     return draft;
   });
 }

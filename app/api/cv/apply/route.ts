@@ -3,6 +3,7 @@ import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { dropSettled, mergeSettled } from "@/lib/profile-fix";
 import type { Profile } from "@/lib/types";
+import { must } from "@/lib/db-must";
 
 /** Applique au profil maître le profil proposé par un diagnostic. */
 export async function POST(req: Request) {
@@ -16,8 +17,8 @@ export async function POST(req: Request) {
     const current = await getProfile(supabase, user);
     const settled = mergeSettled(current.settled, proposed.settled);
     const data: Profile = settled.length ? { ...proposed, settled, todo: dropSettled(proposed.todo ?? [], settled) } : proposed;
-    await supabase.from("profiles").upsert({ user_id: user.id, data, updated_at: new Date().toISOString() });
-    await supabase.from("diagnostics").update({ applied: true }).eq("id", id);
+    must(await supabase.from("profiles").upsert({ user_id: user.id, data, updated_at: new Date().toISOString() }), "Ton profil");
+    must(await supabase.from("diagnostics").update({ applied: true }).eq("id", id), "Le diagnostic");
     return { ok: true };
   });
 }

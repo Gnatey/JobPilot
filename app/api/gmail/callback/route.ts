@@ -3,6 +3,7 @@ import { supabaseServer, getUser } from "@/lib/supabase/server";
 import { appUrl, canSend, exchangeCode, gmailEmail } from "@/lib/gmail";
 import { patchPreferences } from "@/lib/profile";
 import { sealToken } from "@/lib/token-crypto";
+import { must } from "@/lib/db-must";
 
 export async function GET(req: NextRequest) {
   const back = (msg: string) => NextResponse.redirect(`${appUrl()}/parametres?gmail=${encodeURIComponent(msg)}`);
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     const tok = await exchangeCode(code);
     if (!tok.refresh_token) return back("pas_de_refresh");
     const email = await gmailEmail(tok.access_token);
-    await supabase.from("gmail_accounts").upsert({ user_id: user.id, email, refresh_token: await sealToken(tok.refresh_token, user.id) });
+    must(await supabase.from("gmail_accounts").upsert({ user_id: user.id, email, refresh_token: await sealToken(tok.refresh_token, user.id) }), "La connexion Gmail"); // en cas d'échec : « erreur » ci-dessous, jamais « connecté » sans compte rangé
     // La permission d'envoi n'est accordée que si l'utilisateur a choisi d'activer le récap du matin
     const send = canSend(tok.scope);
     // gmail_issue est effacé : l'accès est rétabli, l'avertissement « Reconnecter » disparaît

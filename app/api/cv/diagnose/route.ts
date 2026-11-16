@@ -10,6 +10,7 @@ import { stripPageMarks } from "@/lib/profile-fix";
 import { applyAnswers, missingAnswers, normalizeAnswers, withZoneText } from "@/lib/onboarding";
 import type { OnboardingAnswers } from "@/lib/types";
 import { spendAi, AI_COST } from "@/lib/quota";
+import { must } from "@/lib/db-must";
 
 // L'analyse tourne après la réponse (jusqu'à cette durée) ; la page du diagnostic se met à jour toute seule
 export const maxDuration = 300;
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
 
     // Les réponses du questionnaire sont enregistrées tout de suite : même si l'analyse échoue, rien n'est perdu
     const current = await getProfile(supabase, user);
-    if (answers) await supabase.from("profiles").upsert({ user_id: user.id, data: applyAnswers(current, answers), updated_at: new Date().toISOString() });
+    if (answers) must(await supabase.from("profiles").upsert({ user_id: user.id, data: applyAnswers(current, answers), updated_at: new Date().toISOString() }), "Tes réponses");
 
     const startedAt = new Date().toISOString();
     const { data, error } = await supabase

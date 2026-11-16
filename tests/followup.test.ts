@@ -61,7 +61,7 @@ const files = ["app", "lib", "components"].flatMap((d) => walk(d));
 // Une liste [Postulé, Relancé] est légitime pour « envoyée, sans réponse » (sans nouvelles, Pas retenu) ; ce qui est interdit, c'est qu'elle pilote une date de relance
 const oldRule = files.filter((f) => read(f).split("\n").some((l) => /\[\s*"postule"\s*,\s*"relance"\s*\]/.test(l) && /next_action_at/.test(l)));
 ok("aucune liste [\"postule\", \"relance\"] ne pilote une date de relance : la relance ne dépend plus du statut Postulé", oldRule.length === 0, oldRule.join(" | "));
-const scheduled = ["components/app-actions.tsx", "lib/offer-ops.ts", "components/suivi-board.tsx", "lib/sync.ts"].filter((f) => /addDays\(7\)|next_action_at\s*=\s*today\(\)/.test(read(f)));
+const scheduled = ["components/app-actions.tsx", "lib/offer-ops.ts", "components/suivi-board.tsx", "lib/sync.ts", "lib/email-apply.ts"].filter((f) => /addDays\(7\)|next_action_at\s*=\s*today\(\)/.test(read(f)));
 ok("l'envoi d'une candidature, le glisser-déposer, la fiche et la synchro Gmail ne programment plus de relance", scheduled.length === 0, scheduled.join(" | "));
 for (const [f, what] of [
   ["app/page.tsx", "followupDue(a, t)"],
@@ -84,6 +84,6 @@ ok("accueil : le pipeline compte les « Relancées » ; Suivi : colonne « Relan
 const setsRelance = files.filter((f) => /status\s*[:=]\s*["']relance["']|target\s*=\s*["']relance["']/.test(read(f)));
 ok("« Relancé » n'est posé automatiquement par aucune synchro, aucun brouillon ni aucun e-mail (TARGET ne le vise pas)", setsRelance.length === 0 && !/relance/.test((read("lib/email-match.ts").match(/const TARGET[^\n]*/) ?? [""])[0]), setsRelance.join(" | "));
 ok("Suivi : passer à Entretien ou Test efface l'ancienne date de relance", /\["refuse", "abandonne", "expiree", "offre", "entretien", "test"\]\.includes\(status\)\) patch\.next_action_at = null/.test(read("components/suivi-board.tsx")));
-ok("synchro Gmail : une invitation à un entretien n'ajoute plus de relance du jour", /\["refuse", "offre", "entretien", "test"\]\.includes\(target\)\) patch\.next_action_at = null/.test(read("lib/sync.ts")));
+ok("synchro Gmail : une invitation à un entretien n'ajoute plus de relance du jour", /\["refuse", "offre", "entretien", "test"\]\.includes\(target\)\) patch\.next_action_at = null/.test(read("lib/email-apply.ts"))); // (le changement de statut vit dans lib/email-apply.ts depuis l'audit du 16 novembre)
 
 done();

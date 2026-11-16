@@ -6,6 +6,7 @@ import { computeLearning } from "@/lib/learning";
 import { httpUrlOrNull } from "@/lib/fetch-offer";
 import { hasPostedColumn } from "@/lib/posted-db";
 import { parsePosted } from "@/lib/posted";
+import { must } from "@/lib/db-must";
 
 type Item = { key?: string; id?: string; source?: string; title?: string; company?: string; location?: string; url?: string; description?: string; experience?: string; date?: string };
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
       }];
     });
     if (!rows.length) throw new HttpError(400, "Offre illisible : relance la recherche.");
-    await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true });
+    must(await supabase.from("recommendations").upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }), "Cette offre");
     const { data } = await supabase.from("recommendations").select("id, dedupe_key").in("dedupe_key", rows.map((r) => r.dedupe_key));
     return { ids: Object.fromEntries((data ?? []).map((r) => [r.dedupe_key, r.id])) };
   });

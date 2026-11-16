@@ -33,7 +33,7 @@ export function isPrivateIp(ip: string): boolean {
       const v4 = x.slice(7);
       return net.isIPv4(v4) ? isPrivateIp(v4) : true; // forme hexadécimale : on refuse par prudence
     }
-    return /^(fc|fd|fe[89ab]|ff)/.test(x);
+    return /^(fc|fd|fe[89abcdef]|ff)/.test(x); // privée (fc00::/7), lien local (fe80::/10), ancien « site local » (fec0::/10), multicast
   }
   return true;
 }
@@ -107,7 +107,12 @@ function once(u: URL, headers: Record<string, string>, timeoutMs: number, maxByt
         let size = 0;
         stream.on("data", (c: Buffer) => {
           size += c.length;
-          if (size > maxBytes) { req.destroy(); stream.removeAllListeners("data"); return resolve({ status, contentType, body: Buffer.concat(chunks).toString("utf8") }); }
+          if (size > maxBytes) {
+            // Page trop lourde : on garde ce qui tient dans la limite (y compris le début du dernier morceau), jamais plus
+            chunks.push(c.subarray(0, Math.max(0, maxBytes - (size - c.length))));
+            req.destroy(); stream.removeAllListeners("data");
+            return resolve({ status, contentType, body: Buffer.concat(chunks).toString("utf8") });
+          }
           chunks.push(c);
         });
         stream.on("end", () => resolve({ status, contentType, body: Buffer.concat(chunks).toString("utf8") }));
