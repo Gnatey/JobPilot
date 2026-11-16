@@ -11,6 +11,8 @@ import { OfferActions } from "@/components/offer-actions";
 import { statusLabel, templateLabel, TEMPLATES, type OfferAnalysis, type OfferExtract } from "@/lib/types";
 import { pickApplication } from "@/lib/app-pick";
 import { ficheOf } from "@/lib/offer-fiche";
+import { offerGaps } from "@/lib/offer-gaps";
+import { OfferGaps } from "@/components/offer-gaps";
 
 export const dynamic = "force-dynamic";
 /** Onglet : « Intitulé, entreprise » (une seule petite lecture, en parallèle de la page) ; « Offre » si elle est introuvable. */
@@ -86,6 +88,7 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
   const matched = arr(a.matched_keywords), missing = arr(a.missing_keywords);
   const strengths = arr(a.strengths);
   const gaps = (Array.isArray(a.gaps) ? a.gaps : []).filter((g) => g && str(g.gap));
+  const asked = analysed ? offerGaps(offer.extracted as Partial<OfferExtract> | null, profile) : []; // ce que l'annonce demande et que le profil ne dit pas
   const questions = arr(a.questions_to_expect);
 
   return (
@@ -177,6 +180,15 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
             initial={fresh(profile, a.skill_suggestions)}
             title="Mots-clés absents que tu connais peut-être"
             intro="L'offre les demande et ton profil ne les cite pas, mais ce que tu as déjà fait les rend probables. Confirme : ils seront ajoutés à ton profil et utilisés dans le CV." />
+
+          {asked.length > 0 && (
+            <Section title="Écarts avec l'offre">
+              <p className="max-w-[66ch] text-sm text-muted">
+                L'annonce demande ces points et ton profil ne les dit nulle part, donc ton CV ne peut pas en parler. Si tu l'as déjà fait, dis-le en une phrase : tu vois la ligne proposée avant qu'elle entre dans ton profil. Sinon, « Pas fait » : le CV et la lettre ne le revendiqueront pas.
+              </p>
+              <div className="mt-3"><OfferGaps offerId={id} gaps={asked} /></div>
+            </Section>
+          )}
 
           {(strengths.length > 0 || gaps.length > 0) && (
             <div className="grid gap-x-12 md:grid-cols-2">

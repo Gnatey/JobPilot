@@ -117,8 +117,9 @@ export function applyFiche(current: unknown, patch: Partial<Fiche>, cols: Parame
     (next as Record<string, unknown>)[k] = v;
   }
   const hand = [...new Set([...handKeys(current), ...changed])];
-  // le JSON complet : les champs de la fiche, plus `hand` seulement s'il y a quelque chose à retenir
-  const extracted = { ...next, ...(hand.length ? { hand } : {}) } as OfferExtract;
+  const gaps = gapsOf(current);
+  // le JSON complet : les champs de la fiche, plus `hand` seulement s'il y a quelque chose à retenir, et les écarts déjà traités (lib/offer-gaps.ts)
+  const extracted = { ...next, ...(hand.length ? { hand } : {}), ...(gaps ? { gaps } : {}) } as OfferExtract;
   return { extracted, changed };
 }
 
@@ -131,19 +132,27 @@ export const columnsOf = (x: Pick<Fiche, "title" | "company" | "location" | "con
  */
 export function mergeReread(old: unknown, fresh: OfferExtract, cols: Parameters<typeof ficheOf>[1] = {}): OfferExtract {
   const hand = handKeys(old);
-  if (!hand.length) return fresh;
+  const gaps = gapsOf(old); // les écarts déjà traités (« je l'ai fait » / « pas fait ») survivent à une relecture de l'annonce
+  const base = gaps ? ({ ...fresh, gaps } as OfferExtract) : fresh;
+  if (!hand.length) return base;
   const kept = ficheOf(old, cols);
-  const out = { ...fresh } as Record<string, unknown>;
+  const out = { ...base } as Record<string, unknown>;
   for (const k of hand) out[k] = kept[k];
   out.hand = hand;
   return out as unknown as OfferExtract;
 }
 
-/** L'extrait tel qu'on le donne aux IA : sans la mémoire de ce que la personne a rempli. */
-export function forPrompt<T extends object>(x: T): Omit<T, "hand"> {
-  const { hand, ...rest } = x as T & { hand?: unknown };
-  void hand;
+/** L'extrait tel qu'on le donne aux IA : sans la mémoire de ce que la personne a rempli ni celle des écarts traités (ces derniers passent par `refusedLine`). */
+export function forPrompt<T extends object>(x: T): Omit<T, "hand" | "gaps"> {
+  const { hand, gaps, ...rest } = x as T & { hand?: unknown; gaps?: unknown };
+  void hand; void gaps;
   return rest;
+}
+
+/** Les écarts traités d'un extrait (tel quel), ou rien. */
+function gapsOf(x: unknown): OfferExtract["gaps"] | undefined {
+  const g = (x as { gaps?: OfferExtract["gaps"] } | null | undefined)?.gaps;
+  return g && typeof g === "object" ? g : undefined;
 }
 
 /**

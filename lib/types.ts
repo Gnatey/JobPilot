@@ -155,6 +155,11 @@ export type OfferExtract = {
   red_flags: string[];
   /** Champs remplis à la main (lib/offer-fiche.ts) : jamais écrasés par une relecture de l'annonce, jamais envoyés aux IA. */
   hand?: string[];
+  /**
+   * Écarts avec l'offre déjà traités par la personne (lib/offer-gaps.ts) : `yes` = « je l'ai fait » (une ligne a été ajoutée au profil),
+   * `no` = « pas fait » (le CV et la lettre ne doivent jamais le revendiquer). Jamais écrasé par une relecture de l'annonce, jamais envoyé tel quel aux IA.
+   */
+  gaps?: { yes?: string[]; no?: string[] };
 };
 
 export type ScoreBlock = { score: number; comment: string };

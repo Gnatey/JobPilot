@@ -454,3 +454,8 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Vérifié** : `typecheck`, `build`, 70 fichiers de tests, 0 échec. **Non vérifié** : l'écran en navigateur, la vraie base, la vraie IA.
 - **Aucune migration.**
 
+## Paquet 20 du 16 novembre : écarts avec l'offre, puis audit
+### Écarts avec l'offre (livré le 16 novembre, « oui fait maintenant »)
+- **Contexte** : Juliana compare un CV généré à l'offre LHH « Gestionnaire Base de données » (ERP industriel, Nucourt) et au CV que Meteojob lui a donné. Verdict honnête : le CV JobPilot est plus juste, mais pas optimisé pour cette offre : nomenclatures, gammes, doublons, import/export, traçabilité n'y sont pas, parce que le profil ne les dit pas.
+- **Fait** : section « Écarts avec l'offre » (détection sans IA, « Je l'ai fait » lu par le flux « À compléter », « Pas fait » mémorisé par offre dans `extracted.gaps`), consignes « ne le revendique pas » dans les prompts du CV et de la lettre, résumé du CV ouvert sur ce que l'offre demande. Détail : CLAUDE.md « Écarts avec l'offre ».
+- **Vérifié** : `typecheck`, `build`, 71 fichiers de tests, 0 échec. **Non vérifié** : écran en navigateur, vraie base, vraie IA. **Aucune migration.**

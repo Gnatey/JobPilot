@@ -8,6 +8,7 @@ import { checkSummary, summaryNotes } from "./summary-guard";
 import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { alignHeadline } from "./cv-title";
+import { refusedLine } from "./offer-gaps";
 import { forPrompt } from "./offer-fiche";
 import { cleanCvText, pinProjects } from "./cv-edit";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, settledForAi, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
@@ -143,7 +144,7 @@ export async function generateCv(profile: Profile, offer: OfferExtract, analysis
     system: `Tu rédiges un CV français d'UNE page, une colonne, optimisé ATS, ciblé sur une offre précise.
 Méthode :
 - headline : l'intitulé de l'offre, mot pour mot, sans « H/F », sans lieu ni nom d'entreprise. Ne le remplace JAMAIS par le titre d'une cible, même si le métier te semble éloigné du profil. Seule exception : une offre qui demande un niveau senior, expert ou lead, que le profil n'a pas : prends alors le titre de la cible "${target?.title ?? variant}". Un seul métier, pas de "|".
-- summary : 3 lignes max, concrètes. Ce que les EXPÉRIENCES du profil montrent (leurs réalisations) s'écrit comme un acquis. Ce que le profil ne montre qu'en formation, en projet ou dans la liste de compétences (machine learning, NLP, LLM, deep learning, IA…) n'est pas un acquis de métier : ne l'écris jamais comme une expertise, une maîtrise ou une expérience ; ne le cite que si l'offre le demande, sous la forme « formée au machine learning en Master » ou « notions de… », sinon laisse-le de côté. Une compétence que le profil n'a nulle part n'est jamais écrite (elle va dans notes_for_candidate). Pas de « expertise », « forte expérience », « confirmé » ni d'années d'expérience que le profil ne dit pas : un profil junior se présente par ce qu'il a fait. Termine par la disponibilité.
+- summary : 3 lignes max, concrètes. Ouvre sur ce que l'offre demande (son métier, son domaine) et sur les faits du profil qui y répondent le mieux, jamais sur la liste des intitulés de poste passés (« Assistante cheffe de projet et chargée de projet, j'ai… »). Ce que les EXPÉRIENCES du profil montrent (leurs réalisations) s'écrit comme un acquis. Ce que le profil ne montre qu'en formation, en projet ou dans la liste de compétences (machine learning, NLP, LLM, deep learning, IA…) n'est pas un acquis de métier : ne l'écris jamais comme une expertise, une maîtrise ou une expérience ; ne le cite que si l'offre le demande, sous la forme « formée au machine learning en Master » ou « notions de… », sinon laisse-le de côté. Une compétence que le profil n'a nulle part n'est jamais écrite (elle va dans notes_for_candidate). Pas de « expertise », « forte expérience », « confirmé » ni d'années d'expérience que le profil ne dit pas : un profil junior se présente par ce qu'il a fait. Termine par la disponibilité.
 - experiences : TOUTES les expériences du profil qui ont au moins une réalisation, même celles qui semblent éloignées de l'offre (un trou entre deux postes se voit), en ordre antichronologique. Pour chacune, choisis et reformule les réalisations les plus pertinentes pour l'offre (3-4 puces pour le poste le plus récent, 2-3 pour les autres ; une seule suffit pour une expérience peu liée à l'offre). Commence chaque puce par un verbe d'action. Garde les chiffres existants tels quels. Une expérience du profil sans aucune réalisation n'est pas listée.
 - Chaque puce reformule UNE réalisation du profil sans rien y ajouter : mêmes outils, même public, même périmètre, mêmes chiffres. Reformuler, c'est changer l'ordre des mots et le verbe, jamais les faits.
 - N'ajoute JAMAIS un résultat, un effet ou un bénéfice que la réalisation ne dit pas (« réduisant… », « permettant… », « améliorant… », « afin de… », « ce qui a… »). Une réalisation sans résultat dans le profil s'arrête sur ce qui a été fait, pour qui et avec quoi. Le résultat qui manquerait va dans notes_for_candidate, sous forme de question à se poser.
@@ -157,7 +158,7 @@ Méthode :
 - notes_for_candidate : ce que la personne doit vérifier ou compléter avant d'envoyer (ex : un chiffre manquant qui renforcerait une puce).
 ${HONESTY}
 Règles propres au profil : ${profile.rules.join(" / ")}`,
-    prompt: `PROFIL MAÎTRE :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}\n\nCible choisie : ${variant}`,
+    prompt: `PROFIL MAÎTRE :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}\n\nCible choisie : ${variant}${refusedLine(offer) ? `\n\n${refusedLine(offer)}` : ""}`,
     schema: {
       properties: {
         headline: S, summary: S,
@@ -212,7 +213,7 @@ Style :
 - notes_for_candidate : ce qu'il faut vérifier ou compléter avant d'envoyer (un chiffre manquant, une exigence non couverte, un nom de contact à ajouter).
 ${HONESTY}
 Règles propres au profil : ${profile.rules.join(" / ")}`,
-    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}`,
+    prompt: `PROFIL :\n${JSON.stringify(forAi(profile))}\n\nOFFRE :\n${JSON.stringify(forPrompt(offer))}\n\nANALYSE :\n${JSON.stringify(analysis ?? {})}${refusedLine(offer) ? `\n\n${refusedLine(offer)} Tu peux le reconnaître une fois, en une phrase sans accord de genre, et dire que tu comptes l'apprendre ; jamais le présenter comme acquis.` : ""}`,
     schema: {
       properties: { subject: S, greeting: S, paragraphs: arr(S, "les 4 paragraphes, sans salutation ni formule finale"), signoff: S, notes_for_candidate: list },
       required: ["subject", "greeting", "paragraphs", "signoff", "notes_for_candidate"],
