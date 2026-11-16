@@ -478,3 +478,8 @@ Signalé par Juliana avec son PDF (exporté depuis Chrome sur iPhone) : « les C
 - **Corrigé (défensif)** : `SAFE_RATIO` 0,95 dans FitPage (cible unique pour réduire et agrandir) et `text-rendering: geometricPrecision` sur la feuille. Sur le CV de Juliana, la mesure passe de 992 à 954 px (texte à 98 %), soit 3,8 % de marge de plus que le 3,2 % d'écart vu chez elle. **Non vérifié sous Windows** : à elle d'imprimer le même CV.
 - **Vérifié** : `typecheck`, `build`, 74 fichiers de tests, 0 échec. **Aucune migration.**
 
+### « Écarts avec l'offre » refait dans le style des mots-clés (16 novembre, soir ; PRÉPARÉ sur la branche `paquet-21-ecarts`, pas livré)
+- **Retour de Juliana** (22 h 53) : la section était « trop simple » (liste de liens soulignés « Je l'ai fait » / « Pas fait ») ; elle préférait la carte « Mots-clés absents que tu connais peut-être » (une question, « Oui, je sais » en bouton jaune, « Non » discret) : « fallait garder ça mais plus le pousser ».
+- **Fait** : `components/offer-gaps.tsx` rend maintenant une carte (`card`, icône, titre « Ces points de l'offre, tu les connais ? », compteur « N à confirmer ») ; chaque point = une ligne avec « Oui, je connais » (bouton jaune) et « Non » ; « Oui » ouvre la phrase (où, pour qui, avec quels outils), la réponse de l'IA et la ligne avant / après à valider (« Ajouter à mon profil ») ; « Non » = l'ancien « Pas fait ». Même logique, mêmes routes, aucun changement de comportement. Espaces insécables dans les guillemets.
+- **Vérifié** : `typecheck`, `build`, 74 fichiers de tests ; aperçu navigateur du composant seul (bureau et 390 px, faux serveur). **Non vérifié** : la page d'offre complète derrière la connexion. **Aucune migration.**
+
