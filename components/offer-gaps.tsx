@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, HelpCircle, Loader2, X } from "lucide-react";
 import { useFeedback } from "@/components/ui/feedback";
 import type { AnswerOp } from "@/lib/profile-fix";
 
@@ -10,9 +10,10 @@ type Draft = { answer: string; busy: boolean; ops: AnswerOp[] | null; preview: P
 const BLANK: Draft = { answer: "", busy: false, ops: null, preview: [], reply: "", empty: false };
 
 /**
- * « Écarts avec l'offre » : ce que l'annonce demande et que ton profil ne dit pas. Pour chacun :
- * - « Je l'ai fait » : tu écris une phrase, l'IA propose la ligne de ton profil (avant / après), tu valides ; elle sera dans tes prochains CV ;
- * - « Pas fait » : noté sur l'offre, le CV et la lettre ne le revendiquent pas.
+ * « Écarts avec l'offre » : ce que l'annonce demande et que ton profil ne dit pas, présenté comme la carte des mots-clés
+ * (`SkillSuggestions` : une question, « Oui » en bouton jaune, « Non » discret). Pour chaque point :
+ * - « Oui, je connais » : tu écris une phrase, l'IA propose la ligne de ton profil (avant / après), tu valides ; elle sera dans tes prochains CV ;
+ * - « Non » : noté sur l'offre, le CV et la lettre ne le revendiquent pas.
  * Rien n'est écrit sans ta validation, et l'IA n'écrit que ce que contient ta réponse.
  */
 export function OfferGaps({ offerId, gaps }: { offerId: string; gaps: { term: string }[] }) {
@@ -80,59 +81,75 @@ export function OfferGaps({ offerId, gaps }: { offerId: string; gaps: { term: st
   if (!gaps.length) return null;
 
   return (
-    <ul className="space-y-3">
-      {gaps.map(({ term }) => {
-        const isOpen = open === term;
-        const id = `gap-${term.replace(/[^a-z0-9]+/gi, "-").slice(0, 40)}`;
-        return (
-          <li key={term} className="text-sm">
-            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-              <span className="min-w-0 flex-1 font-semibold">{term}</span>
-              <span className="flex shrink-0 gap-3">
-                <button className="hit text-ink underline" aria-expanded={isOpen} aria-controls={id} onClick={() => (isOpen ? reset() : (setOpen(term), setDraft(BLANK)))}>{isOpen ? "Fermer" : "Je l'ai fait"}</button>
-                <button className="hit text-muted underline" disabled={busyNo === term} onClick={() => notDone(term)}>{busyNo === term ? "…" : "Pas fait"}</button>
-              </span>
-            </div>
+    <section className="card mb-8 p-4 md:p-5" aria-labelledby="gaps-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="gaps-title" className="heading flex items-center gap-2 text-lg"><HelpCircle size={18} className="text-marigold-deep" /> Ces points de l'offre, tu les connais ?</h2>
+          <p className="mt-1 max-w-[62ch] text-sm text-muted">
+            L'annonce les demande et ton profil ne les dit nulle part, donc ton CV ne peut pas en parler. « Oui » : tu l'expliques en une phrase et tu vois la ligne avant qu'elle entre dans ton profil. « Non » : le CV et la lettre ne le revendiqueront pas pour cette offre.
+          </p>
+        </div>
+        <span className="tag">{gaps.length} à confirmer</span>
+      </div>
 
-            {isOpen && (
-              <div id={id} className="mt-2 rounded-xl border border-line bg-surface p-3">
-                <label className="label" htmlFor={`${id}-answer`}>Où, pour qui, avec quels outils ?</label>
-                <textarea id={`${id}-answer`} rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer}
-                  onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, preview: [], reply: "", empty: false }))} />
-                <div className="mt-2 flex justify-end">
-                  <button className="btn btn-sm btn-primary" disabled={draft.busy || draft.answer.trim().length < 2} onClick={() => send(term)}>
-                    {draft.busy ? <><Loader2 size={15} className="animate-spin" /> Je lis ta réponse…</> : "Envoyer ma réponse"}
+      <ul className="mt-4 divide-y divide-line">
+        {gaps.map(({ term }) => {
+          const isOpen = open === term;
+          const id = `gap-${term.replace(/[^a-z0-9]+/gi, "-").slice(0, 40)}`;
+          return (
+            <li key={term} className="py-3 text-sm first:pt-0 last:pb-0">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <p className="min-w-0 flex-1 basis-64 font-semibold">{term}</p>
+                <div className="flex shrink-0 gap-2">
+                  {isOpen
+                    ? <button className="btn btn-sm btn-ghost" aria-expanded aria-controls={id} onClick={reset}>Fermer</button>
+                    : <button className="btn btn-sm btn-primary" aria-expanded={false} aria-controls={id} onClick={() => { setOpen(term); setDraft(BLANK); }} aria-label={`Oui, je connais : ${term}`}><Check size={15} /> Oui, je connais</button>}
+                  <button className="btn btn-sm btn-ghost" disabled={busyNo === term} onClick={() => notDone(term)} aria-label={`Non, ne pas le revendiquer : ${term}`}>
+                    {busyNo === term ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />} Non
                   </button>
                 </div>
-
-                {draft.reply && (
-                  <div className="mt-3 rounded-lg border border-line p-3" role="status">
-                    <p className="text-xs font-semibold text-muted">Ma réponse</p>
-                    <p className="mt-0.5">{draft.reply}</p>
-                  </div>
-                )}
-                {draft.empty && <p className="mt-2 text-muted" role="status">Je n'ai pas trouvé de quoi écrire une ligne sans l'inventer. Dis ce que tu as livré, pour qui et avec quels outils, ou clique sur « Pas fait ».</p>}
-
-                {draft.preview.length > 0 && (
-                  <div className="mt-3 space-y-3" role="status">
-                    {draft.preview.map((p, i) => (
-                      <div key={i}>
-                        <p className="text-xs font-semibold text-muted">{p.where}</p>
-                        {p.before && <p className="mt-0.5 text-muted line-through">{p.before}</p>}
-                        <p className="mt-0.5 font-medium">{p.after}</p>
-                      </div>
-                    ))}
-                    <div className="flex gap-2">
-                      <button className="btn btn-sm btn-primary" disabled={applying} onClick={() => apply(term)}><Check size={15} /> Ajouter à mon profil</button>
-                      <button className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, ops: null, preview: [] }))}><X size={15} /> Refuser</button>
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+
+              {isOpen && (
+                <div id={id} className="mt-3 rounded-xl border border-line bg-paper p-3">
+                  <label className="label" htmlFor={`${id}-answer`}>Où, pour qui, avec quels outils ?</label>
+                  <textarea id={`${id}-answer`} rows={2} className="field mt-1" placeholder="En une ou deux phrases, avec les chiffres que tu connais" value={draft.answer}
+                    onChange={(e) => setDraft((d) => ({ ...d, answer: e.target.value, ops: null, preview: [], reply: "", empty: false }))} />
+                  <div className="mt-2 flex justify-end">
+                    <button className="btn btn-sm btn-primary" disabled={draft.busy || draft.answer.trim().length < 2} onClick={() => send(term)}>
+                      {draft.busy ? <><Loader2 size={15} className="animate-spin" /> Je lis ta réponse…</> : "Envoyer ma réponse"}
+                    </button>
+                  </div>
+
+                  {draft.reply && (
+                    <div className="mt-3 rounded-lg border border-line bg-surface p-3" role="status">
+                      <p className="text-xs font-semibold text-muted">Ma réponse</p>
+                      <p className="mt-0.5">{draft.reply}</p>
+                    </div>
+                  )}
+                  {draft.empty && <p className="mt-2 text-muted" role="status">Je n'ai pas trouvé de quoi écrire une ligne sans l'inventer. Dis ce que tu as livré, pour qui et avec quels outils, ou clique sur « Non ».</p>}
+
+                  {draft.preview.length > 0 && (
+                    <div className="mt-3 space-y-3" role="status">
+                      {draft.preview.map((p, i) => (
+                        <div key={i} className="rounded-lg border border-line bg-surface p-3">
+                          <p className="text-xs font-semibold text-muted">{p.where}</p>
+                          {p.before && <p className="mt-0.5 text-muted line-through">{p.before}</p>}
+                          <p className="mt-0.5 font-medium">{p.after}</p>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <button className="btn btn-sm btn-primary" disabled={applying} onClick={() => apply(term)}><Check size={15} /> Ajouter à mon profil</button>
+                        <button className="btn btn-sm btn-ghost" onClick={() => setDraft((d) => ({ ...d, ops: null, preview: [] }))}><X size={15} /> Refuser</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

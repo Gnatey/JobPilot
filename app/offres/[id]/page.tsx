@@ -181,14 +181,7 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
             title="Mots-clés absents que tu connais peut-être"
             intro="L'offre les demande et ton profil ne les cite pas, mais ce que tu as déjà fait les rend probables. Confirme : ils seront ajoutés à ton profil et utilisés dans le CV." />
 
-          {asked.length > 0 && (
-            <Section title="Écarts avec l'offre">
-              <p className="max-w-[66ch] text-sm text-muted">
-                L'annonce demande ces points et ton profil ne les dit nulle part, donc ton CV ne peut pas en parler. Si tu l'as déjà fait, dis-le en une phrase : tu vois la ligne proposée avant qu'elle entre dans ton profil. Sinon, « Pas fait » : le CV et la lettre ne le revendiqueront pas.
-              </p>
-              <div className="mt-3"><OfferGaps offerId={id} gaps={asked} /></div>
-            </Section>
-          )}
+          {asked.length > 0 && <OfferGaps offerId={id} gaps={asked} />}
 
           {(strengths.length > 0 || gaps.length > 0) && (
             <div className="grid gap-x-12 md:grid-cols-2">
