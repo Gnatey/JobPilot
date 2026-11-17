@@ -171,8 +171,26 @@ const db = () => fakeSupabase({
   const ui = read("components/offer-gaps.tsx");
   ok("écran : rien n'est enregistré sans « Ajouter à mon profil »", /action: "apply"/.test(ui) && /Ajouter à mon profil/.test(ui) && /action: "no"/.test(ui));
   ok("écran : les boutons disent ce qui se passe (aria-expanded, rafraîchissement)", /aria-expanded/.test(ui) && /router\.refresh\(\)/.test(ui));
-  ok("écran : « Oui, je connais » n'exige aucune réponse (un clic, action « skill »), « Oui, avec un détail » ouvre la phrase", /action: "skill"/.test(ui) && /Oui, je connais/.test(ui) && /Oui, avec un détail/.test(ui) && /canAddAsSkill\(term/.test(ui));
+  ok("écran : « Oui, je connais » n'exige aucune réponse (un clic, action « skill »), « Oui, avec un détail » ouvre la phrase", /asSkill \? "skill"/.test(ui) && /Oui, je connais/.test(ui) && /Oui, avec un détail/.test(ui) && /canAddAsSkill\(term/.test(ui));
   ok("écran : après une réponse sans ligne utilisable, un bouton ajoute quand même la compétence", /sans détail<\/button>/.test(ui));
   ok("route : le geste « skill » existe et ne passe ni par l'IA ni par le quota", /action === "skill"/.test(route) && route.indexOf('body.action === "skill"') < route.indexOf("await spendAi("));
+  ok("route : le geste « done » note l'écart « fait » sans IA, sans quota et sans toucher au profil", /action === "done"\) return markGapDb\(supabase, id, body\.term, "yes"\)/.test(route) && route.indexOf('body.action === "done"') < route.indexOf("await spendAi("));
+  ok("écran : après une réponse sans ligne à écrire, « C'est réglé, rien à ajouter » ferme le point (action « done »)", /action: "done"/.test(ui) && /C'est réglé, rien à ajouter/.test(ui) && /\(draft\.reply \|\| draft\.empty\)/.test(ui));
+  ok("écran : « Oui, je connais » est sur CHAQUE ligne, un clic sans rien écrire (mot-clé : compétence ; phrase : point réglé)", /plainYes\(term, plain\)/.test(ui) && /asSkill \? "skill" : "done"/.test(ui) && !/\{plain && \(\s*<button className="btn btn-sm btn-primary" disabled=\{busyYes === term\} onClick=\{\(\) => plainYes/.test(ui));
+  ok("écran : le toast d'un « Oui » sur une phrase dit que le profil n'a pas changé", /Ton profil n'a pas changé/.test(ui));
+  ok("écran : le bouton « C'est réglé » ne dépend pas de la compétence ajoutable (il sert aussi aux phrases d'exigence)", /settle\(term\)/.test(ui) && !/plain && !draft\.preview\.length && \(draft\.reply/.test(ui));
+  // Le geste « done » : l'écart sort de la liste, le profil reste tel quel (cas du 17 novembre : « Rigueur, réactivité et sens de l'organisation » déjà dans les expériences)
+  {
+    const SOFT = "Rigueur, réactivité et sens de l'organisation";
+    const { sb: sd, tables } = fakeSupabase({ offers: [{ id: "o9", extracted: { must_have: [SOFT], keywords: [] } }], profiles: [{ user_id: "u1", data: profile }] });
+    const before = JSON.stringify(tables.profiles);
+    ok("done : le point est proposé avant (profil sans ces mots)", offerGaps({ must_have: [SOFT], keywords: [] }, EMPTY_PROFILE).some((g) => g.term === SOFT));
+    const r = await markGapDb(sd, "o9", SOFT, "yes");
+    ok("done : le point est noté « fait » sur l'offre", r.yes.includes(SOFT) && r.no.length === 0);
+    ok("done : le profil n'a pas bougé", JSON.stringify(tables.profiles) === before);
+    const stored = (await sd.from("offers").select("extracted").eq("id", "o9").maybeSingle()).data?.extracted;
+    ok("done : le point ne revient plus dans la liste des écarts", !offerGaps(stored, EMPTY_PROFILE).some((g) => g.term === SOFT));
+    ok("done : un « Non » d'avant est levé (le point est réglé, pas refusé)", (await markGapDb(sd, "o9", SOFT, "no")).no.length === 1 && (await markGapDb(sd, "o9", SOFT, "yes")).no.length === 0);
+  }
   done();
 })();
