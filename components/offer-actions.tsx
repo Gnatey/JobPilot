@@ -30,6 +30,8 @@ export function OfferActions(props: {
   reanalyseUrl?: string | null;
   /** La fiche de l'offre (ce que l'analyse a lu de l'annonce), modifiable à la main. */
   fiche?: Fiche;
+  /** Le texte de l'annonce gardé sur l'offre : « Coller l'annonce » le montre, la personne le complète ou le remplace. */
+  rawText?: string;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -187,7 +189,7 @@ export function OfferActions(props: {
           </>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-1">
-        {props.fiche && <OfferFiche offerId={props.offerId} initial={props.fiche} />}
+        {props.fiche && <OfferFiche offerId={props.offerId} initial={props.fiche} rawText={props.rawText} />}
         <button className="btn btn-sm btn-ghost text-muted hover:text-ink" onClick={reanalyse} disabled={!!busy} title="Relire l'annonce et refaire l'analyse avec ton profil actuel (une analyse du quota du jour). Ce que tu as corrigé dans la fiche est gardé."><ScanSearch size={15} /> Refaire l'analyse</button>
         <details className="relative text-sm">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-full px-3 py-1.5 text-muted hover:bg-paper"><SlidersHorizontal size={14} /> Réglages du CV</summary>

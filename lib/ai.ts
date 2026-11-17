@@ -9,6 +9,7 @@ import { guardLetter } from "./letter-guard";
 import { enforceFacts } from "./cv-facts";
 import { alignHeadline } from "./cv-title";
 import { refusedLine } from "./offer-gaps";
+import { dropVagueOfferGaps } from "./analysis-gaps";
 import { forPrompt } from "./offer-fiche";
 import { cleanCvText, pinProjects } from "./cv-edit";
 import { applyMatches, cvLabels, labelSources, matchInput, mergeExtracted, settledForAi, type AnswerRaw, type MatchGroup, type Proposal } from "./profile-fix";
@@ -68,6 +69,7 @@ export async function analyzeOffer(profile: Profile, offer: OfferExtract): Promi
 Barème de chaque bloc (0-100) : 90+ = correspond parfaitement, 70 = bonne base avec écarts mineurs, 50 = écarts réels, <30 = hors cible.
 "experience" compare le niveau demandé au niveau réel du profil (une alternance ou un stage compte comme de l'expérience de débutant, pas comme plusieurs années). Si l'offre ne précise ni niveau ni années d'expérience, ne le déduis pas du titre : note-le « non précisé » dans le commentaire et ne pénalise pas ce bloc.
 Ce que l'annonce ne dit pas (salaire, télétravail, taille de l'entreprise) n'est jamais un point négatif : ne pénalise que ce qui est écrit.
+"gaps" : seulement ce que l'annonce DEMANDE et que le profil n'a pas (un outil, une durée, un diplôme, un secteur). Jamais un reproche fait à l'annonce elle-même (« offre peu détaillée », « missions non précisées », « compétences requises absentes ») : ce n'est pas un écart du profil, n'en fais ni un écart ni un conseil (« mettre en avant l'adaptabilité »). Une annonce courte donne peu d'écarts : c'est normal, n'en invente pas.
 "logistics" = lieu, mobilité, type de contrat, disponibilité.
 Choisis recommended_variant parmi les ids de "targets" du profil.
 company_type : ESN/Conseil, Banque/Finance/Assurance, Secteur public, Grand groupe, Startup/Scale-up, PME, Cabinet de recrutement.
@@ -96,7 +98,7 @@ ${HONESTY}`,
         matched_keywords: arr(S, "mots-clés de l'offre réellement couverts par le profil"),
         missing_keywords: arr(S, "mots-clés de l'offre absents du profil"),
         strengths: arr(S, "3-5 arguments forts à mettre en avant"),
-        gaps: arr(obj({ gap: S, how_to_address: str("comment le traiter honnêtement en CV/lettre/entretien") })),
+        gaps: arr(obj({ gap: str("ce que l'annonce demande et que le profil n'a pas ; jamais un manque de détail de l'annonce"), how_to_address: str("comment le traiter honnêtement en CV/lettre/entretien") })),
         should_apply: { type: "string", enum: ["oui", "oui_avec_effort", "non"] },
         questions_to_expect: arr(S, "3-5 questions probables en entretien"),
         skill_suggestions: arr(obj({ skill: S, category: S, evidence: S, confidence: { type: "string", enum: ["forte", "moyenne"] } }), "compétences absentes du profil mais très plausibles, à faire confirmer"),
@@ -104,6 +106,7 @@ ${HONESTY}`,
       required: ["verdict", "recommended_variant", "company_type", "recommended_template", "template_reason", "breakdown", "matched_keywords", "missing_keywords", "strengths", "gaps", "should_apply", "questions_to_expect"],
     },
   });
+  a.gaps = dropVagueOfferGaps(a.gaps); // une annonce vague n'est pas un écart du profil (lib/analysis-gaps.ts)
   const b = a.breakdown;
   a.score = Math.round(
     (Object.keys(WEIGHTS) as (keyof typeof WEIGHTS)[]).reduce((s, k) => s + (b[k]?.score ?? 0) * WEIGHTS[k], 0)
