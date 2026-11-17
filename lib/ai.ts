@@ -437,6 +437,63 @@ Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquem
 }
 
 /**
+ * Diagnostic d'un CV MAÎTRE (case cochée au dépôt, 17 novembre 2026). Juliana : « il suit une métrique data alors qu'il doit prendre toutes les informations pour
+ * les insérer dans le CV maître : il dit "pas un CV prêt à l'emploi" alors que c'est lui qui doit les faire en piochant dans toutes les expériences ».
+ * Ici le document n'est PAS jugé comme un CV à envoyer : ni note, ni seuil « prêt à envoyer », ni conseil de raccourcir ou de choisir un seul métier, ni lecture ATS.
+ * On vérifie qu'il contient et dit clairement tout ce dont le profil a besoin (dates, employeurs, outils, contexte, résultats, formations, langues…).
+ * Le code met `master: true` et `overall_score: null` (pas l'IA) ; positionnement, ATS, stratégie et plan d'action restent vides.
+ * Consigne seulement : son effet sur une vraie IA n'est pas vérifié (réseau fermé à l'atelier).
+ */
+export async function diagnoseMasterCv(cvText: string, answers: OnboardingAnswers | null, previous: Profile | null, lang?: Locale): Promise<Diagnostic> {
+  const r = await structured<Pick<Diagnostic, "verdict" | "strengths" | "issues" | "inconsistencies" | "missing_metrics" | "changes_since_last">>({
+    maxTokens: 6000,
+    thinking: 2048,
+    patient: true,
+    system: `Tu relis le CV MAÎTRE d'une personne en recherche d'emploi. Ce n'est PAS un CV à envoyer : c'est le document complet, volontairement long, qui contient TOUT ce qu'elle a fait. L'application en tire un profil (expériences, réalisations, outils, formations, certifications, langues, projets), puis compose pour chaque offre un CV court en piochant dans ce profil. Ton rôle : vérifier que ce document contient, et dit clairement, tout ce dont ce profil a besoin.
+Tu ne juges JAMAIS :
+- la longueur, le nombre de pages, la mise en page, ni la lecture par les robots de tri (ATS) ;
+- le positionnement : viser plusieurs métiers est voulu. Tu ne conseilles jamais de choisir une seule casquette, ni de couper, résumer ou raccourcir quoi que ce soit ;
+- le fait qu'il soit « prêt à envoyer » ou non : aucune note, aucun verdict global, aucune comparaison avec un CV classique.
+Tu relèves seulement :
+- verdict : 3 à 4 phrases. Ce que le document contient (combien d'expériences, de formations, de projets, de langues tu y lis), ce qui est solide, et ce qu'il faudrait préciser pour que le profil soit complet.
+- strengths : 3 à 6 points. Ce qui, dans ce document, nourrira bien des CV : faits concrets, outils nommés, contextes, résultats écrits.
+- issues : les informations MANQUANTES ou FLOUES qui limiteraient les CV composés ensuite : expérience sans dates, poste sans employeur ou sans lieu clair, outils jamais nommés pour une mission, réalisation sans action ni contexte, formation sans année ou sans école, niveau de langue absent. "issue" nomme l'expérience ou la rubrique concernée ; "fix" = la précision à apporter, sous forme de question concrète que la personne peut se poser ; severity = "important" quand cela empêche de s'en servir, "mineur" sinon (jamais "bloquant").
+- inconsistencies : contradictions entre deux endroits du document, ou entre plusieurs versions si plusieurs CV sont fournis (dates, intitulés, niveaux de langue, chiffres).
+- missing_metrics : réalisations dont un chiffre VRAI (volume, durée, taille d'équipe, fréquence, gain) permettrait de mieux les raconter, avec la question à se poser. Tu ne proposes jamais un chiffre : tu ne connais pas les vrais, mets [chiffre] à la place dans tout exemple.
+${previous ? "- changes_since_last : compare avec le profil actuel fourni et liste ce que ce document apporte de nouveau ou de plus précis." : ""}
+${previous?.settled?.length ? "- déjà tranché : la personne a déjà répondu aux questions listées sous « DÉJÀ TRANCHÉ PAR LA PERSONNE ». Ne les reposes pas, même reformulées ; ne les rouvre que si le CV contredit clairement sa réponse." : ""}
+- dates : ${dateLine()} Toute période qui se termine avant aujourd'hui est PASSÉE : tu ne la juges jamais « future » ni « futuriste ». Une alternance qui chevauche un diplôme est normale quand le CV la nomme alternance.
+Tu tutoies, tu restes bienveillante mais tu ne flattes pas. Tu t'appuies uniquement sur ce qui est écrit : tu n'inventes aucun fait.${langDirective(lang)}`,
+    prompt: `QUESTIONNAIRE :\n${JSON.stringify(answers ?? {})}\n\n${previous ? `PROFIL ACTUEL :\n${JSON.stringify(forAi(previous))}\n\n` : ""}${previous?.settled?.length ? `DÉJÀ TRANCHÉ PAR LA PERSONNE :\n${JSON.stringify(settledForAi(previous.settled))}\n\n` : ""}CV MAÎTRE :\n"""\n${cvText.slice(0, 40000)}\n"""`,
+    schema: {
+      properties: {
+        verdict: str("3-4 phrases : ce que le document contient, ce qui est solide, ce qui manque pour le profil"),
+        strengths: list,
+        issues: arr(obj({ issue: S, severity: { type: "string", enum: ["important", "mineur"] }, fix: str("la précision à apporter, sous forme de question concrète") })),
+        inconsistencies: list,
+        missing_metrics: arr(S, "réalisations où un chiffre vrai changerait tout, avec la question à se poser"),
+        ...(previous ? { changes_since_last: list } : {}),
+      },
+      required: ["verdict", "strengths", "issues", "inconsistencies", "missing_metrics"],
+    },
+  });
+  return {
+    overall_score: null,
+    master: true,
+    verdict: r.verdict ?? "",
+    positioning: { recommended_targets: [], comment: "" },
+    strengths: Array.isArray(r.strengths) ? r.strengths : [],
+    issues: Array.isArray(r.issues) ? r.issues : [],
+    inconsistencies: Array.isArray(r.inconsistencies) ? r.inconsistencies : [],
+    missing_metrics: Array.isArray(r.missing_metrics) ? r.missing_metrics : [],
+    ats: { ok: [], problems: [] },
+    search_strategy: "",
+    actions: [],
+    ...(previous && Array.isArray(r.changes_since_last) ? { changes_since_last: r.changes_since_last } : {}),
+  };
+}
+
+/**
  * Fusionne un CV redéposé avec le profil actuel, sans rien perdre et sans doublon :
  * le tri exact se fait en code, puis l'IA dit quelles nouvelles réalisations répètent une réalisation connue avec d'autres mots.
  */

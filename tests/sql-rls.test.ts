@@ -72,7 +72,7 @@ ok("seules les tables prévues n'ont aucune politique", JSON.stringify(without) 
 const cols = (await db.query<{ t: string; c: string; d: string; nullable: string; df: string | null }>(`select table_name t, column_name c, data_type d, is_nullable nullable, column_default df from information_schema.columns where table_schema = 'public' order by table_name, ordinal_position`)).rows;
 const filler: Record<string, string> = { text: "'x'", "character varying": "'x'", integer: "0", bigint: "0", smallint: "0", numeric: "0", real: "0", "double precision": "0", boolean: "false", jsonb: "'{}'", json: "'{}'", uuid: "gen_random_uuid()", date: "current_date", "timestamp with time zone": "now()", "timestamp without time zone": "now()", ARRAY: "'{}'" };
 /** Valeurs imposées par des contraintes `check` quand « x » ne convient pas. */
-const OVERRIDE: Record<string, Record<string, string>> = {};
+const OVERRIDE: Record<string, Record<string, string>> = { application_entries: { kind: "'note'" } };
 function insertFor(t: string, uid: string) {
   const own = cols.filter((c) => c.t === t);
   const need = own.filter((c) => c.c === "user_id" || (c.nullable === "NO" && c.df === null));

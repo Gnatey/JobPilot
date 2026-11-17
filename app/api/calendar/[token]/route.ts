@@ -57,7 +57,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       out.push(
         "BEGIN:VEVENT", `UID:${a.id}-relance@jobpilot`, `DTSTAMP:${now}`, `DTSTART;VALUE=DATE:${day(on)}`, `DTEND;VALUE=DATE:${nextDay(on)}`,
         fold(`SUMMARY:${esc(`Relancer ${a.company} après l'entretien`)}`),
-        fold(`DESCRIPTION:${esc(`${a.title}\nRédiger la relance : ${base}/suivi?open=${a.id}`)}`),
+        fold(`DESCRIPTION:${esc(`${a.title}\nRédiger la relance : ${base}/suivi/${a.id}`)}`),
         "TRANSP:TRANSPARENT", "END:VEVENT"
       );
     }

@@ -117,7 +117,7 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {apply && <span className={`tag ${apply.tone}`}>{apply.text}</span>}
             {a.company_type && <span className="tag">{a.company_type}</span>}
-            {app && <Link href={`/suivi?open=${app.id}`} className="tag hover:bg-line">Suivi : {statusLabel(app.status)}</Link>}
+            {app && <Link href={`/suivi/${app.id}`} className="tag hover:bg-line">Suivi : {statusLabel(app.status)}</Link>}
             {offer.url && <a href={offer.url} target="_blank" rel="noreferrer" className="tag hover:bg-line"><ExternalLink size={13} /> L'annonce</a>}
           </div>
         </div>

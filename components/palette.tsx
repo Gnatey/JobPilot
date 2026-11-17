@@ -75,7 +75,7 @@ export function Palette() {
       ]);
       if (cancelled) return;
       const items: Item[] = [
-        ...(apps.data ?? []).map((a): Item => ({ group: "Candidatures", id: `a-${a.id}`, label: a.title, hint: `${a.company}, ${statusLabel(a.status).toLowerCase()}`, icon: Briefcase, run: () => go(`/suivi?open=${a.id}`) })),
+        ...(apps.data ?? []).map((a): Item => ({ group: "Candidatures", id: `a-${a.id}`, label: a.title, hint: `${a.company}, ${statusLabel(a.status).toLowerCase()}`, icon: Briefcase, run: () => go(`/suivi/${a.id}`) })),
         ...(offers.data ?? []).map((o): Item => ({ group: "Offres analysées", id: `o-${o.id}`, label: o.title ?? "Offre", hint: `${o.company ?? ""}${o.score != null ? `, ${o.score} %` : ""}`, icon: Layers, run: () => go(`/offres/${o.id}`) })),
         ...(recos.data ?? []).map((r): Item => ({ group: "À trier", id: `r-${r.id}`, label: r.title ?? "Offre", hint: r.company ?? "", icon: Inbox, run: () => go("/recommandees") })),
       ];
