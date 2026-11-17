@@ -26,6 +26,7 @@ export function CvUpload({ kind, answers, submitLabel, onDone, onSkip, skipLabel
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [skipping, setSkipping] = useState(false);
+  const [master, setMaster] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   function add(list: FileList | null) {
@@ -41,6 +42,7 @@ export function CvUpload({ kind, answers, submitLabel, onDone, onSkip, skipLabel
     const fd = new FormData();
     fd.set("kind", kind);
     if (answers) fd.set("answers", JSON.stringify(answers));
+    if (master) fd.set("master", "1");
     files.forEach((f) => fd.append("files", f));
     if (text.trim()) fd.set("text", text);
     const r = await fetch("/api/cv/diagnose", { method: "POST", body: fd }).then((r) => r.json()).catch(() => ({ error: "Connexion interrompue, réessaie." }));
@@ -86,6 +88,14 @@ export function CvUpload({ kind, answers, submitLabel, onDone, onSkip, skipLabel
         </button>
         {showText && <textarea rows={8} className="field mt-2 text-sm" placeholder={t("Colle ici le texte de ton CV…")} value={text} onChange={(e) => setText(e.target.value)} />}
       </div>
+
+      <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-surface p-4">
+        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-marigold)]" checked={master} onChange={(e) => setMaster(e.target.checked)} />
+        <span className="min-w-0">
+          <span className="block font-semibold">{t("C'est mon CV maître (complet, pas fait pour être envoyé tel quel)")}</span>
+          <span className="mt-0.5 block text-sm text-muted">{t("Le diagnostic ne le note pas et ne te conseille ni de le raccourcir ni de choisir un seul métier : il lit tout ce qu'il contient et te dit ce qui manque pour nourrir ton profil.")}</span>
+        </span>
+      </label>
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <button type="button" className="btn btn-primary btn-xl w-full sm:w-auto" disabled={busy || skipping || (!files.length && text.trim().length < 200)} onClick={submit}>

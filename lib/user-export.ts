@@ -2,12 +2,12 @@ import { fetchAll } from "./paged";
 import { isMissingTable } from "./db-missing";
 
 /** Les tables que contient l'export (jamais le jeton Gmail : `gmail_accounts` n'y est pas). */
-export const EXPORT_TABLES = ["profiles", "offers", "applications", "status_history", "documents", "emails", "recommendations", "insights", "searches", "diagnostics", "application_texts"] as const;
+export const EXPORT_TABLES = ["profiles", "offers", "applications", "status_history", "documents", "emails", "recommendations", "insights", "searches", "diagnostics", "application_texts", "application_entries"] as const;
 /** Colonne de tri stable de chaque table pour la lecture page après page (par défaut `id`). */
 export const orderColumn = (table: string): string => (table === "profiles" ? "user_id" : table === "application_texts" ? "application_id" : "id");
 
 /** Tables ajoutées par une mise à jour de la base : tant qu'elle n'est pas lancée, la table n'existe pas et l'export la compte vide (jamais pour une autre erreur). */
-const OPTIONAL_TABLES: readonly string[] = ["application_texts"];
+const OPTIONAL_TABLES: readonly string[] = ["application_texts", "application_entries"];
 
 type Read = (table: string, from: number, to: number) => PromiseLike<{ data: unknown[] | null; error?: { message?: string; code?: string } | null }>;
 
@@ -24,7 +24,7 @@ export async function readExport(read: Read): Promise<{ tables: Record<string, u
   const truncated: string[] = [];
   await Promise.all(EXPORT_TABLES.map(async (t) => {
     // Les lignes de contenu lourd (CV, lettres, e-mails) sont lues par petites pages
-    const pageSize = t === "documents" || t === "emails" || t === "diagnostics" ? 100 : 500;
+    const pageSize = t === "documents" || t === "emails" || t === "diagnostics" || t === "application_entries" ? 100 : 500;
     const r = await fetchAll((a, b) => read(t, a, b), { pageSize, maxRows: MAX_ROWS_PER_TABLE });
     if (r.error && OPTIONAL_TABLES.includes(t) && isMissingTable(r.error)) { tables[t] = []; return; }
     if (r.error) throw new Error(`L'export n'a pas pu lire « ${t} » en entier : réessaie dans un instant.`);

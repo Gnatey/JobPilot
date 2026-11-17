@@ -321,3 +321,25 @@ create policy "own rows" on application_texts for all using (user_id = auth.uid(
 -- elle permet de trier « les plus récentes » ou « les plus anciennes » selon l'âge réel de l'annonce. Colonne additive, vide par défaut.
 -- Tant que ce bloc n'est pas lancé, tout fonctionne comme avant (le tri se fait sur la date d'arrivée).
 alter table recommendations add column if not exists posted_at timestamptz;
+
+-- ===== Dossier d'offre : éléments datés et type d'entretien (mise à jour 8) =====
+-- Le dossier d'une candidature (Suivi) garde, datés : notes, e-mails collés, textes et entretiens. Un entretien est un « contact ou téléphone » (ne lance
+-- pas la relance) ou un « entretien » (la lance, 14 jours après le dernier). La candidature retient le type du plus récent dans `interview_kind`
+-- (la date reste dans `interview_at`). Additif et rejouable. Tant que ce bloc n'est pas lancé, tout fonctionne comme avant, sauf l'ajout d'éléments au
+-- dossier, qui demande de mettre la base à jour.
+alter table applications add column if not exists interview_kind text check (interview_kind in ('contact', 'entretien'));
+create table if not exists application_entries (
+  id uuid primary key default gen_random_uuid(),
+  application_id uuid not null references applications on delete cascade,
+  user_id uuid not null references auth.users on delete cascade default auth.uid(),
+  kind text not null check (kind in ('note', 'email', 'text', 'interview')),
+  title text,
+  body text,
+  at timestamptz not null default now(),
+  interview_kind text check (interview_kind in ('contact', 'entretien')),
+  created_at timestamptz not null default now()
+);
+create index if not exists application_entries_app_idx on application_entries (application_id, at desc);
+alter table application_entries enable row level security;
+drop policy if exists "own rows" on application_entries;
+create policy "own rows" on application_entries for all using (user_id = auth.uid()) with check (user_id = auth.uid());

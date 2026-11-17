@@ -1,11 +1,11 @@
 // Relances : seulement après un entretien ou une épreuve. Parcours À postuler → Postulé → Entretien → Test / Cas → Relancé → Offre (« Relancé » se choisit à la main).
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { FOLLOWUP_AFTER_DAYS, FOLLOWUP_REPEAT_DAYS, canDraftFollowup, followupDue, followupOn, isAwaitingAnswer, isFollowupStatus, isUpcoming, nextFollowupAfterDraft } from "../lib/followup";
+import { FOLLOWUP_AFTER_DAYS, FOLLOWUP_REPEAT_DAYS, canDraftFollowup, followupDue, followupOn, isAwaitingAnswer, isFollowupStatus, isGhosted, isUpcoming, nextFollowupAfterDraft } from "../lib/followup";
 import { STATUSES, canonicalStatus, statusLabel, isNeverSent } from "../lib/types";
 import { ok, done } from "./helpers";
 
-// Entretien le dimanche 1er novembre 2026 à 10 h (Paris) ; relance conseillée le 6
+// Entretien le dimanche 1er novembre 2026 à 10 h (Paris) ; relance conseillée le 15 (deux semaines après, depuis le 17 novembre : 5 jours avant)
 const IV = "2026-11-01T09:00:00Z";
 const iv = (extra: Record<string, unknown> = {}) => ({ status: "entretien", interview_at: IV, next_action_at: null, last_email_at: null, ...extra });
 
@@ -22,23 +22,38 @@ ok("même avec une date d'entretien posée sur une candidature encore « Postul�
 ok("à postuler, offre, refusé, abandonné : jamais de relance", ["a_postuler", "offre", "refuse", "abandonne", "expiree"].every((s) => !followupDue({ status: s, interview_at: IV }, "2026-12-31") && followupOn({ status: s, interview_at: IV }) === null));
 ok("seuls Entretien et Test / Cas ouvrent une relance (Relancé = déjà faite)", isFollowupStatus("entretien") && isFollowupStatus("test") && !isFollowupStatus("postule") && !isFollowupStatus("relance") && !isFollowupStatus("offre"));
 
-// ---------- Après un entretien : 5 jours sans nouvelles ----------
-ok("délai : 5 jours après l'entretien, 7 jours entre deux relances", FOLLOWUP_AFTER_DAYS === 5 && FOLLOWUP_REPEAT_DAYS === 7);
-ok("entretien le 1er : relance conseillée le 6", followupOn(iv()) === "2026-11-06");
-ok("pas due le 5 (4 jours après), due le 6 et les jours suivants", !followupDue(iv(), "2026-11-05") && followupDue(iv(), "2026-11-06") && followupDue(iv(), "2026-11-20"));
-ok("épreuve (Test / Cas) : même règle", followupOn(iv({ status: "test" })) === "2026-11-06" && followupDue(iv({ status: "test" }), "2026-11-06"));
+// ---------- Après un entretien : 14 jours sans nouvelles ----------
+ok("délai : 14 jours après l'entretien (deux semaines), 7 jours entre deux relances", FOLLOWUP_AFTER_DAYS === 14 && FOLLOWUP_REPEAT_DAYS === 7);
+ok("entretien le 1er : relance conseillée le 15", followupOn(iv()) === "2026-11-15");
+ok("pas due le 14 (13 jours après), due le 15 et les jours suivants", !followupDue(iv(), "2026-11-05") && !followupDue(iv(), "2026-11-14") && followupDue(iv(), "2026-11-15") && followupDue(iv(), "2026-11-20"));
+ok("épreuve (Test / Cas) : même règle", followupOn(iv({ status: "test" })) === "2026-11-15" && followupDue(iv({ status: "test" }), "2026-11-15"));
 ok("entretien sans date : pas de relance déduite (la fiche invite à ajouter la date)", followupOn(iv({ interview_at: null })) === null && !followupDue(iv({ interview_at: null }), "2027-01-01"));
-ok("le jour se lit à l'heure de Paris (entretien le 1er à 23 h 30 UTC = 2 novembre à Paris)", followupOn(iv({ interview_at: "2026-11-01T23:30:00Z" })) === "2026-11-07");
+ok("le jour se lit à l'heure de Paris (entretien le 1er à 23 h 30 UTC = 2 novembre à Paris)", followupOn(iv({ interview_at: "2026-11-01T23:30:00Z" })) === "2026-11-16");
+
+// ---------- Un simple contact ne lance pas de relance (23e paquet) ----------
+ok("contact ou téléphone : aucune relance, quel que soit le temps passé", followupOn(iv({ interview_kind: "contact" })) === null && !followupDue(iv({ interview_kind: "contact" }), "2027-01-01"));
+ok("entretien explicite ou ancienne ligne sans type : le délai de 14 jours part", followupOn(iv({ interview_kind: "entretien" })) === "2026-11-15" && followupOn(iv({ interview_kind: null })) === "2026-11-15" && followupDue(iv({ interview_kind: "entretien" }), "2026-11-15"));
+ok("un contact reste « à préparer » avant sa date et « en attente de réponse » après (accueil inchangé)", isUpcoming(iv({ interview_kind: "contact" }), "2026-10-31") && isAwaitingAnswer(iv({ interview_kind: "contact" }), "2026-11-02"));
+// « Sans nouvelles depuis trois semaines » : Postulé ou Relancé, et maintenant Entretien dont le seul échange est un contact (sinon il n'y aurait jamais ni relance ni rappel)
+{
+  const g = (extra: Record<string, unknown>, t = "2026-11-30") => isGhosted({ status: "entretien", interview_at: IV, interview_kind: "contact", applied_at: "2026-10-20", last_email_at: null, ...extra }, t);
+  ok("un simple contact resté sans suite plus de 21 jours est « sans nouvelles »", g({}) && !g({}, "2026-11-20"));
+  ok("un vrai entretien n'est jamais classé « sans nouvelles » (la relance le couvre), ni un contact sans type connu", !g({ interview_kind: "entretien" }) && !g({ interview_kind: null }));
+  ok("un e-mail de l'entreprise de moins de 21 jours écarte le contact, comme Postulé", !g({ last_email_at: "2026-11-15T10:00:00Z" }) && !isGhosted({ status: "postule", applied_at: "2026-10-01", last_email_at: "2026-11-15T10:00:00Z" }, "2026-11-30"));
+  ok("Postulé et Relancé : plus de 21 jours depuis l'envoi, sans date d'envoi jamais", isGhosted({ status: "postule", applied_at: "2026-10-01" }, "2026-11-30") && isGhosted({ status: "relance", applied_at: "2026-10-01" }, "2026-11-30") && !isGhosted({ status: "postule", applied_at: "2026-11-20" }, "2026-11-30") && !isGhosted({ status: "postule", applied_at: null }, "2026-11-30"));
+  ok("Test / Cas, Offre, Refusé : jamais « sans nouvelles »", ["test", "offre", "refuse", "abandonne", "a_postuler"].every((status) => !isGhosted({ status, applied_at: "2026-01-01", interview_at: IV, interview_kind: "contact" }, "2026-11-30")));
+}
+ok("le brouillon de relance reste possible à la main après un contact (rien ne le lance tout seul)", canDraftFollowup(iv({ interview_kind: "contact" }), "2026-11-02"));
 
 // ---------- Date choisie à la main, ou laissée par le dernier brouillon ----------
 ok("date « Relance le » APRÈS l'entretien : elle remplace le délai", followupOn(iv({ next_action_at: "2026-11-10" })) === "2026-11-10" && !followupDue(iv({ next_action_at: "2026-11-10" }), "2026-11-09") && followupDue(iv({ next_action_at: "2026-11-10" }), "2026-11-10"));
-ok("date d'AVANT l'entretien (reste de la candidature) : ignorée", followupOn(iv({ next_action_at: "2026-10-30" })) === "2026-11-06" && followupOn(iv({ next_action_at: "2026-11-01" })) === "2026-11-06");
+ok("date d'AVANT l'entretien (reste de la candidature) : ignorée", followupOn(iv({ next_action_at: "2026-10-30" })) === "2026-11-15" && followupOn(iv({ next_action_at: "2026-11-01" })) === "2026-11-15");
 ok("après un brouillon (aujourd'hui + 7) : la suivante n'est proposée que dans 7 jours", nextFollowupAfterDraft("2026-11-06") === "2026-11-13" && !followupDue(iv({ next_action_at: nextFollowupAfterDraft("2026-11-06") }), "2026-11-12") && followupDue(iv({ next_action_at: nextFollowupAfterDraft("2026-11-06") }), "2026-11-13"));
 
 // ---------- L'entreprise a répondu ----------
 ok("email de l'entreprise reçu APRÈS l'entretien : pas de relance automatique", !followupDue(iv({ last_email_at: "2026-11-03T08:00:00Z" }), "2026-11-10"));
-ok("email reçu AVANT l'entretien (l'invitation) : la relance reste due", followupDue(iv({ last_email_at: "2026-10-28T08:00:00Z" }), "2026-11-06"));
-ok("email le jour même de l'entretien : ne compte pas comme une réponse", followupDue(iv({ last_email_at: "2026-11-01T15:00:00Z" }), "2026-11-06"));
+ok("email reçu AVANT l'entretien (l'invitation) : la relance reste due", followupDue(iv({ last_email_at: "2026-10-28T08:00:00Z" }), "2026-11-15"));
+ok("email le jour même de l'entretien : ne compte pas comme une réponse", followupDue(iv({ last_email_at: "2026-11-01T15:00:00Z" }), "2026-11-15"));
 ok("date fixée à la main : elle l'emporte sur l'email reçu", followupDue(iv({ last_email_at: "2026-11-03T08:00:00Z", next_action_at: "2026-11-08" }), "2026-11-08"));
 
 // ---------- Rédiger, préparer ----------
@@ -77,13 +92,14 @@ ok("le brouillon est écrit pour l'après-entretien (remercier, demander où en 
 ok("lecture des candidatures : les anciennes saisies (« expire ») gardent leur colonne", read("lib/applications.ts").includes("canonicalStatus(a.status)"));
 ok("statistiques : « Relancé » a sa part dans la répartition, sans réponse après 3 semaines elle compte comme « sans nouvelles »", read("lib/stats.ts").includes("canonicalStatus(a.status)") && read("lib/stats.ts").includes('(a.status === "postule" || a.status === "relance")'));
 ok("graphique des statuts : « Relancé » a sa couleur", /relance: "#[0-9a-f]{6}"/i.test(read("components/stats-charts.tsx")));
-ok("accueil : le pipeline compte les « Relancées » ; Suivi : colonne « Relancé » en cours, « sans nouvelles » et « Pas retenu » la couvrent, l'annulation rend à chaque ligne son étape",
+ok("accueil : le pipeline compte les « Relancées » ; Suivi : colonne « Relancé » en cours, « sans nouvelles » (isGhosted) et « Pas retenu » (dossier) la couvrent, l'annulation rend à chaque ligne son étape",
   read("app/page.tsx").includes('a.status === "relance"') && !/const DONE = \[[^\]]*relance/.test(read("components/suivi-board.tsx"))
-  && read("components/suivi-board.tsx").includes('(a.status === "postule" || a.status === "relance")') && read("components/suivi-board.tsx").includes('["postule", "entretien", "test", "relance"].includes(app.status)') && read("components/suivi-board.tsx").includes('idsOf("relance")'));
+  && read("components/suivi-board.tsx").includes("isGhosted(a)") && read("lib/followup.ts").includes('s === "postule" || s === "relance"')
+  && read("components/dossier.tsx").includes('["postule", "entretien", "test", "relance"].includes(app.status)') && read("components/suivi-board.tsx").includes('idsOf("relance")'));
 // « Relancé » se choisit à la main : aucun code ne pose ce statut tout seul
 const setsRelance = files.filter((f) => /status\s*[:=]\s*["']relance["']|target\s*=\s*["']relance["']/.test(read(f)));
 ok("« Relancé » n'est posé automatiquement par aucune synchro, aucun brouillon ni aucun e-mail (TARGET ne le vise pas)", setsRelance.length === 0 && !/relance/.test((read("lib/email-match.ts").match(/const TARGET[^\n]*/) ?? [""])[0]), setsRelance.join(" | "));
-ok("Suivi : passer à Entretien ou Test efface l'ancienne date de relance", /\["refuse", "abandonne", "expiree", "offre", "entretien", "test"\]\.includes\(status\)\) patch\.next_action_at = null/.test(read("components/suivi-board.tsx")));
+ok("Suivi : passer à Entretien ou Test efface l'ancienne date de relance (règle unique de lib/dossier.ts, utilisée par la liste et le dossier)", /\["refuse", "abandonne", "expiree", "offre", "entretien", "test"\]\.includes\(status\)\) patch\.next_action_at = null/.test(read("lib/dossier.ts")) && read("components/suivi-board.tsx").includes("statusPatch(a, status)") && read("components/dossier.tsx").includes("statusPatch("));
 ok("synchro Gmail : une invitation à un entretien n'ajoute plus de relance du jour", /\["refuse", "offre", "entretien", "test"\]\.includes\(target\)\) patch\.next_action_at = null/.test(read("lib/email-apply.ts"))); // (le changement de statut vit dans lib/email-apply.ts depuis l'audit du 16 novembre)
 
 done();

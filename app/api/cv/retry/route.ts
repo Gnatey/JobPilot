@@ -21,15 +21,16 @@ export async function POST(req: Request) {
     if (st.state === "done") throw new HttpError(409, "Cette analyse est déjà terminée.");
     if (st.state === "pending") throw new HttpError(409, "L'analyse est déjà en cours.");
     const text = (d.content as { text?: string }).text;
+    const master = (d.content as { master?: boolean }).master === true; // l'analyse relancée reste celle d'un CV maître
     if (!text || text.length < 200) throw new HttpError(400, "Le texte du CV n'est plus là : dépose-le à nouveau.");
     const answers = d.answers ? normalizeAnswers(d.answers) : null;
 
     await spendAi(supabase, user, AI_COST.cvDiagnosis);
     const startedAt = new Date().toISOString();
-    const { error } = await supabase.from("diagnostics").update({ content: { status: "pending", started_at: startedAt, text } }).eq("id", id);
+    const { error } = await supabase.from("diagnostics").update({ content: { status: "pending", started_at: startedAt, text, ...(master ? { master: true } : {}) } }).eq("id", id);
     if (error) throw error;
     const lang = await getLocale(); // lue ici : dans after(), la requête n'est plus là
-    after(() => runCvAnalysis(supabase, { userId: user.id, rowId: id, text, answers, startedAt, lang }));
+    after(() => runCvAnalysis(supabase, { userId: user.id, rowId: id, text, answers, startedAt, lang, master }));
     return { ok: true };
   });
 }

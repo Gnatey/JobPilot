@@ -116,7 +116,7 @@ async function Today() {
   const cap: Cap = iv
     ? {
         headline: iv.interview_at ? `${iv.status === "test" ? "Test" : "Entretien"} chez ${iv.company} ${until(dateOf(iv.interview_at))}.` : `Prépare ton entretien chez ${iv.company}.`,
-        cta: "Préparer l'entretien", href: iv.offer_id ? `/offres/${iv.offer_id}#prep` : `/suivi?open=${iv.id}`,
+        cta: "Préparer l'entretien", href: iv.offer_id ? `/offres/${iv.offer_id}#prep` : `/suivi/${iv.id}`,
       }
     : due.length
       ? { headline: `${plural(due.length, "entretien sans nouvelles", "entretiens sans nouvelles")} : ${due.length > 1 ? "des relances sont prêtes à partir" : "une relance est prête à partir"}.`, cta: "Rédiger les relances", href: "#relances" }
@@ -188,7 +188,7 @@ async function Today() {
                       <p className="truncate font-semibold">{a.title}</p>
                       <p className="truncate text-sm text-muted">{a.company}, {a.interview_at ? fmtDateTime(a.interview_at) : statusLabel(a.status).toLowerCase()}</p>
                     </div>
-                    <Link href={a.offer_id ? `/offres/${a.offer_id}#prep` : `/suivi?open=${a.id}`} className="btn btn-sm shrink-0">Préparer</Link>
+                    <Link href={a.offer_id ? `/offres/${a.offer_id}#prep` : `/suivi/${a.id}`} className="btn btn-sm shrink-0">Préparer</Link>
                   </li>
                 ))}
               </ul>

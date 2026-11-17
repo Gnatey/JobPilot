@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     const { supabase, user } = await requireUser();
     const form = await req.formData();
     const kind = form.get("kind") === "onboarding" ? "onboarding" : "refresh";
+    const master = form.get("master") === "1"; // case « C'est mon CV maître » : diagnostic de complétude, sans note (lib/ai.ts, diagnoseMasterCv)
     let answers: OnboardingAnswers | null = null;
     if (form.get("answers")) {
       try { answers = withZoneText(normalizeAnswers(JSON.parse(String(form.get("answers"))))); } catch { throw new HttpError(400, "Réponses illisibles : reviens au questionnaire."); }
@@ -48,14 +49,14 @@ export async function POST(req: Request) {
       .from("diagnostics")
       .insert({
         user_id: user.id, kind, answers, files: files.map((f) => f.name).concat(pasted ? ["texte collé"] : []),
-        content: { status: "pending", started_at: startedAt, text }, proposed_profile: null, applied: false,
+        content: { status: "pending", started_at: startedAt, text, ...(master ? { master: true } : {}) }, proposed_profile: null, applied: false,
       })
       .select("id")
       .single();
     if (error) throw error;
 
     const lang = await getLocale(); // lue ici : dans after(), la requête n'est plus là
-    after(() => runCvAnalysis(supabase, { userId: user.id, rowId: data.id, text, answers, startedAt, lang }));
+    after(() => runCvAnalysis(supabase, { userId: user.id, rowId: data.id, text, answers, startedAt, lang, master }));
     return { id: data.id };
   });
 }

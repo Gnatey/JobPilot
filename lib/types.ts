@@ -129,6 +129,8 @@ export type Application = {
   applied_at: string | null;
   next_action_at: string | null;
   interview_at?: string | null;
+  /** « contact » (appel, premier échange : pas de relance) ou « entretien » ; sert de repère pour le plus récent. Colonne de la mise à jour 8. */
+  interview_kind?: string | null;
   contact: string | null;
   salary: string | null;
   notes: string | null;
@@ -323,7 +325,10 @@ export type OnboardingAnswers = {
 };
 
 export type Diagnostic = {
-  overall_score: number;               // 0-100 : qualité du CV pour les cibles visées
+  /** 0-100 : qualité du CV pour les cibles visées. `null` pour un CV maître : aucune note (il n'est pas fait pour être envoyé, voir `master`). */
+  overall_score: number | null;
+  /** Diagnostic d'un CV MAÎTRE (case cochée au dépôt) : complétude pour nourrir le profil, sans note ni « prêt à envoyer » ni conseil de raccourcir. */
+  master?: boolean;
   verdict: string;                     // 3-4 phrases franches
   positioning: { recommended_targets: { title: string; why: string }[]; comment: string };
   strengths: string[];

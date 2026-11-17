@@ -18,7 +18,7 @@ export default async function MonCv() {
   const { supabase } = await requireUser();
   const { data } = await supabase.from("diagnostics").select("id, kind, files, content, applied, created_at").order("created_at", { ascending: false }).limit(30);
   const list = (data ?? []).map((d) => ({ ...d, st: diagState(d.content, d.created_at) }));
-  const scores = list.flatMap((d) => (d.st.state === "done" ? [d.st.diagnostic.overall_score] : [])).reverse();
+  const scores = list.flatMap((d) => (d.st.state === "done" && typeof d.st.diagnostic.overall_score === "number" ? [d.st.diagnostic.overall_score] : [])).reverse(); // un CV maître n'a pas de note
   const running = list.some((d) => d.st.state === "pending");
 
   return (
@@ -43,11 +43,11 @@ export default async function MonCv() {
             {list.map((d) => (
               <li key={d.id}>
                 <Link href={`/diagnostic/${d.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-paper/60">
-                  {d.st.state === "done" ? <ScorePill value={d.st.diagnostic.overall_score} />
+                  {d.st.state === "done" ? (d.st.diagnostic.master ? <span className="tag">{t("CV maître")}</span> : <ScorePill value={d.st.diagnostic.overall_score} />)
                     : d.st.state === "pending" ? <span className="tag tag-warn gap-1"><Loader2 size={13} className="animate-spin" /> {t("En cours")}</span>
                     : <span className="tag tag-bad">{t("Échouée")}</span>}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{d.kind === "onboarding" ? t("Diagnostic d'accueil") : t("Analyse de CV")}, {t(fmtDate(d.created_at))}</p>
+                    <p className="truncate font-semibold">{(d.st.state === "done" ? d.st.diagnostic.master === true : d.st.master) ? t("Analyse du CV maître") : d.kind === "onboarding" ? t("Diagnostic d'accueil") : t("Analyse de CV")}, {t(fmtDate(d.created_at))}</p>
                     <p className="truncate text-sm text-muted">
                       {d.files?.join(", ")}{d.st.state === "done" && !d.applied ? t(", profil pas encore mis à jour") : ""}{d.st.state === "error" ? `, ${d.st.canRetry ? "à relancer" : "à refaire"}` : ""}
                     </p>

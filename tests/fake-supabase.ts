@@ -13,18 +13,21 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
     private conflict = "id";
     private patch: Row | Row[] | null = null;
     private head = false;
+    private selected = false;
     private wantCount = false;
     private lim = Infinity;
     private from_ = 0;
     private sort: [string, boolean][] = [];
     private mode: "one" | "maybe" | null = null;
     constructor(private t: string) {}
-    select(_cols?: string, o?: { count?: string; head?: boolean }) { if (o?.count) this.wantCount = true; if (o?.head) this.head = true; return this; }
+    select(_cols?: string, o?: { count?: string; head?: boolean }) { this.selected = true; if (o?.count) this.wantCount = true; if (o?.head) this.head = true; return this; }
     insert(r: Row | Row[]) { this.op = "insert"; this.patch = r; return this; }
     upsert(r: Row, o?: { onConflict?: string }) { this.op = "upsert"; this.patch = r; this.conflict = o?.onConflict ?? "id"; return this; }
     update(p: Row) { this.op = "update"; this.patch = p; return this; }
     delete() { this.op = "delete"; return this; }
     eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
+    /** `or("a.eq.1,b.eq.2")` : seulement les égalités, assez pour les lectures de documents. */
+    or(spec: string) { const eqs = spec.split(",").map((p) => p.split(".eq.")); this.filters.push((r) => eqs.some(([c, v]) => String(r[c]) === v)); return this; }
     in(c: string, vs: unknown[]) { this.filters.push((r) => vs.includes(r[c])); return this; }
     lt(c: string, v: unknown) { this.filters.push((r) => r[c] != null && String(r[c]) < String(v)); return this; }
     range(a: number, b: number) { this.from_ = a; this.lim = b - a + 1; return this; }
@@ -57,7 +60,8 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}, unique: Record<st
         return this.shape(made);
       }
       const hit = rows.filter((r) => this.filters.every((f) => f(r)));
-      if (this.op === "update") { for (const r of hit) Object.assign(r, this.patch); return { data: null, error: null }; }
+      // `update(...).select()` rend les lignes modifiées, comme PostgREST (sans `select`, rien)
+      if (this.op === "update") { for (const r of hit) Object.assign(r, this.patch); return this.selected ? this.shape(hit) : { data: null, error: null }; }
       if (this.op === "delete") { tables[this.t] = rows.filter((r) => !hit.includes(r)); return { data: null, error: null }; }
       for (const [c, asc] of [...this.sort].reverse()) hit.sort((a, b) => (String(a[c] ?? "") < String(b[c] ?? "") ? -1 : String(a[c] ?? "") > String(b[c] ?? "") ? 1 : 0) * (asc ? 1 : -1));
       return this.shape(hit.slice(this.from_, this.from_ + this.lim), hit.length);

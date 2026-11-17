@@ -7,9 +7,12 @@ import { HttpError } from "./supabase/server";
 import { preBand } from "./quick-score";
 import { fetchAll } from "./paged";
 import { followupDue, followupOn } from "./followup";
+import { withKind } from "./interview-kind-db";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
+/** Ce que la tâche lit de chaque candidature (le type d'entretien n'y est que si la base est à jour). */
+type RecapApp = { company: string; title: string; status: string; applied_at: string | null; next_action_at: string | null; interview_at: string; interview_kind?: string | null; last_email_at: string | null };
 type Line = { title: string; sub: string; href?: string };
 type Recap = { subject: string; text: string; html: string; empty: boolean };
 
@@ -17,9 +20,10 @@ type Recap = { subject: string; text: string; html: string; empty: boolean };
 export async function buildRecap(supabase: SupabaseClient, userId: string): Promise<Recap> {
   const base = appUrl();
   const t = today();
+  const appCols = await withKind(supabase, "company, title, status, applied_at, next_action_at, interview_at, last_email_at"); // + le type d'entretien quand la base est à jour
   const [{ data: apps }, { data: recos, count }, profile] = await Promise.all([
     // toutes les candidatures, dans un ordre stable : un `limit(500)` sans tri pouvait laisser de côté une relance ou un entretien
-    fetchAll((a, b) => supabase.from("applications").select("company, title, status, applied_at, next_action_at, interview_at, last_email_at").eq("user_id", userId).order("id").range(a, b)),
+    fetchAll((a, b) => supabase.from("applications").select(appCols as "*").eq("user_id", userId).order("id").range(a, b) as unknown as PromiseLike<{ data: RecapApp[] | null; error?: { message?: string } | null }>),
     supabase.from("recommendations").select("title, company, location, quick_score, url", { count: "exact" }).eq("user_id", userId).eq("status", "new").order("quick_score", { ascending: false }).limit(5),
     getProfileById(supabase, userId),
   ]);
