@@ -135,6 +135,7 @@ export default async function OfferPage({ params }: { params: Promise<{ id: stri
         analysed={analysed}
         reanalyseUrl={offer.url}
         fiche={analysed ? fiche : undefined}
+        rawText={analysed ? String(offer.raw_text ?? "") : undefined}
       />
 
       {!analysed ? null : (
