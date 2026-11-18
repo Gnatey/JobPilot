@@ -601,6 +601,13 @@ export async function answerQuestion(profile: Profile, question: string, answer:
 - "replace" : réécrire UNE réalisation. exp_id de l'expérience, old_text = le texte EXACT de la réalisation actuelle, new_text = la nouvelle version.
 - "add" : ajouter une réalisation à une expérience (exp_id, text) quand la réponse apporte un fait nouveau.
 - "project" : réécrire la description d'un projet existant (name = nom exact, description).
+Quand la question ne porte pas sur une réalisation mais sur une information du profil (centres d'intérêt, langue, ville, lien, année d'un projet), tu l'écris toi-même à partir de la réponse, sans demander à la personne de la recopier ailleurs :
+- "interest" : un centre d'intérêt. text = UN intérêt, avec ses précisions entre parenthèses, tel que la personne les donne ; old_text = l'intérêt actuel du profil qu'il complète ou remplace (texte EXACT, par exemple une liste coupée en « Voyages (Ghana, Guinée équ »), sinon vide. Une réponse qui liste plusieurs intérêts donne UNE opération par intérêt.
+- "language" : le niveau d'une langue (name, level = le niveau tel que la personne l'écrit, sans rien ajouter).
+- "city" : la ville ou la zone (text).
+- "link" : un lien donné dans la réponse (label court, url recopiée telle quelle).
+- "project_year" : l'année d'un projet existant (name = nom exact, year sur 4 chiffres).
+Ces valeurs viennent mot pour mot de la réponse : tu n'ajoutes ni mot, ni précision, ni niveau. Si la réponse donne tout ce que la question demandait, « settled » = true.
 Règles absolues :
 - Tu t'appuies uniquement sur les faits de la réponse et du profil. Tout chiffre écrit doit figurer tel quel dans la réponse ou dans le texte réécrit : jamais d'estimation de ta part.
 - Un ordre de grandeur que la personne donne elle-même (« environ 50 », « plus de 1 000 », « entre 100 et 1 000 ») s'écrit tel quel, avec ses mots (« environ », « plus de », « entre … et … ») : jamais arrondi, jamais transformé en chiffre exact. Un simple exemple (« par exemple 50 ») n'est pas un résultat : ne l'écris pas.
@@ -611,12 +618,12 @@ Règles absolues :
   Mauvais : « Création d'un outil de reporting en tant que responsable seule ». Bon : « Conçu et développé seule un outil de reporting ». Le sens de la phrase d'origine reste, seul le rôle ou le contexte apporté par la réponse s'y ajoute.
 - Une ligne de CV fait 25 mots au plus. Si la réponse énumère plusieurs profils, outils ou équipes, résume-les (« en interface avec les équipes métier (médecins, infirmiers…), l'AMOA et les développeurs ») au lieu de tout recopier.
 - « ops » est vide quand la réponse n'apporte aucun fait à écrire : juste « je ne sais pas », « aucune idée », ou une explication qui lève un doute sur les dates, le statut ou le niveau.`,
-    prompt: `PROFIL :\n${JSON.stringify(auditView(profile))}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}${retry ? "\n\nATTENTION : une première lecture n'a rien donné d'utilisable alors que la réponse contient du contexte. Propose au moins une modification sans chiffre inventé, sur la réalisation de l'expérience la plus concernée." : ""}`,
+    prompt: `PROFIL :\n${JSON.stringify({ ...auditView(profile), projets: profile.projects.map((x) => ({ nom: x.name, annee: x.year ?? "", description: x.description, lien: x.link ?? "" })), interets: profile.interests, langues: profile.languages, ville: profile.identity.city ?? "" })}\n\nQUESTION : ${question}\n\nRÉPONSE : ${answer}${retry ? "\n\nATTENTION : une première lecture n'a rien donné d'utilisable alors que la réponse contient du contexte. Propose au moins une modification sans chiffre inventé, sur la réalisation de l'expérience la plus concernée." : ""}`,
     schema: {
       properties: {
         reply: str("réponse à la préoccupation, 1 à 3 phrases, sans chiffre inventé"),
         settled: { type: "boolean" },
-        ops: arr(obj({ op: { type: "string", enum: ["replace", "add", "project"] }, exp_id: S, old_text: S, new_text: S, text: S, name: S, description: S }, ["op"])),
+        ops: arr(obj({ op: { type: "string", enum: ["replace", "add", "project", "interest", "language", "city", "link", "project_year"] }, exp_id: S, old_text: S, new_text: S, text: S, name: S, description: S, level: S, label: S, url: S, year: S }, ["op"])),
       },
       required: ["reply", "settled", "ops"],
     },

@@ -2,10 +2,11 @@ import { requireUser, HttpError } from "@/lib/supabase/server";
 import { handle } from "@/lib/http";
 import { getProfile } from "@/lib/profile";
 import { dropSettled, mergeSettled } from "@/lib/profile-fix";
+import { addMissing, describeAdded } from "@/lib/profile-add";
 import type { Profile } from "@/lib/types";
 import { must } from "@/lib/db-must";
 
-/** Applique au profil maître le profil proposé par un diagnostic. */
+/** Ajoute au profil maître ce que le profil proposé par un diagnostic apporte en plus : jamais de remplacement (lib/profile-add.ts). */
 export async function POST(req: Request) {
   return handle(async () => {
     const { supabase, user } = await requireUser();
@@ -16,9 +17,11 @@ export async function POST(req: Request) {
     const proposed = d.proposed_profile as Profile;
     const current = await getProfile(supabase, user);
     const settled = mergeSettled(current.settled, proposed.settled);
-    const data: Profile = settled.length ? { ...proposed, settled, todo: dropSettled(proposed.todo ?? [], settled) } : proposed;
+    // Le profil d'aujourd'hui reste la base : le diagnostic est un instantané du jour du dépôt, l'écrire tel quel effaçait ce qui a changé depuis
+    const { profile: merged, added } = addMissing(current, proposed);
+    const data: Profile = settled.length ? { ...merged, settled, todo: dropSettled(merged.todo ?? [], settled) } : merged;
     must(await supabase.from("profiles").upsert({ user_id: user.id, data, updated_at: new Date().toISOString() }), "Ton profil");
     must(await supabase.from("diagnostics").update({ applied: true }).eq("id", id), "Le diagnostic");
-    return { ok: true };
+    return { ok: true, summary: describeAdded(added), added };
   });
 }

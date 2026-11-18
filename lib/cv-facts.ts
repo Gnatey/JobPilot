@@ -1,6 +1,6 @@
 import { parsePeriod, recentFirst } from "./cv-format";
 import { sameCompany, stemsOf } from "./cv-guard";
-import { normText } from "./profile-fix";
+import { dedupeEducation, normText } from "./profile-fix";
 import type { CvDoc, Education, Experience, Profile } from "./types";
 
 /**
@@ -170,7 +170,8 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
   const notes: string[] = [];
 
   /* Formations : TOUTES celles du profil, avec leurs dates. Un trou entre deux diplômes se voit tout de suite sur un CV. */
-  const profEdu = (profile.education ?? []).filter((e) => e?.degree?.trim());
+  // Une formation écrite deux fois dans le profil (« & » / « et », « (Bac+3) ») ne figure qu'une fois sur le CV
+  const profEdu = dedupeEducation((profile.education ?? []).filter((e) => e?.degree?.trim())).list;
   let education = cv.education ?? [];
   if (profEdu.length) {
     const eduText = profEdu.map((e) => `${e.degree} ${e.school ?? ""}`).join(" ");

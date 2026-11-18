@@ -1,4 +1,4 @@
-import type { Achievement, Experience, Profile, Project, Settled } from "./types";
+import type { Achievement, Education, Experience, Profile, Project, Settled } from "./types";
 
 /**
  * Outils purs (sans IA, sans réseau) pour garder le profil maître propre :
@@ -114,6 +114,59 @@ export function sameExperience(a: Experience, b: Experience): boolean {
   return roleClose || (!!ya && ya === yb);
 }
 
+/* ---------- Formations : la même formation écrite deux fois ---------- */
+
+/** Petits mots qui ne disent pas QUELLE formation c'est (« et » et « & » : « E-commerce & Marketing » = « E-commerce et Marketing »). */
+const EDU_STOP = new Set(["et", "de", "du", "des", "la", "le", "les", "en", "d", "l", "a", "au", "aux", "and", "of", "the", "in"]);
+
+/** Les mots qui nomment la formation : sans « (Bac+3) », sans « & » ni « et », sans petits mots, sans accents ni majuscules. */
+export function degreeWords(degree: string): string[] {
+  const t = normText(degree).replace(/\bbac \d\b/g, " ");
+  return uniq(t.split(" ").filter((w) => w && !EDU_STOP.has(w)));
+}
+
+/**
+ * Deux lignes de formation disent-elles la même chose ? (reproduit le 18 novembre : « Bachelor E-commerce & Marketing Numérique (Bac+3) »
+ * et « Bachelor E-commerce et Marketing numérique (Bac+3) » donnaient deux formations, le DUT aussi : 5 lignes sur le profil, et sur chaque CV.)
+ * Mêmes mots de formation (l'un contient l'autre, au moins 3 mots pour le plus court) ET pas d'années contradictoires :
+ * « Master 2021 » et « Master 2025 » restent deux diplômes. L'école n'entre pas en compte (« PSB et UPEC » / « PSB et UPEC (double diplôme) »).
+ */
+export function sameEducation(a: Pick<Education, "degree" | "start" | "end">, b: Pick<Education, "degree" | "start" | "end">): boolean {
+  const x = degreeWords(a.degree), y = degreeWords(b.degree);
+  if (!x.length || !y.length) return false;
+  const [small, big] = x.length <= y.length ? [x, y] : [y, x];
+  const inBig = new Set(big);
+  if (!small.every((w) => inBig.has(w))) return false;
+  if (small.length < big.length && small.length < 3) return false;
+  const sa = year(a.start), sb = year(b.start), ea = year(a.end), eb = year(b.end);
+  if ((sa && sb && sa !== sb) || (ea && eb && ea !== eb)) return false;
+  return true;
+}
+
+/** Complète `into` avec ce que `from` sait en plus (école, années, détails) : sans rien remplacer. */
+function fillEducation(into: Education, from: Education): Education {
+  const details = [...(into.details ?? [])];
+  for (const d of from.details ?? []) if (d?.trim() && !details.some((x) => normText(x) === normText(d))) details.push(d);
+  const out: Education = { ...into };
+  if (!into.school?.trim() && from.school?.trim()) out.school = from.school;
+  if (!into.start && from.start) out.start = from.start;
+  if (!into.end && from.end) out.end = from.end;
+  if (details.length) out.details = details;
+  return out;
+}
+
+/** Réunit les formations en double (la première reste telle quelle, elle est complétée par les suivantes). */
+export function dedupeEducation(list: Education[]): { list: Education[]; dropped: number } {
+  const out: Education[] = [];
+  let dropped = 0;
+  for (const e of list ?? []) {
+    const i = out.findIndex((x) => sameEducation(x, e));
+    if (i < 0) out.push(e);
+    else { out[i] = fillEducation(out[i], e); dropped++; }
+  }
+  return { list: dropped ? out : (list ?? []), dropped };
+}
+
 const mergeAch = (into: Achievement, from: Achievement) => {
   into.sources = uniq([...(into.sources ?? []), ...(from.sources ?? [])]);
   if (!into.sources.length) delete into.sources;
@@ -121,6 +174,17 @@ const mergeAch = (into: Achievement, from: Achievement) => {
 };
 
 export type MatchGroup = { exp_id: string; company: string; role: string; existing: Achievement[]; incoming: Achievement[] };
+
+/** Ajoute les formations absentes ; une formation déjà connue (même intitulé à « & » / « et » / « (Bac+3) » près) est seulement complétée. */
+function mergeEducation(current: Education[], incoming: Education[]): Education[] {
+  const out = current.map((e) => ({ ...e }));
+  for (const e of incoming) {
+    const i = out.findIndex((x) => sameEducation(x, e));
+    if (i < 0) out.push({ ...e });
+    else out[i] = fillEducation(out[i], e);
+  }
+  return out;
+}
 
 /**
  * Partie sans IA de la fusion : rien n'est perdu, les expériences identiques se regroupent, les réalisations strictement
@@ -165,7 +229,7 @@ export function mergeExtracted(current: Profile, extracted: Profile): { profile:
       identity,
       targets: current.targets.length ? current.targets : extracted.targets,
       experiences: exps,
-      education: [...current.education, ...(extracted.education ?? []).filter((e) => !current.education.some((x) => key(x.degree) === key(e.degree)))],
+      education: mergeEducation(current.education, extracted.education ?? []),
       projects,
       skills,
       certifications: mergeList(current.certifications, extracted.certifications ?? []),
@@ -245,9 +309,11 @@ export function dedupeExact(p: Profile): { profile: Profile; changes: string[] }
     hit.tags = uniq([...hit.tags, ...pr.tags]);
     changes.push(`Projet « ${pr.name} » présent deux fois : fusionné`);
   }
+  const edu = dedupeEducation(p.education ?? []);
+  if (edu.dropped) changes.push(`${edu.dropped} formation${edu.dropped > 1 ? "s" : ""} en double retirée${edu.dropped > 1 ? "s" : ""}`);
   const links = dedupeLinks(p.identity.links ?? []);
   if (links.length < (p.identity.links ?? []).length) changes.push(`${(p.identity.links ?? []).length - links.length} lien${(p.identity.links ?? []).length - links.length > 1 ? "s" : ""} en double retiré${(p.identity.links ?? []).length - links.length > 1 ? "s" : ""}`);
-  return { profile: { ...p, experiences, projects, identity: { ...p.identity, links } }, changes };
+  return { profile: { ...p, experiences, projects, education: edu.list, identity: { ...p.identity, links } }, changes };
 }
 
 /* ---------- Propositions de l'audit « Faire le point » ---------- */
@@ -325,7 +391,13 @@ export function applyProposal(profile: Profile, p: Proposal): Profile {
 export type AnswerOp =
   | { op: "replace"; exp_id: string; old_text: string; new_text: string }
   | { op: "add"; exp_id: string; text: string }
-  | { op: "project"; name: string; description: string };
+  | { op: "project"; name: string; description: string }
+  // Ce que la personne donne telle quelle, sans réalisation à réécrire (tout vient de sa réponse, vérifié par vetOps)
+  | { op: "interest"; text: string; old_text?: string }
+  | { op: "language"; name: string; level: string }
+  | { op: "city"; text: string }
+  | { op: "link"; label: string; url: string }
+  | { op: "project_year"; name: string; year: string };
 
 /** Ce que l'IA rend pour une réponse « À compléter » : sa réponse à la préoccupation (`reply`), et des réécritures du profil seulement si la réponse apporte un fait. */
 export type AnswerRaw = { ops?: AnswerOp[]; reply?: string; settled?: boolean };
@@ -347,13 +419,41 @@ export function answerView(r: { ops: AnswerOp[]; reply: string; proposed: number
 export const hasContent = (answer: string) =>
   answer.replace(/je ne sais pas|aucune id[ée]e|\bjsp\b/gi, "").replace(/[^a-zà-ÿ0-9]/gi, "").length >= 25;
 
-/** Garde les opérations qui se rattachent à quelque chose d'existant et dont les chiffres viennent du profil ou de la réponse. */
+/** Les mots d'un texte, sans accents ni ponctuation, ramenés à leurs 5 premières lettres (« voyage » et « voyages » se recoupent). */
+const stems = (s: string) => normText(s).split(" ").filter(Boolean).map((w) => w.slice(0, 5));
+/** Tous les mots de `text` sont-ils dans `source` ? (ce que l'IA écrit doit venir de ce que la personne a dit) */
+export const wordsFrom = (text: string, source: string) => { const have = new Set(stems(source)); const w = stems(text); return w.length > 0 && w.every((x) => have.has(x)); };
+const hasKey = (list: string[] | undefined, v: string) => (list ?? []).some((x) => key(x) === key(v));
+const LINK_RE = /^https?:\/\/[^\s<>"']+$/i;
+const urlKey = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[/?#]+$/, "");
+
+/** Garde les opérations qui se rattachent à quelque chose d'existant et dont les chiffres et les mots viennent du profil ou de la réponse. */
 export function vetOps(profile: Profile, ops: AnswerOp[], answer: string): AnswerOp[] {
   const known = (id: string) => profile.experiences.find((e) => e.id === id);
   return (ops ?? []).filter((o) => {
     if (o.op === "replace") { const e = known(o.exp_id); return !!e && findAch(e, o.old_text) >= 0 && !!o.new_text?.trim() && numbersCovered(o.new_text, `${o.old_text} ${answer}`); }
     if (o.op === "add") return !!known(o.exp_id) && !!o.text?.trim() && numbersCovered(o.text, answer);
     if (o.op === "project") { const pr = profile.projects.find((x) => key(x.name) === key(o.name)); return !!pr && !!o.description?.trim() && numbersCovered(o.description, `${pr.description} ${answer}`); }
+    if (o.op === "interest") {
+      const t = o.text?.trim();
+      return !!t && t.length <= 120 && wordsFrom(t, answer) && numbersCovered(t, answer) && !hasKey(profile.interests, t);
+    }
+    if (o.op === "language") {
+      const n = o.name?.trim(), lv = o.level?.trim();
+      if (!n || !lv || lv.length > 40) return false;
+      const cur = profile.languages.find((l) => key(l.name) === key(n));
+      return (!!cur || wordsFrom(n, answer)) && wordsFrom(lv, answer) && key(cur?.level ?? "") !== key(lv);
+    }
+    if (o.op === "city") { const t = o.text?.trim(); return !!t && t.length <= 80 && wordsFrom(t, answer) && key(profile.identity.city ?? "") !== key(t); }
+    if (o.op === "link") {
+      const u = o.url?.trim(), l = o.label?.trim();
+      return !!u && !!l && l.length <= 40 && LINK_RE.test(u) && urlKey(answer).includes(urlKey(u)) && !(profile.identity.links ?? []).some((x) => urlKey(x.url) === urlKey(u));
+    }
+    if (o.op === "project_year") {
+      const pr = profile.projects.find((x) => key(x.name) === key(o.name));
+      const y = o.year?.trim();
+      return !!pr && /^(?:19|20)\d{2}$/.test(y ?? "") && numbersIn(answer).includes(y!) && (pr.year ?? "").trim() !== y;
+    }
     return false;
   });
 }
@@ -363,6 +463,11 @@ export function previewOps(profile: Profile, ops: AnswerOp[]): { where: string; 
   return ops.map((o) => {
     if (o.op === "replace") { const e = profile.experiences.find((x) => x.id === o.exp_id)!; return { where: `${e.role} · ${e.company}`, before: o.old_text, after: o.new_text }; }
     if (o.op === "add") { const e = profile.experiences.find((x) => x.id === o.exp_id)!; return { where: `${e.role} · ${e.company}`, before: "", after: o.text }; }
+    if (o.op === "interest") return { where: "Centres d'intérêt", before: o.old_text && hasKey(profile.interests, o.old_text) ? o.old_text : "", after: o.text };
+    if (o.op === "language") { const cur = profile.languages.find((l) => key(l.name) === key(o.name)); return { where: "Langues", before: cur ? `${cur.name} : ${cur.level || "niveau non précisé"}` : "", after: `${cur?.name ?? o.name} : ${o.level}` }; }
+    if (o.op === "city") return { where: "Ville", before: profile.identity.city ?? "", after: o.text };
+    if (o.op === "link") return { where: "Liens", before: "", after: `${o.label} : ${o.url}` };
+    if (o.op === "project_year") { const pr = profile.projects.find((x) => key(x.name) === key(o.name))!; return { where: `Projet ${pr.name}`, before: pr.year ?? "", after: o.year }; }
     const pr = profile.projects.find((x) => key(x.name) === key(o.name))!;
     return { where: `Projet ${pr.name}`, before: pr.description, after: o.description };
   });
@@ -375,6 +480,21 @@ export function applyOps(profile: Profile, ops: AnswerOp[]): Profile {
       p = { ...p, experiences: p.experiences.map((e) => (e.id !== o.exp_id ? e : { ...e, achievements: e.achievements.map((a) => (normText(a.text) === normText(o.old_text) ? { ...a, text: o.new_text.trim() } : a)) })) };
     } else if (o.op === "add") {
       p = { ...p, experiences: p.experiences.map((e) => (e.id !== o.exp_id || findAch(e, o.text) >= 0 ? e : { ...e, achievements: [...e.achievements, { text: o.text.trim(), tags: [] }] })) };
+    } else if (o.op === "interest") {
+      const t = o.text.trim();
+      const i = o.old_text ? p.interests.findIndex((x) => key(x) === key(o.old_text!)) : -1;
+      if (i >= 0) p = { ...p, interests: p.interests.map((x, j) => (j === i ? t : x)) };
+      else if (!hasKey(p.interests, t)) p = { ...p, interests: [...p.interests, t] };
+    } else if (o.op === "language") {
+      const lv = o.level.trim();
+      const has = p.languages.some((l) => key(l.name) === key(o.name));
+      p = { ...p, languages: has ? p.languages.map((l) => (key(l.name) === key(o.name) ? { ...l, level: lv } : l)) : [...p.languages, { name: o.name.trim(), level: lv }] };
+    } else if (o.op === "city") {
+      p = { ...p, identity: { ...p.identity, city: o.text.trim() } };
+    } else if (o.op === "link") {
+      if (!(p.identity.links ?? []).some((x) => urlKey(x.url) === urlKey(o.url))) p = { ...p, identity: { ...p.identity, links: [...(p.identity.links ?? []), { label: o.label.trim(), url: o.url.trim() }] } };
+    } else if (o.op === "project_year") {
+      p = { ...p, projects: p.projects.map((x) => (key(x.name) === key(o.name) ? { ...x, year: o.year.trim() } : x)) };
     } else {
       p = { ...p, projects: p.projects.map((x) => (key(x.name) === key(o.name) ? { ...x, description: o.description.trim() } : x)) };
     }
