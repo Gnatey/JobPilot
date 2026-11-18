@@ -3,6 +3,7 @@ import type { Locale } from "./i18n/locales";
 import { structured, str, int, arr, obj } from "./llm";
 import { letterParts, letterDoc } from "./letter";
 import { attachLinks } from "./cv-format";
+import { usableLinks } from "./link-url";
 import { guardCv } from "./cv-guard";
 import { checkSummary, summaryNotes } from "./summary-guard";
 import { guardLetter } from "./letter-guard";
@@ -325,7 +326,7 @@ export async function profileFromCvText(text: string): Promise<Profile> {
 - Une même réalisation écrite avec d'autres mots dans deux CV compte pour UNE réalisation (garde la version la plus précise, celle qui a les chiffres).
 - Quand plusieurs CV sont fournis (en-têtes « === CV : nom === »), indique pour chaque réalisation, dans "sources", le nom du CV d'où elle vient (plusieurs noms si elle figure dans plusieurs CV).
 - Un projet personnel (jeu, site, application, outil construit pour soi) va dans "projects", avec son lien dans "link" : jamais comme réalisation d'une expérience professionnelle. Les missions faites pour un client ou un employeur restent dans l'expérience.
-- Les liens de la personne (LinkedIn, portfolio, GitHub, démonstrations) vont tous dans identity.links, chacun avec un libellé court.`,
+- Les liens de la personne (LinkedIn, portfolio, GitHub, démonstrations) vont tous dans identity.links, chacun avec un libellé court et son adresse lue EN ENTIER dans le CV (https://… ou nom de site). Un simple mot (« LinkedIn », « GitHub ») sans adresse écrite n'est pas un lien : ne le mets pas.`,
     prompt: text.slice(0, 40000),
     schema: {
       properties: {
@@ -345,8 +346,9 @@ export async function profileFromCvText(text: string): Promise<Profile> {
       required: ["identity", "targets", "experiences", "education", "projects", "skills", "certifications", "languages", "interests", "preferences", "rules", "todo"],
     },
   });
-  // Chaque réalisation garde le nom du CV d'où elle vient
-  return labelSources(profile, cvLabels(text));
+  // Chaque réalisation garde le nom du CV d'où elle vient ; un lien sans vraie adresse (« LinkedIn » recopié en adresse) n'entre pas dans le profil
+  const labelled = labelSources(profile, cvLabels(text));
+  return { ...labelled, identity: { ...labelled.identity, links: usableLinks(labelled.identity?.links) } };
 }
 
 /* ---------- 9. Extraction des offres contenues dans une alerte emploi ---------- */

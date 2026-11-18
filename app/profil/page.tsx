@@ -9,6 +9,7 @@ import { EMPTY_PROFILE } from "@/lib/empty-profile";
 import { SkillSuggestions } from "@/components/skill-suggestions";
 import { ProfileAudit } from "@/components/profile-audit";
 import { TodoAnswer } from "@/components/todo-answer";
+import { ProfileLinks } from "@/components/profile-links";
 import { addSkills, dismissSkills } from "@/lib/skills";
 import type { Education, Experience, Profile, Project } from "@/lib/types";
 
@@ -113,9 +114,7 @@ export default function ProfilPage() {
               </label>
             ))}
             <div className="sm:col-span-2">
-              <LinesField label="Liens (un par ligne : Libellé | URL)" rows={3} mono
-                value={p.identity.links.map((l) => `${l.label} | ${l.url}`).join("\n")}
-                onChange={(ls) => upd({ identity: { ...p.identity, links: ls.map((l) => { const [label, url] = l.split("|").map((x) => x.trim()); return { label, url: url ?? label }; }) } })} />
+              <ProfileLinks links={p.identity.links} onChange={(links) => upd({ identity: { ...p.identity, links } })} />
             </div>
           </div>
         </Section>

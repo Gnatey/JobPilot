@@ -1,3 +1,4 @@
+import { duplicateIndexes } from "./link-url";
 import type { Achievement, Education, Experience, Profile, Project, Settled } from "./types";
 
 /**
@@ -274,17 +275,9 @@ export const matchInput = (groups: MatchGroup[]) =>
 /* ---------- Ménage sans IA ---------- */
 
 export function dedupeLinks(links: { label: string; url: string }[]): { label: string; url: string }[] {
-  const seen = new Set<string>();
-  const out: { label: string; url: string }[] = [];
-  for (const l of links ?? []) {
-    const url = (l?.url ?? "").trim();
-    if (!url) continue;
-    const k = url.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[/?#]+$/, "");
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push({ label: (l.label ?? "").trim(), url });
-  }
-  return out;
+  const raw = (links ?? []).filter((l) => (l?.url ?? "").trim());
+  const drop = duplicateIndexes(raw);
+  return raw.filter((_, i) => !drop.has(i)).map((l) => ({ label: (l.label ?? "").trim(), url: l.url.trim() }));
 }
 
 /** Fusionne ce qui est strictement identique une fois nettoyé : réalisations d'une même expérience, projets de même nom, liens répétés. */

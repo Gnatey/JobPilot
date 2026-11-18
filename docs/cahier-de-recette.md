@@ -279,3 +279,8 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 234 | Générer un CV avec un profil qui a des formations en double | Chaque formation une seule fois sur le CV ; « Contrôler mes CV » ne signale pas de formation absente | Auto | 18 nov. |
 | 235 | « À compléter » : répondre à la question des centres d'intérêt avec la liste complète | Une carte avant / après (la ligne coupée devient la ligne complète) à appliquer ; plus de « Il manque encore une information » | Auto (`vetOps`, `applyOps`) ; vraie IA : À toi | 18 nov. |
 | 236 | « À compléter » : donner un niveau de langue, une ville, un lien, l'année d'un projet | Chaque information proposée à valider, uniquement avec les mots de la réponse ; un mot absent de la réponse est refusé | Auto ; vraie IA : À toi | 18 nov. |
+| 237 | Profil › Identité : la zone des liens | Une ligne par lien (libellé, adresse, « Ouvrir », corbeille) et « Ajouter un lien » ; « Ouvrir » ouvre le site dans un nouvel onglet | Auto (source, logique) ; navigateur : À toi | 18 nov. |
+| 238 | Liens avec « LinkedIn » recopié comme adresse à côté du vrai lien LinkedIn | Encadré « 2 liens sont en double » ; « Retirer les 2 doublons » les enlève, les vrais restent | Auto (logique) ; navigateur : À toi | 18 nov. |
+| 239 | Une adresse incomplète (« Streamlit ») | Remarque rouge sous la ligne, « Ouvrir » grisé ; le lien n'est pas écrit sur les CV (plus de `https://Streamlit`) | Auto | 18 nov. |
+| 240 | Écrire « itch.io » puis quitter le champ | L'adresse devient « https://itch.io » | Auto (logique) ; navigateur : À toi | 18 nov. |
+

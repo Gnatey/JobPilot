@@ -1,4 +1,5 @@
 import type { CvDoc, Profile } from "./types";
+import { linkHref } from "./link-url";
 
 /* Mise en forme commune des CV : nom du fichier, ordre des dates, coordonnées et liens cliquables. Aucune dépendance à React. */
 
@@ -118,7 +119,7 @@ const stems = (s: string) => new Set(fold(s).toLowerCase().split(/[^a-z0-9]+/).f
 export function pickLinks(links: Link[], hint = "", max = 4): Link[] {
   const want = stems(hint);
   const seen = new Set<string>();
-  const clean = (links ?? []).filter((l) => l && l.url && l.url.trim()).filter((l) => {
+  const clean = (links ?? []).filter((l) => l && linkHref(l.url)).filter((l) => {
     const k = urlKey(l.url);
     if (seen.has(k)) return false;
     seen.add(k);
@@ -156,8 +157,8 @@ export function attachLinks(cv: CvDoc, profile: Profile, hint: string): CvDoc {
 export function linkItems(id: Id, max = 4, chosen?: Link[]): Item[] {
   const src = chosen?.length ? pickLinks(chosen, "", max) : pickLinks(id.links ?? [], "", max);
   return src.map((l) => {
-    const url = l.url.trim();
-    return { text: url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: /^https?:\/\//i.test(url) ? url : `https://${url}` };
+    const href = linkHref(l.url)!; // pickLinks n'a gardé que les adresses valides
+    return { text: href.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href };
   });
 }
 
