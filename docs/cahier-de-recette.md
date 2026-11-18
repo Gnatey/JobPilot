@@ -283,4 +283,8 @@ Une ronde met à jour la colonne « Dernière vérif. » quand elle revérifie u
 | 238 | Liens avec « LinkedIn » recopié comme adresse à côté du vrai lien LinkedIn | Encadré « 2 liens sont en double » ; « Retirer les 2 doublons » les enlève, les vrais restent | Auto (logique) ; navigateur : À toi | 18 nov. |
 | 239 | Une adresse incomplète (« Streamlit ») | Remarque rouge sous la ligne, « Ouvrir » grisé ; le lien n'est pas écrit sur les CV (plus de `https://Streamlit`) | Auto | 18 nov. |
 | 240 | Écrire « itch.io » puis quitter le champ | L'adresse devient « https://itch.io » | Auto (logique) ; navigateur : À toi | 18 nov. |
-
+| 241 | Générer un CV (« Autre version ») pour une offre quand le profil a 8 expériences | 3 à 5 expériences : la plus récente, les plus proches de l'offre ; les petits jobs sans rapport (accueil…) sont laissés de côté, une note dit lesquels et qu'ils restent dans le profil ; tient sur une page | Auto (logique, cas LHH) ; vraie IA : À toi | 18 nov. |
+| 242 | Même CV : les formations | Toutes les formations du profil y sont, avec leurs dates | Auto | 18 nov. |
+| 243 | CV où l'IA a oublié la SNCF (la plus récente) | La SNCF revient, le CV a au moins 3 postes (complété par les plus proches de l'offre) | Auto (logique) | 18 nov. |
+| 244 | « Contrôler mes CV » sur un CV volontairement allégé (4 postes sur 8) | Pas de « Expérience absente du CV » | Auto (logique) | 18 nov. |
+| 245 | Page de l'offre : « Écarts avec l'offre » (« Oui, je connais » / « Non ») | Inchangé : les questions « tu connais ça ? » s'affichent comme avant | Non modifié (aucun fichier du module touché) | 18 nov. |

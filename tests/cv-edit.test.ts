@@ -151,7 +151,7 @@ const profile = {
 // ---------- Génération : l'ordre des étapes ----------
 {
   const ai = readFileSync("lib/ai.ts", "utf8");
-  ok("generateCv : faits du profil, projets épinglés, garde-fou, puis nettoyage des tirets, puis liens", /guardCv\(pinProjects\(enforceFacts\(cv, profile\)\.cv, profile\), profile\)/.test(ai) && /attachLinks\(cleanCvText\(checked\)/.test(ai));
+  ok("generateCv : faits du profil, projets épinglés, garde-fou, puis nettoyage des tirets, puis liens", /guardCv\(pinProjects\(enforceFacts\(cv, profile, offerWords\(offer\)\)\.cv, profile\), profile\)/.test(ai) && /attachLinks\(cleanCvText\(checked\)/.test(ai));
   const page = readFileSync("app/profil/page.tsx", "utf8");
   ok("la case « Toujours sur mes CV » est dans le profil", /Toujours sur mes CV/.test(page) && /pin: ev\.target\.checked/.test(page));
 }

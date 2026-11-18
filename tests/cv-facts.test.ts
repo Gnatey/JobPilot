@@ -1,7 +1,7 @@
 // CV sur mesure : les faits (formations, postes, dates, langues, certifications) viennent du profil, jamais de l'IA.
 // Cas signalé : l'IA avait supprimé le Bachelor E-commerce & Marketing numérique (trou d'un an entre le DUT et le Master).
 import { readFileSync } from "node:fs";
-import { cleanLevel, educationDates, enforceFacts, languagesText, MAX_EXPERIENCES, sameLanguages } from "../lib/cv-facts";
+import { cleanLevel, educationDates, enforceFacts, languagesText, MAX_EXPERIENCES, MIN_EXPERIENCES, offerWords, sameLanguages } from "../lib/cv-facts";
 import { checkCv } from "../lib/cv-check";
 import type { CvDoc, Profile } from "../lib/types";
 import { ok, done } from "./helpers";
@@ -153,7 +153,58 @@ const full = { ...profile, experiences: [orano, sncf, stageBanque] } as unknown 
 {
   const many = Array.from({ length: 6 }, (_, i) => ({ id: `x${i}`, company: `Société ${"ABCDEF"[i]}`, role: "Analyste", location: "", start: `sept. ${2015 + i}`, end: `sept. ${2016 + i}`, achievements: [A("Produire des tableaux de bord")] }));
   const r = enforceFacts(base({ experiences: [] }), { ...profile, experiences: many } as unknown as Profile);
-  ok(`une page : ${MAX_EXPERIENCES} expériences au plus, les plus récentes`, r.cv.experiences.length === MAX_EXPERIENCES && r.cv.experiences.map((e) => e.company).join("|") === "Société F|Société E|Société D|Société C");
+  ok(`un CV sans aucune expérience est complété jusqu'à ${MIN_EXPERIENCES}, les plus récentes à égalité de pertinence`, r.cv.experiences.length === MIN_EXPERIENCES && r.cv.experiences.map((e) => e.company).join("|") === "Société F|Société E|Société D");
+}
+
+// ---------- 18 novembre : « choisir les expériences pertinentes », plus « toutes » (CV LHH à 8 postes, page 2) ----------
+const E = (id: string, company: string, role: string, start: string, end: string, ...acts: string[]) => ({ id, company, role, location: "", start, end, achievements: acts.map(A) });
+const eight = [
+  E("e1", "SNCF", "Assistante cheffe de projet numérique", "sept. 2024", "sept. 2025", "Piloter des projets de transformation numérique en Agile Scrum", "Support technique de niveau 3 via le ticketing interne"),
+  E("e2", "Bpifrance", "Assistante cheffe de projet pilotage opérationnel", "mars 2024", "juin 2024", "Gestion et actualisation de bases de données Excel : importation, vérification, mise à jour"),
+  E("e3", "Axens", "Data Coordinator", "sept. 2023", "déc. 2023", "Saisie et mise à jour de données sectorielles dans SAP"),
+  E("e4", "Orano", "Chargée de projet digital", "sept. 2022", "sept. 2023", "Analyse et optimisation des flux de données avec Power BI et SQL", "Administration du CRM Microsoft Dynamics 365", "Mise en place de protocoles d'évaluation et d'amélioration de la qualité des données"),
+  E("e5", "Studio Théâtre ESCA", "Agent d'accueil", "oct. 2021", "mars 2022", "Accueil et conseil des spectateurs ; annonces devant le public"),
+  E("e6", "Vortech", "Assistante administrative", "juin 2021", "août 2021", "Reporting de données sur Excel et résolution d'anomalies"),
+  E("e7", "Croix-Rouge française", "Agent d'accueil", "juin 2021", "juil. 2021", "Vérification et mise à jour des dossiers patients sur Doctolib ; saisie informatique"),
+  E("e8", "Guevalt", "Gestionnaire de base de données", "mars 2021", "avr. 2021", "Réception, traitement et contrôle de données de vaccination, avec vérification des informations manquantes"),
+];
+const hers = { ...profile, experiences: eight } as unknown as Profile;
+const lhh = offerWords({ title: "Gestionnaire Base de données", domain: "Industrie", keywords: ["ERP", "base de données", "qualité des données", "doublons", "import/export", "nomenclatures", "gammes"], must_have: ["Maîtrise d'un ERP", "Bonne connaissance des bases de données"], missions: ["Créer et mettre à jour les données de base dans l'ERP", "Contrôler la qualité des données et traiter les doublons"] });
+const asCv = (p: Profile["experiences"][number]) => exp({ company: p.company, role: p.role, dates: `${p.start} - ${p.end}`, bullets: p.achievements.map((a) => a.text) });
+{
+  // L'IA a écrit les 8 postes (ce que le profil enrichi du 17 novembre lui faisait faire) : le CV est ramené à MAX, les moins proches de l'offre partent
+  const r = enforceFacts(base({ headline: "Gestionnaire Base de données", experiences: eight.map(asCv) }), hers, lhh);
+  const names = r.cv.experiences.map((e) => e.company);
+  ok(`8 postes écrits : ${MAX_EXPERIENCES} au plus sur le CV`, r.cv.experiences.length === MAX_EXPERIENCES, names.join());
+  ok("la plus récente (SNCF) est toujours là", names.includes("SNCF"));
+  ok("les postes proches de l'offre restent : Bpifrance (bases de données), Orano (qualité des données), Guevalt (même intitulé)", ["Bpifrance", "Orano", "Guevalt"].every((c) => names.includes(c)), names.join());
+  ok("les accueils (ESCA, Croix-Rouge) partent", !names.includes("Studio Théâtre ESCA") && !names.includes("Croix-Rouge française"), names.join());
+  ok("le rapport nomme ce qui est laissé de côté", r.report.droppedExperiences.length === 3 && r.report.droppedExperiences.some((x) => x.startsWith("Studio Théâtre ESCA")));
+  ok("une note le dit à la personne (elles restent dans le profil)", r.cv.notes_for_candidate.some((n) => /laissé de côté 3 expériences/.test(n) && /Studio Théâtre ESCA/.test(n) && /dans ton profil/.test(n)), r.cv.notes_for_candidate.join(" | "));
+  ok("ordre du plus récent au plus ancien conservé", r.cv.experiences[0].company === "SNCF");
+  const again = enforceFacts(r.cv, hers, lhh);
+  ok("deuxième passage : rien ne change, pas de note en double", JSON.stringify(again.cv) === JSON.stringify(r.cv) && again.report.droppedExperiences.length === 0);
+  ok("toutes les formations restent (règle inchangée)", r.cv.education.length === 3);
+}
+{
+  // L'IA a bien choisi (4 postes pertinents) : le code ne touche à rien, aucune note
+  const chosen = [eight[0], eight[1], eight[3], eight[7]].map(asCv);
+  const r = enforceFacts(base({ headline: "Gestionnaire Base de données", experiences: chosen }), hers, lhh);
+  ok("4 postes choisis par l'IA : rien n'est ajouté ni retiré", r.cv.experiences.map((e) => e.company).join("|") === "SNCF|Bpifrance|Orano|Guevalt" && r.report.missingExperiences.length === 0 && r.report.droppedExperiences.length === 0);
+  ok("« Contrôler mes CV » : un CV volontairement allégé (4 sur 8) n'est plus signalé « expérience absente »", checkCv(base({ headline: "Gestionnaire Base de données", experiences: chosen }), hers).every((i) => !i.text.startsWith("Expérience absente")));
+}
+{
+  // L'IA a oublié la plus récente et n'a gardé qu'un vieux poste : la SNCF revient, le CV est complété par les postes les plus proches de l'offre
+  const r = enforceFacts(base({ headline: "Gestionnaire Base de données", experiences: [asCv(eight[7])] }), hers, lhh);
+  const names = r.cv.experiences.map((e) => e.company);
+  ok(`la plus récente oubliée revient et le CV monte à ${MIN_EXPERIENCES} postes`, names.includes("SNCF") && names.includes("Guevalt") && names.length === MIN_EXPERIENCES, names.join());
+  ok("le troisième est le plus proche de l'offre (Bpifrance ou Orano), pas un accueil", names.some((c) => c === "Bpifrance" || c === "Orano") && !names.includes("Studio Théâtre ESCA") && !names.includes("Croix-Rouge française"), names.join());
+}
+{
+  // Entreprise inconnue du profil : jamais retirée par le plafond (elle est signalée), la plus récente jamais retirée non plus
+  const withUnknown = [...eight.map(asCv), exp({ company: "Société Inconnue", role: "Directrice", dates: "2020 - 2021", bullets: ["x"] })];
+  const r = enforceFacts(base({ headline: "Gestionnaire Base de données", experiences: withUnknown }), hers, lhh);
+  ok("une entreprise inconnue reste (signalée), la SNCF aussi", r.cv.experiences.some((e) => e.company === "Société Inconnue") && r.cv.experiences.some((e) => e.company === "SNCF") && r.report.unknownCompanies.length === 1);
 }
 {
   const full2 = { ...profile, experiences: [{ ...orano, start: "", end: "" }, sncf] } as unknown as Profile;
@@ -163,8 +214,8 @@ const full = { ...profile, experiences: [orano, sncf, stageBanque] } as unknown 
 
 // ---------- Branchement ----------
 const ai = readFileSync("lib/ai.ts", "utf8");
-ok("consigne de l'IA : TOUTES les expériences du profil (comme les formations), plus « N'inclus PAS une expérience »", ai.includes("experiences : TOUTES les expériences du profil") && !ai.includes("N'inclus PAS une expérience"));
-ok("generateCv remet les faits du profil AVANT le garde-fou et la pose des liens", ai.includes('import { enforceFacts } from "./cv-facts"') && ai.indexOf("enforceFacts(cv, profile)") > -1 && ai.indexOf("enforceFacts(cv, profile)") < ai.indexOf("attachLinks(cleanCvText(checked)"));
+ok("consigne de l'IA : les expériences pertinentes ET celles qui s'en rapprochent, 3 à 5, la plus récente toujours, plus « TOUTES les expériences »", ai.includes("experiences : les expériences du profil les plus pertinentes pour l'offre ET celles qui s'en rapprochent") && ai.includes("3 à 5 expériences") && ai.includes("figure TOUJOURS") && !ai.includes("experiences : TOUTES les expériences"));
+ok("generateCv remet les faits du profil AVANT le garde-fou et la pose des liens, avec les mots de l'offre", ai.includes('import { enforceFacts, offerWords } from "./cv-facts"') && ai.indexOf("enforceFacts(cv, profile, offerWords(offer))") > -1 && ai.indexOf("enforceFacts(cv, profile, offerWords(offer))") < ai.indexOf("attachLinks(cleanCvText(checked)"));
 ok("règle de rédaction : toutes les formations, intitulés et dates du profil mot pour mot", ai.includes("education : TOUTES les formations du profil") && ai.includes("mot pour mot"));
 
 // ---------- Langues : comparées par le sens, avec les vrais textes du profil et des CV de Juliana (6 novembre) ----------

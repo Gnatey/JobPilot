@@ -1,7 +1,7 @@
 import { parsePeriod, recentFirst } from "./cv-format";
 import { sameCompany, stemsOf } from "./cv-guard";
 import { dedupeEducation, normText } from "./profile-fix";
-import type { CvDoc, Education, Experience, Profile } from "./types";
+import type { CvDoc, Education, Experience, OfferExtract, Profile } from "./types";
 
 /**
  * Les FAITS du CV viennent du profil, jamais de l'IA (sans IA, sans réseau, testé).
@@ -12,10 +12,12 @@ import type { CvDoc, Education, Experience, Profile } from "./types";
  * Seul ce qu'on ne peut pas remettre (un diplôme ou une certification absents du profil, une entreprise inconnue) est signalé dans
  * « notes_for_candidate ». Corriger une erreur de l'IA ne fait aucune note : le CV est juste, c'est tout.
  *
- * Les EXPÉRIENCES suivent la même règle (10 novembre : sur un CV « Data Power BI », l'IA n'avait gardé qu'ORANO et laissé de côté la SNCF, la plus
- * récente ; le prompt lui disait de « choisir » et rien ne remettait ce qu'elle retirait) : une entreprise du profil, avec au moins une réalisation,
- * qui ne figure pas sur le CV est remise avec ses réalisations du profil (mot pour mot, les plus proches de l'offre d'abord), puis le tout est remis
- * du plus récent au plus ancien. Au plus `MAX_EXPERIENCES` expériences au total (une page) : les plus récentes d'abord.
+ * Les EXPÉRIENCES : la personne veut celles qui sont pertinentes pour l'offre et celles qui s'en rapprochent, pas toutes (10 novembre : sur un CV
+ * « Data Power BI », l'IA n'avait gardé qu'ORANO et laissé de côté la SNCF, la plus récente ; le correctif « TOUTES les expériences » a produit,
+ * avec un profil de 8 expériences, un CV de 8 postes qui débordait sur une page 2 : 18 novembre). Règle : la plus récente du profil figure toujours ;
+ * au moins `MIN_EXPERIENCES` (on complète avec les plus proches de l'offre, puis les plus récentes) et au plus `MAX_EXPERIENCES` (une page : on retire
+ * les moins proches de l'offre, jamais la plus récente). Une expérience remise reprend les réalisations du profil mot pour mot, les plus proches de
+ * l'offre d'abord. Le CV est ensuite remis du plus récent au plus ancien.
  */
 
 const YEAR = /(?:19|20)\d{2}/g;
@@ -130,8 +132,9 @@ const share = (a: string, b: string) => {
 
 const GROUNDED = 0.6;
 
-/** Expériences au total sur un CV d'une page : au-delà, les plus anciennes ne sont pas remises. */
-export const MAX_EXPERIENCES = 4;
+/** Expériences sur un CV d'une page : au moins MIN (si le profil en a assez), au plus MAX (une page A4 ; 8 postes débordaient sur une page 2). */
+export const MIN_EXPERIENCES = 3;
+export const MAX_EXPERIENCES = 5;
 /** Puces d'une expérience remise : celles du profil qui parlent le plus de l'offre. */
 const RESTORED_BULLETS = 3;
 
@@ -149,6 +152,24 @@ function restoredBullets(p: Experience, offerText: string): string[] {
     .map((a) => a.t);
 }
 
+/** Les mots d'une offre qui servent à juger si une expérience s'en rapproche : intitulé, domaine, mots-clés, exigences, missions. */
+export function offerWords(o: Partial<Pick<OfferExtract, "title" | "domain" | "keywords" | "must_have" | "nice_to_have" | "missions">>): string {
+  return [o.title, o.domain, ...(o.keywords ?? []), ...(o.must_have ?? []), ...(o.nice_to_have ?? []), ...(o.missions ?? [])].filter(Boolean).join(" ");
+}
+
+/**
+ * À quel point une expérience se rapproche de l'offre : les mots de l'offre qu'elle reprend (poste, secteur, réalisations, étiquettes, puces du CV),
+ * le poste comptant double quand il ressemble à l'intitulé du CV (« Gestionnaire de base de données » pour une offre du même nom).
+ * Lexical et sans IA : il sert à départager (compléter, retirer), le choix de fond reste celui de l'IA.
+ */
+function relevance(p: Experience, want: Set<string>, headline: string, extra = ""): number {
+  const text = [p.role, p.sector, ...(p.achievements ?? []).flatMap((a) => [a?.text, ...(a?.tags ?? [])]), extra].filter(Boolean).join(" ");
+  const hit = [...stemsOf(text)].filter((x) => want.has(x)).length;
+  const title = stemsOf(headline);
+  const roleHit = [...stemsOf(p.role ?? "")].filter((x) => title.has(x)).length;
+  return hit + 2 * roleHit;
+}
+
 export type FactsReport = {
   /** Formations du profil que l'IA avait laissées de côté (remises). */
   restored: string[];
@@ -160,13 +181,16 @@ export type FactsReport = {
   inventedCerts: string[];
   /** Entreprises du CV qui ne sont dans aucune expérience du profil (laissées, signalées). */
   unknownCompanies: string[];
-  /** Expériences du profil absentes du CV (remises), écrites « Entreprise (poste) ». */
+  /** Expériences du profil remises sur le CV (la plus récente, ou de quoi atteindre le minimum), écrites « Entreprise (poste) ». */
   missingExperiences: string[];
+  /** Expériences retirées parce que le CV en avait plus que `MAX_EXPERIENCES` (les moins proches de l'offre), écrites « Entreprise (poste) ». */
+  droppedExperiences: string[];
   languages: boolean;
 };
 
-export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: FactsReport } {
-  const report: FactsReport = { restored: [], inventedEducation: [], roles: [], dates: [], inventedCerts: [], unknownCompanies: [], missingExperiences: [], languages: false };
+/** `offerHint` : les mots de l'offre (`offerWords`), pour juger quelles expériences s'en rapprochent ; sans elle (Contrôle d'un CV enregistré), le CV lui-même sert de repère. */
+export function enforceFacts(cv: CvDoc, profile: Profile, offerHint = ""): { cv: CvDoc; report: FactsReport } {
+  const report: FactsReport = { restored: [], inventedEducation: [], roles: [], dates: [], inventedCerts: [], unknownCompanies: [], missingExperiences: [], droppedExperiences: [], languages: false };
   const notes: string[] = [];
 
   /* Formations : TOUTES celles du profil, avec leurs dates. Un trou entre deux diplômes se voit tout de suite sur un CV. */
@@ -206,18 +230,52 @@ export function enforceFacts(cv: CvDoc, profile: Profile): { cv: CvDoc; report: 
     return { ...e, company: best.company.trim() || e.company, role, location: best.location?.trim() || e.location, dates: keepDates ? e.dates : period };
   });
 
-  /* Expériences absentes du CV : une entreprise du profil (avec au moins une réalisation) dont le CV ne parle pas est remise, avec les réalisations du profil. */
-  const offerText = [cv.headline, cv.summary, ...(cv.ats_keywords_used ?? [])].filter(Boolean).join(" ");
+  /*
+   * Expériences : la plus récente du profil toujours, au moins MIN et au plus MAX. L'IA choisit celles qui servent l'offre (consigne de generateCv) ;
+   * ici on ne fait que rattraper ses écarts : la plus récente oubliée est remise, un CV trop maigre est complété par les plus proches de l'offre
+   * (à égalité, les plus récentes), un CV trop long perd les moins proches (à égalité, les plus anciennes).
+   */
+  const offerText = [cv.headline, cv.summary, ...(cv.ats_keywords_used ?? []), offerHint].filter(Boolean).join(" ");
+  const want = stemsOf(offerText);
+  const eligible = (profile.experiences ?? []).filter((p) => p?.company?.trim() && restoredBullets(p, offerText).length > 0);
+  const recent = recentFirst(eligible, periodOf).map((i) => eligible[i]);
+  const position = (p: Experience) => recent.indexOf(p);
+  const latest = recent[0];
   const inCv = (p: Experience) => experiences.some((e) => sameCompany(p.company, e.company));
-  const gaps = (profile.experiences ?? []).filter((p) => p?.company?.trim() && !inCv(p) && restoredBullets(p, offerText).length > 0);
-  const room = Math.max(0, MAX_EXPERIENCES - experiences.length);
-  const missing = recentFirst(gaps, periodOf).map((i) => gaps[i]).slice(0, room);
+  const added: Experience[] = [];
+  if (latest && !inCv(latest)) added.push(latest);
+  const spare = eligible.filter((p) => p !== latest && !inCv(p))
+    .map((p) => ({ p, score: relevance(p, want, cv.headline ?? "") }))
+    .sort((a, b) => b.score - a.score || position(a.p) - position(b.p));
+  while (experiences.length + added.length < MIN_EXPERIENCES && spare.length) added.push(spare.shift()!.p);
+
   let allExperiences: CvExperience[] = experiences;
-  if (missing.length) {
-    const added: CvExperience[] = missing.map((p) => ({ company: p.company.trim(), role: (p.role ?? "").trim(), location: (p.location ?? "").trim(), dates: periodOf(p), bullets: restoredBullets(p, offerText) }));
-    for (const p of missing) report.missingExperiences.push(`${p.company.trim()}${p.role?.trim() ? ` (${p.role.trim()})` : ""}`);
-    const merged = [...experiences, ...added];
+  if (added.length) {
+    const rows: CvExperience[] = added.map((p) => ({ company: p.company.trim(), role: (p.role ?? "").trim(), location: (p.location ?? "").trim(), dates: periodOf(p), bullets: restoredBullets(p, offerText) }));
+    for (const p of added) report.missingExperiences.push(`${p.company.trim()}${p.role?.trim() ? ` (${p.role.trim()})` : ""}`);
+    const merged = [...experiences, ...rows];
     allExperiences = recentFirst(merged, (x) => x.dates).map((i) => merged[i]);
+  }
+
+  // Trop d'expériences pour une page : on retire les moins proches de l'offre, jamais la plus récente du profil ni une entreprise que le profil ne connaît pas (elle est signalée)
+  const droppedCv: CvExperience[] = [];
+  const datedOrder = (x: CvExperience) => recentFirst(allExperiences, (y) => y.dates).indexOf(allExperiences.indexOf(x));
+  while (allExperiences.length > MAX_EXPERIENCES) {
+    const removable = allExperiences
+      .map((x) => ({ x, prof: (profile.experiences ?? []).find((p) => sameCompany(p.company, x.company)) }))
+      .filter((r): r is { x: CvExperience; prof: Experience } => !!r.prof && !(latest && sameCompany(latest.company, r.x.company)))
+      .map((r) => ({ ...r, score: relevance(r.prof, want, cv.headline ?? "", r.x.bullets.join(" ")), age: datedOrder(r.x) }))
+      .sort((a, b) => a.score - b.score || b.age - a.age);
+    if (!removable.length) break;
+    const out = removable[0].x;
+    droppedCv.push(out);
+    allExperiences = allExperiences.filter((x) => x !== out);
+  }
+  for (const x of droppedCv) {
+    report.droppedExperiences.push(`${x.company}${x.role ? ` (${x.role})` : ""}`);
+  }
+  if (droppedCv.length) {
+    notes.push(`Pour tenir sur une page, j'ai laissé de côté ${droppedCv.length > 1 ? `${droppedCv.length} expériences moins liées` : "une expérience moins liée"} à l'offre : ${droppedCv.map((x) => x.company).join(", ")}. ${droppedCv.length > 1 ? "Elles restent" : "Elle reste"} dans ton profil.`);
   }
 
   /* Langues : celles du profil, avec leur niveau. */

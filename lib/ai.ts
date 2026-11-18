@@ -7,7 +7,7 @@ import { usableLinks } from "./link-url";
 import { guardCv } from "./cv-guard";
 import { checkSummary, summaryNotes } from "./summary-guard";
 import { guardLetter } from "./letter-guard";
-import { enforceFacts } from "./cv-facts";
+import { enforceFacts, offerWords } from "./cv-facts";
 import { alignHeadline } from "./cv-title";
 import { refusedLine } from "./offer-gaps";
 import { dropVagueOfferGaps } from "./analysis-gaps";
@@ -149,7 +149,7 @@ export async function generateCv(profile: Profile, offer: OfferExtract, analysis
 Méthode :
 - headline : l'intitulé de l'offre, mot pour mot, sans « H/F », sans lieu ni nom d'entreprise. Ne le remplace JAMAIS par le titre d'une cible, même si le métier te semble éloigné du profil. Seule exception : une offre qui demande un niveau senior, expert ou lead, que le profil n'a pas : prends alors le titre de la cible "${target?.title ?? variant}". Un seul métier, pas de "|".
 - summary : 3 lignes max, concrètes. Ouvre sur ce que l'offre demande (son métier, son domaine) et sur les faits du profil qui y répondent le mieux, jamais sur la liste des intitulés de poste passés (« Assistante cheffe de projet et chargée de projet, j'ai… »). Ce que les EXPÉRIENCES du profil montrent (leurs réalisations) s'écrit comme un acquis. Ce que le profil ne montre qu'en formation, en projet ou dans la liste de compétences (machine learning, NLP, LLM, deep learning, IA…) n'est pas un acquis de métier : ne l'écris jamais comme une expertise, une maîtrise ou une expérience ; ne le cite que si l'offre le demande, sous la forme « formée au machine learning en Master » ou « notions de… », sinon laisse-le de côté. Une compétence que le profil n'a nulle part n'est jamais écrite (elle va dans notes_for_candidate). Pas de « expertise », « forte expérience », « confirmé » ni d'années d'expérience que le profil ne dit pas : un profil junior se présente par ce qu'il a fait. Termine par la disponibilité.
-- experiences : TOUTES les expériences du profil qui ont au moins une réalisation, même celles qui semblent éloignées de l'offre (un trou entre deux postes se voit), en ordre antichronologique. Pour chacune, choisis et reformule les réalisations les plus pertinentes pour l'offre (3-4 puces pour le poste le plus récent, 2-3 pour les autres ; une seule suffit pour une expérience peu liée à l'offre). Commence chaque puce par un verbe d'action. Garde les chiffres existants tels quels. Une expérience du profil sans aucune réalisation n'est pas listée.
+- experiences : les expériences du profil les plus pertinentes pour l'offre ET celles qui s'en rapprochent (mêmes outils, mêmes tâches, même domaine : pour une offre de gestion de données, tout ce qui touche aux bases de données, aux ERP, à la qualité des données, au reporting, aux référentiels). Laisse de côté celles qui n'ont aucun rapport avec l'offre (accueil, vente, tâches sans données…) : le CV tient sur UNE page, 3 à 5 expériences au total, en ordre antichronologique. L'expérience la plus récente du profil figure TOUJOURS. Seule une expérience qui a au moins une réalisation peut être listée. Pour chacune, choisis et reformule les réalisations les plus pertinentes pour l'offre (3-4 puces pour le poste le plus récent, 2-3 pour les autres ; une seule suffit pour une expérience peu liée à l'offre). Commence chaque puce par un verbe d'action. Garde les chiffres existants tels quels.
 - Chaque puce reformule UNE réalisation du profil sans rien y ajouter : mêmes outils, même public, même périmètre, mêmes chiffres. Reformuler, c'est changer l'ordre des mots et le verbe, jamais les faits.
 - N'ajoute JAMAIS un résultat, un effet ou un bénéfice que la réalisation ne dit pas (« réduisant… », « permettant… », « améliorant… », « afin de… », « ce qui a… »). Une réalisation sans résultat dans le profil s'arrête sur ce qui a été fait, pour qui et avec quoi. Le résultat qui manquerait va dans notes_for_candidate, sous forme de question à se poser.
 - Garde les destinataires et les mots précis du profil (« Business Unit », « CODIR », noms d'outils, de métiers, de processus). Ne les remplace jamais par une expression générale (« la direction », « les équipes », « les parties prenantes », « le pilotage »).
@@ -187,7 +187,7 @@ Règles propres au profil : ${profile.rules.join(" / ")}`,
   // Les faits (formations, postes, dates, langues, certifications) sont ceux du profil, pas ceux de l'IA (lib/cv-facts.ts)
   // Puis garde-fou : un résultat ou un chiffre que le profil ne dit pas est retiré ou signalé (lib/cv-guard.ts)
   // Les projets « Toujours sur mes CV » du profil sont remis s'ils manquent (lib/cv-edit.ts) ; les tirets insécables du profil deviennent des tirets simples
-  const { cv: checked } = guardCv(pinProjects(enforceFacts(cv, profile).cv, profile), profile);
+  const { cv: checked } = guardCv(pinProjects(enforceFacts(cv, profile, offerWords(offer)).cv, profile), profile);
   // Le résumé ne présente pas comme une expertise une compétence que le profil ne montre qu'en formation (lib/summary-guard.ts) : signalé, jamais coupé
   const claims = summaryNotes(checkSummary(checked.summary, profile));
   if (claims.length) checked.notes_for_candidate = [...(checked.notes_for_candidate ?? []), ...claims];
